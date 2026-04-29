@@ -1,20 +1,22 @@
 package push
 
 import (
-	"encoding/json"
+	"crypto/tls"
 	"fmt"
-	"net/url"
+	"net"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/tigerfintech/openapi-go-sdk/config"
+	"github.com/tigerfintech/openapi-go-sdk/push/pb"
 	"github.com/tigerfintech/openapi-go-sdk/signer"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
-	// 默认推送服务器地址
-	defaultPushURL = "wss://openapi-push.tigerfintech.com"
+	// 默认推送服务器地址（raw TCP + TLS）
+	defaultPushURL = "openapi.tigerfintech.com:9883"
 	// 默认心跳间隔
 	defaultHeartbeatInterval = 10 * time.Second
 	// 默认重连间隔
@@ -23,6 +25,14 @@ const (
 	maxReconnectInterval = 60 * time.Second
 	// 默认连接超时
 	defaultConnectTimeout = 30 * time.Second
+	// SDK 版本
+	sdkVersion = "go/1.0.0"
+	// 协议版本
+	acceptVersion = "2"
+	// 默认心跳发送间隔（毫秒）
+	defaultSendInterval = 10000
+	// 默认心跳接收间隔（毫秒）
+	defaultReceiveInterval = 10000
 )
 
 // ConnectionState 连接状态
@@ -62,7 +72,7 @@ func WithConnectTimeout(d time.Duration) PushClientOption {
 	return func(c *PushClient) { c.connectTimeout = d }
 }
 
-// PushClient WebSocket 推送客户端
+// PushClient TCP+TLS 推送客户端
 type PushClient struct {
 	config            *config.ClientConfig
 	pushURL           string
@@ -71,8 +81,8 @@ type PushClient struct {
 	connectTimeout    time.Duration
 	autoReconnect     bool
 
-	// WebSocket 连接
-	conn  *websocket.Conn
+	// TCP 连接
+	conn  net.Conn
 	state ConnectionState
 
 	// 回调
@@ -83,34 +93,34 @@ type PushClient struct {
 	accountSubs   map[SubjectType]bool            // 账户级别订阅
 
 	// 并发控制
-	mu       sync.RWMutex
-	stopCh   chan struct{}
-	doneCh   chan struct{}
-	writeMu  sync.Mutex
+	mu      sync.RWMutex
+	stopCh  chan struct{}
+	doneCh  chan struct{}
+	writeMu sync.Mutex
+
+	// 认证完成信号
+	connectedCh chan struct{}
 
 	// 用于测试的 dialer（可注入）
-	dialer WebSocketDialer
+	dialer TCPDialer
 }
 
-// WebSocketDialer WebSocket 拨号器接口，方便测试注入
-type WebSocketDialer interface {
-	Dial(urlStr string, timeout time.Duration) (*websocket.Conn, error)
+// TCPDialer TCP 拨号器接口，方便测试注入
+type TCPDialer interface {
+	Dial(address string, timeout time.Duration) (net.Conn, error)
 }
 
-// defaultDialer 默认的 WebSocket 拨号器
+// defaultDialer 默认的 TCP+TLS 拨号器
 type defaultDialer struct{}
 
-func (d *defaultDialer) Dial(urlStr string, timeout time.Duration) (*websocket.Conn, error) {
-	dialer := websocket.Dialer{
-		HandshakeTimeout: timeout,
+func (d *defaultDialer) Dial(address string, timeout time.Duration) (net.Conn, error) {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		MinVersion:         tls.VersionTLS12,
 	}
-	u, err := url.Parse(urlStr)
+	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: timeout}, "tcp", address, tlsConfig)
 	if err != nil {
-		return nil, fmt.Errorf("解析推送服务器地址失败: %w", err)
-	}
-	conn, _, err := dialer.Dial(u.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("WebSocket 连接失败: %w", err)
+		return nil, fmt.Errorf("TCP+TLS 连接失败: %w", err)
 	}
 	return conn, nil
 }
@@ -159,9 +169,10 @@ func (c *PushClient) Connect() error {
 	c.state = StateConnecting
 	c.stopCh = make(chan struct{})
 	c.doneCh = make(chan struct{})
+	c.connectedCh = make(chan struct{})
 	c.mu.Unlock()
 
-	// 建立 WebSocket 连接
+	// 建立 TCP+TLS 连接
 	conn, err := c.dialer.Dial(c.pushURL, c.connectTimeout)
 	if err != nil {
 		c.mu.Lock()
@@ -174,57 +185,63 @@ func (c *PushClient) Connect() error {
 	c.conn = conn
 	c.mu.Unlock()
 
+	// 启动消息读取协程（需要在发送 CONNECT 之前启动，以接收 CONNECTED 响应）
+	go c.readLoop()
+
 	// 发送认证消息
 	if err := c.authenticate(); err != nil {
-		conn.Close()
 		c.mu.Lock()
 		c.state = StateDisconnected
+		if c.stopCh != nil {
+			close(c.stopCh)
+		}
 		c.conn = nil
 		c.mu.Unlock()
+		conn.Close()
 		return fmt.Errorf("认证失败: %w", err)
 	}
 
-	c.mu.Lock()
-	c.state = StateConnected
-	c.mu.Unlock()
-
-	// 启动消息读取和心跳协程
-	go c.readLoop()
-	go c.heartbeatLoop()
-
-	// 触发连接成功回调
-	c.mu.RLock()
-	cb := c.callbacks.OnConnect
-	c.mu.RUnlock()
-	if cb != nil {
-		cb()
+	// 等待 CONNECTED 响应
+	select {
+	case <-c.connectedCh:
+		// 连接成功
+	case <-time.After(c.connectTimeout):
+		c.mu.Lock()
+		c.state = StateDisconnected
+		if c.stopCh != nil {
+			close(c.stopCh)
+		}
+		c.conn = nil
+		c.mu.Unlock()
+		conn.Close()
+		return fmt.Errorf("等待 CONNECTED 响应超时")
 	}
+
+	// 启动心跳协程
+	go c.heartbeatLoop()
 
 	return nil
 }
 
 // authenticate 发送认证消息
 func (c *PushClient) authenticate() error {
-	ts := time.Now().Format("2006-01-02 15:04:05")
 	signContent := c.config.TigerID
 	sign, err := signer.SignWithRSA(c.config.PrivateKey, signContent)
 	if err != nil {
 		return fmt.Errorf("签名失败: %w", err)
 	}
 
-	req := ConnectRequest{
-		TigerID:   c.config.TigerID,
-		Sign:      sign,
-		Timestamp: ts,
-		Version:   "2.0",
-	}
+	req := BuildConnectMessage(
+		c.config.TigerID,
+		sign,
+		sdkVersion,
+		acceptVersion,
+		defaultSendInterval,
+		defaultReceiveInterval,
+		false,
+	)
 
-	msg, err := NewPushMessage(MsgTypeConnect, "", &req)
-	if err != nil {
-		return err
-	}
-
-	return c.sendMessage(msg)
+	return c.sendMessage(req)
 }
 
 // Disconnect 断开连接
@@ -235,10 +252,20 @@ func (c *PushClient) Disconnect() error {
 		return nil
 	}
 	c.state = StateDisconnected
+	conn := c.conn
+	c.mu.Unlock()
+
+	// 发送 DISCONNECT 消息（在关闭连接之前）
+	if conn != nil {
+		disconnectReq := BuildDisconnectMessage()
+		// 忽略发送错误，因为连接可能已经断开
+		_ = c.sendMessage(disconnectReq)
+	}
+
+	c.mu.Lock()
 	if c.stopCh != nil {
 		close(c.stopCh)
 	}
-	conn := c.conn
 	c.conn = nil
 	c.mu.Unlock()
 
@@ -266,12 +293,15 @@ func (c *PushClient) Disconnect() error {
 	return err
 }
 
-// sendMessage 发送消息到 WebSocket
-func (c *PushClient) sendMessage(msg *PushMessage) error {
-	data, err := msg.Serialize()
+// sendMessage 发送 Protobuf 消息到 TCP 连接
+func (c *PushClient) sendMessage(req *pb.Request) error {
+	data, err := proto.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("序列化消息失败: %w", err)
 	}
+
+	// 添加 varint32 长度前缀
+	framed := EncodeVarint32(data)
 
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
@@ -281,13 +311,22 @@ func (c *PushClient) sendMessage(msg *PushMessage) error {
 	c.mu.RUnlock()
 
 	if conn == nil {
-		return fmt.Errorf("WebSocket 连接未建立")
+		return fmt.Errorf("TCP 连接未建立")
 	}
 
-	return conn.WriteMessage(websocket.TextMessage, data)
+	// 确保完整写入所有数据
+	written := 0
+	for written < len(framed) {
+		n, err := conn.Write(framed[written:])
+		if err != nil {
+			return fmt.Errorf("写入 TCP 连接失败: %w", err)
+		}
+		written += n
+	}
+	return nil
 }
 
-// readLoop 消息读取循环
+// readLoop TCP 流消息读取循环，处理 varint32 帧的分包/粘包
 func (c *PushClient) readLoop() {
 	defer func() {
 		select {
@@ -296,6 +335,9 @@ func (c *PushClient) readLoop() {
 			close(c.doneCh)
 		}
 	}()
+
+	buf := make([]byte, 4096)
+	var buffer []byte
 
 	for {
 		select {
@@ -312,7 +354,7 @@ func (c *PushClient) readLoop() {
 			return
 		}
 
-		_, data, err := conn.ReadMessage()
+		n, err := conn.Read(buf)
 		if err != nil {
 			// 检查是否是主动关闭
 			select {
@@ -339,7 +381,32 @@ func (c *PushClient) readLoop() {
 			return
 		}
 
-		c.handleMessage(data)
+		buffer = append(buffer, buf[:n]...)
+
+		// 循环解析 varint32 帧（处理粘包：一次 Read 可能包含多个完整帧）
+		for {
+			msg, remaining, ok := DecodeVarint32(buffer)
+			if !ok {
+				// 帧不完整，等待更多数据（处理分包）
+				break
+			}
+
+			// 反序列化 Protobuf Response
+			var response pb.Response
+			if err := proto.Unmarshal(msg, &response); err != nil {
+				c.mu.RLock()
+				errCb := c.callbacks.OnError
+				c.mu.RUnlock()
+				if errCb != nil {
+					errCb(fmt.Errorf("反序列化 Response 失败: %w", err))
+				}
+				buffer = remaining
+				continue
+			}
+
+			c.handleMessage(&response)
+			buffer = remaining
+		}
 	}
 }
 
@@ -353,8 +420,8 @@ func (c *PushClient) heartbeatLoop() {
 		case <-c.stopCh:
 			return
 		case <-ticker.C:
-			msg := &PushMessage{Type: MsgTypeHeartbeat}
-			if err := c.sendMessage(msg); err != nil {
+			req := BuildHeartBeatMessage()
+			if err := c.sendMessage(req); err != nil {
 				// 心跳发送失败，可能连接已断开
 				return
 			}
@@ -425,163 +492,159 @@ func (c *PushClient) resubscribe() {
 	}
 }
 
-// handleMessage 处理收到的消息
-func (c *PushClient) handleMessage(data []byte) {
-	msg, err := DeserializeMessage(data)
-	if err != nil {
-		c.mu.RLock()
-		errCb := c.callbacks.OnError
-		c.mu.RUnlock()
-		if errCb != nil {
-			errCb(fmt.Errorf("反序列化消息失败: %w", err))
-		}
-		return
-	}
-
+// handleMessage 处理收到的 Protobuf Response 消息
+func (c *PushClient) handleMessage(response *pb.Response) {
 	c.mu.RLock()
 	cb := c.callbacks
 	c.mu.RUnlock()
 
-	switch msg.Type {
-	case MsgTypeKickout:
-		if cb.OnKickout != nil {
-			var message string
-			json.Unmarshal(msg.Data, &message)
-			cb.OnKickout(message)
+	switch response.Command {
+	case pb.SocketCommon_CONNECTED:
+		// 标记连接成功
+		c.mu.Lock()
+		c.state = StateConnected
+		connectedCh := c.connectedCh
+		c.mu.Unlock()
+
+		// 通知 Connect() 方法认证完成
+		if connectedCh != nil {
+			select {
+			case <-connectedCh:
+			default:
+				close(connectedCh)
+			}
 		}
-	case MsgTypeError:
+
+		// 触发连接成功回调
+		if cb.OnConnect != nil {
+			cb.OnConnect()
+		}
+
+	case pb.SocketCommon_HEARTBEAT:
+		// 心跳响应，忽略
+
+	case pb.SocketCommon_MESSAGE:
+		// 提取 PushData 并分发
+		pushData := response.GetBody()
+		if pushData == nil {
+			if cb.OnError != nil {
+				cb.OnError(fmt.Errorf("MESSAGE 响应缺少 body"))
+			}
+			return
+		}
+		c.dispatchPushData(pushData, &cb)
+
+	case pb.SocketCommon_ERROR:
 		if cb.OnError != nil {
-			var message string
-			json.Unmarshal(msg.Data, &message)
-			cb.OnError(fmt.Errorf("服务端错误: %s", message))
+			msg := response.GetMsg()
+			cb.OnError(fmt.Errorf("服务端错误: %s", msg))
 		}
-	case MsgTypeQuote:
+		// 检查是否是 kickout
+		if cb.OnKickout != nil && response.GetMsg() != "" {
+			cb.OnKickout(response.GetMsg())
+		}
+
+	case pb.SocketCommon_DISCONNECT:
+		if cb.OnDisconnect != nil {
+			cb.OnDisconnect()
+		}
+	}
+}
+
+// dispatchPushData 根据 PushData 的 dataType 分发到对应回调
+func (c *PushClient) dispatchPushData(pushData *pb.PushData, cb *Callbacks) {
+	switch pushData.DataType {
+	case pb.SocketCommon_Quote:
 		if cb.OnQuote != nil {
-			var d QuoteData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnQuote(&d)
+			if d := pushData.GetQuoteData(); d != nil {
+				cb.OnQuote(d)
 			}
 		}
-	case MsgTypeTick:
-		if cb.OnTick != nil {
-			var d TickData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnTick(&d)
-			}
-		}
-	case MsgTypeDepth:
-		if cb.OnDepth != nil {
-			var d DepthData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnDepth(&d)
-			}
-		}
-	case MsgTypeOption:
+	case pb.SocketCommon_Option:
 		if cb.OnOption != nil {
-			var d QuoteData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnOption(&d)
+			if d := pushData.GetQuoteData(); d != nil {
+				cb.OnOption(d)
 			}
 		}
-	case MsgTypeFuture:
+	case pb.SocketCommon_Future:
 		if cb.OnFuture != nil {
-			var d QuoteData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnFuture(&d)
+			if d := pushData.GetQuoteData(); d != nil {
+				cb.OnFuture(d)
 			}
 		}
-	case MsgTypeKline:
-		if cb.OnKline != nil {
-			var d KlineData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnKline(&d)
+	case pb.SocketCommon_QuoteDepth:
+		if cb.OnDepth != nil {
+			if d := pushData.GetQuoteDepthData(); d != nil {
+				cb.OnDepth(d)
 			}
 		}
-	case MsgTypeAsset:
+	case pb.SocketCommon_TradeTick:
+		if cb.OnTick != nil {
+			if d := pushData.GetTradeTickData(); d != nil {
+				cb.OnTick(d)
+			}
+		}
+	case pb.SocketCommon_Asset:
 		if cb.OnAsset != nil {
-			var d AssetData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnAsset(&d)
+			if d := pushData.GetAssetData(); d != nil {
+				cb.OnAsset(d)
 			}
 		}
-	case MsgTypePosition:
+	case pb.SocketCommon_Position:
 		if cb.OnPosition != nil {
-			var d PositionData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnPosition(&d)
+			if d := pushData.GetPositionData(); d != nil {
+				cb.OnPosition(d)
 			}
 		}
-	case MsgTypeOrder:
+	case pb.SocketCommon_OrderStatus:
 		if cb.OnOrder != nil {
-			var d OrderData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnOrder(&d)
+			if d := pushData.GetOrderStatusData(); d != nil {
+				cb.OnOrder(d)
 			}
 		}
-	case MsgTypeTransaction:
+	case pb.SocketCommon_OrderTransaction:
 		if cb.OnTransaction != nil {
-			var d TransactionData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnTransaction(&d)
+			if d := pushData.GetOrderTransactionData(); d != nil {
+				cb.OnTransaction(d)
 			}
 		}
-	case MsgTypeStockTop:
+	case pb.SocketCommon_StockTop:
 		if cb.OnStockTop != nil {
-			var d QuoteData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnStockTop(&d)
+			if d := pushData.GetStockTopData(); d != nil {
+				cb.OnStockTop(d)
 			}
 		}
-	case MsgTypeOptionTop:
+	case pb.SocketCommon_OptionTop:
 		if cb.OnOptionTop != nil {
-			var d QuoteData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnOptionTop(&d)
+			if d := pushData.GetOptionTopData(); d != nil {
+				cb.OnOptionTop(d)
 			}
 		}
-	case MsgTypeFullTick:
-		if cb.OnFullTick != nil {
-			var d TickData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnFullTick(&d)
+	case pb.SocketCommon_Kline:
+		if cb.OnKline != nil {
+			if d := pushData.GetKlineData(); d != nil {
+				cb.OnKline(d)
 			}
 		}
-	case MsgTypeQuoteBBO:
-		if cb.OnQuoteBBO != nil {
-			var d QuoteData
-			if json.Unmarshal(msg.Data, &d) == nil {
-				cb.OnQuoteBBO(&d)
-			}
+	default:
+		if cb.OnError != nil {
+			cb.OnError(fmt.Errorf("未知的 DataType: %v", pushData.DataType))
 		}
 	}
 }
 
 // subscribe 内部订阅方法
 func (c *PushClient) subscribe(subject SubjectType, symbols []string, account string, market string) error {
-	req := SubscribeRequest{
-		Subject: subject,
-		Symbols: symbols,
-		Account: account,
-		Market:  market,
-	}
-	msg, err := NewPushMessage(MsgTypeSubscribe, subject, &req)
-	if err != nil {
-		return err
-	}
-	return c.sendMessage(msg)
+	symbolsStr := strings.Join(symbols, ",")
+	req := BuildSubscribeMessage(SubjectToDataType(subject), symbolsStr, account, market)
+	return c.sendMessage(req)
 }
 
 // unsubscribe 内部退订方法
 func (c *PushClient) unsubscribe(subject SubjectType, symbols []string) error {
-	req := SubscribeRequest{
-		Subject: subject,
-		Symbols: symbols,
-	}
-	msg, err := NewPushMessage(MsgTypeUnsubscribe, subject, &req)
-	if err != nil {
-		return err
-	}
-	return c.sendMessage(msg)
+	symbolsStr := strings.Join(symbols, ",")
+	req := BuildUnSubscribeMessage(SubjectToDataType(subject), symbolsStr, "", "")
+	return c.sendMessage(req)
 }
 
 // SubscribeQuote 订阅行情

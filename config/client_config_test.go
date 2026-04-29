@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// TestNewClientConfig_WithOptions 测试通过 Option 模式设置字段
+// TestNewClientConfig_WithOptions tests setting fields via Option pattern
 func TestNewClientConfig_WithOptions(t *testing.T) {
 	cfg, err := NewClientConfig(
 		WithTigerID("test_tiger_id"),
@@ -15,77 +15,69 @@ func TestNewClientConfig_WithOptions(t *testing.T) {
 		WithLanguage("en_US"),
 		WithTimezone("America/New_York"),
 		WithTimeout(30*time.Second),
-		WithSandboxDebug(true),
 	)
 	if err != nil {
-		t.Fatalf("创建配置失败: %v", err)
+		t.Fatalf("failed to create config: %v", err)
 	}
 
 	if cfg.TigerID != "test_tiger_id" {
-		t.Fatalf("TigerID: 期望 %q，实际 %q", "test_tiger_id", cfg.TigerID)
+		t.Fatalf("TigerID: expected %q, got %q", "test_tiger_id", cfg.TigerID)
 	}
 	if cfg.PrivateKey != "test_private_key" {
-		t.Fatalf("PrivateKey: 期望 %q，实际 %q", "test_private_key", cfg.PrivateKey)
+		t.Fatalf("PrivateKey: expected %q, got %q", "test_private_key", cfg.PrivateKey)
 	}
 	if cfg.Account != "DU123456" {
-		t.Fatalf("Account: 期望 %q，实际 %q", "DU123456", cfg.Account)
+		t.Fatalf("Account: expected %q, got %q", "DU123456", cfg.Account)
 	}
 	if cfg.Language != "en_US" {
-		t.Fatalf("Language: 期望 %q，实际 %q", "en_US", cfg.Language)
+		t.Fatalf("Language: expected %q, got %q", "en_US", cfg.Language)
 	}
 	if cfg.Timezone != "America/New_York" {
-		t.Fatalf("Timezone: 期望 %q，实际 %q", "America/New_York", cfg.Timezone)
+		t.Fatalf("Timezone: expected %q, got %q", "America/New_York", cfg.Timezone)
 	}
 	if cfg.Timeout != 30*time.Second {
-		t.Fatalf("Timeout: 期望 %v，实际 %v", 30*time.Second, cfg.Timeout)
-	}
-	if !cfg.SandboxDebug {
-		t.Fatal("SandboxDebug: 期望 true，实际 false")
+		t.Fatalf("Timeout: expected %v, got %v", 30*time.Second, cfg.Timeout)
 	}
 }
 
-// TestNewClientConfig_Defaults 测试默认值
+// TestNewClientConfig_Defaults tests default values
 func TestNewClientConfig_Defaults(t *testing.T) {
+	// Use a temp HOME so auto-discovery doesn't find a real config file
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
 	cfg, err := NewClientConfig(
 		WithTigerID("tid"),
 		WithPrivateKey("pk"),
 	)
 	if err != nil {
-		t.Fatalf("创建配置失败: %v", err)
+		t.Fatalf("failed to create config: %v", err)
 	}
 
 	if cfg.Language != "zh_CN" {
-		t.Fatalf("默认 Language: 期望 %q，实际 %q", "zh_CN", cfg.Language)
+		t.Fatalf("default Language: expected %q, got %q", "zh_CN", cfg.Language)
 	}
 	if cfg.Timeout != 15*time.Second {
-		t.Fatalf("默认 Timeout: 期望 %v，实际 %v", 15*time.Second, cfg.Timeout)
-	}
-	if cfg.SandboxDebug {
-		t.Fatal("默认 SandboxDebug: 期望 false，实际 true")
+		t.Fatalf("default Timeout: expected %v, got %v", 15*time.Second, cfg.Timeout)
 	}
 	if cfg.ServerURL != "https://openapi.tigerfintech.com/gateway" {
-		t.Fatalf("默认 ServerURL: 期望生产环境 URL，实际 %q", cfg.ServerURL)
+		t.Fatalf("default ServerURL: expected production URL, got %q", cfg.ServerURL)
+	}
+	if cfg.TigerPublicKey == "" {
+		t.Fatal("default TigerPublicKey should not be empty")
 	}
 }
 
-// TestNewClientConfig_SandboxURL 测试沙箱模式 URL
-func TestNewClientConfig_SandboxURL(t *testing.T) {
-	cfg, err := NewClientConfig(
-		WithTigerID("tid"),
-		WithPrivateKey("pk"),
-		WithSandboxDebug(true),
-	)
-	if err != nil {
-		t.Fatalf("创建配置失败: %v", err)
-	}
-
-	if cfg.ServerURL != "https://openapi-sandbox.tigerfintech.com/gateway" {
-		t.Fatalf("沙箱 ServerURL: 期望沙箱 URL，实际 %q", cfg.ServerURL)
-	}
-}
-
-// TestNewClientConfig_MissingTigerID 测试缺少 tiger_id 时返回错误
+// TestNewClientConfig_MissingTigerID tests error when tiger_id is missing
 func TestNewClientConfig_MissingTigerID(t *testing.T) {
+	// Use a temp HOME so auto-discovery doesn't find a real config file
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
 	_, err := NewClientConfig(
 		WithPrivateKey("pk"),
 	)
@@ -96,6 +88,12 @@ func TestNewClientConfig_MissingTigerID(t *testing.T) {
 
 // TestNewClientConfig_MissingPrivateKey 测试缺少 private_key 时返回错误
 func TestNewClientConfig_MissingPrivateKey(t *testing.T) {
+	// Use a temp HOME so auto-discovery doesn't find a real config file
+	tmpHome := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpHome)
+	defer os.Setenv("HOME", origHome)
+
 	_, err := NewClientConfig(
 		WithTigerID("tid"),
 	)
