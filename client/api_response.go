@@ -15,6 +15,8 @@ type ApiResponse struct {
 	Data json.RawMessage `json:"data"`
 	// Timestamp 服务器时间戳
 	Timestamp int64 `json:"timestamp"`
+	// Sign response signature from server
+	Sign string `json:"sign,omitempty"`
 }
 
 // ParseApiResponse 解析 API 响应 JSON 字符串

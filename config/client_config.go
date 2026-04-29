@@ -3,23 +3,26 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
 const (
-	// 默认值
+	// Default values
 	defaultLanguage  = "zh_CN"
 	defaultTimeout   = 15 * time.Second
 	defaultServerURL = "https://openapi.tigerfintech.com/gateway"
-	sandboxServerURL = "https://openapi-sandbox.tigerfintech.com/gateway"
 
-	// 环境变量名
+	// Tiger public key for response signature verification
+	tigerPublicKey = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDNF3G8SoEcCZh2rshUbayDgLLrj6rKgzNMxDL2HSnKcB0+GPOsndqSv+a4IBu9+I3fyBp5hkyMMG2+AXugd9pMpy6VxJxlNjhX1MYbNTZJUT4nudki4uh+LMOkIBHOceGNXjgB+cXqmlUnjlqha/HgboeHSnSgpM3dKSJQlIOsDwIDAQAB"
+
+	// Environment variable names
 	envTigerID    = "TIGEROPEN_TIGER_ID"
 	envPrivateKey = "TIGEROPEN_PRIVATE_KEY"
 	envAccount    = "TIGEROPEN_ACCOUNT"
 )
 
-// ClientConfig 客户端配置，包含认证信息和运行参数。
+// ClientConfig holds authentication credentials and runtime parameters.
 type ClientConfig struct {
 	TigerID              string        `json:"tiger_id"`
 	PrivateKey           string        `json:"private_key"`
@@ -28,11 +31,11 @@ type ClientConfig struct {
 	Language             string        `json:"language"`
 	Timezone             string        `json:"timezone"`
 	Timeout              time.Duration `json:"-"`
-	SandboxDebug         bool          `json:"-"`
 	Token                string        `json:"-"`
 	TokenRefreshDuration time.Duration `json:"-"`
 	ServerURL            string        `json:"-"`
 	EnableDynamicDomain  bool          `json:"-"`
+	TigerPublicKey       string        `json:"-"`
 }
 
 // Option 配置选项函数类型
@@ -68,17 +71,12 @@ func WithTimezone(tz string) Option {
 	return func(c *ClientConfig) { c.Timezone = tz }
 }
 
-// WithTimeout 设置请求超时时间
+// WithTimeout sets the request timeout duration.
 func WithTimeout(d time.Duration) Option {
 	return func(c *ClientConfig) { c.Timeout = d }
 }
 
-// WithSandboxDebug 设置是否使用沙箱环境
-func WithSandboxDebug(sandbox bool) Option {
-	return func(c *ClientConfig) { c.SandboxDebug = sandbox }
-}
-
-// WithToken 设置 TBHK 牌照 Token
+// WithToken sets the TBHK license token.
 func WithToken(token string) Option {
 	return func(c *ClientConfig) { c.Token = token }
 }
@@ -134,17 +132,35 @@ func applyProperties(c *ClientConfig, props map[string]string) {
 	}
 }
 
-// NewClientConfig 创建客户端配置。
-// 优先级：环境变量 > Option 设置（含配置文件） > 默认值。
-// 必填字段 tiger_id 和 private_key 为空时返回错误。
+// NewClientConfig creates a client config.
+// Priority: environment variables > explicit options (incl. WithPropertiesFile) > auto-discovered config file > defaults.
+// Returns an error if required fields tiger_id or private_key are empty.
 func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 	cfg := &ClientConfig{
-		EnableDynamicDomain: true, // 默认启用动态域名
+		EnableDynamicDomain: true, // default: enable dynamic domain
 	}
 
-	// 应用 Option（包括代码设置和配置文件加载）
+	// Apply explicit options first (code settings and WithPropertiesFile)
 	for _, opt := range opts {
 		opt(cfg)
+	}
+
+	// Auto-discover config file for any fields still empty.
+	// Searches: ./tiger_openapi_config.properties, then ~/.tigeropen/tiger_openapi_config.properties
+	defaultPaths := []string{
+		"tiger_openapi_config.properties",
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		defaultPaths = append(defaultPaths, filepath.Join(home, ".tigeropen", "tiger_openapi_config.properties"))
+	}
+	for _, p := range defaultPaths {
+		if _, err := os.Stat(p); err == nil {
+			props, err := ParsePropertiesFile(p)
+			if err == nil {
+				applyProperties(cfg, props)
+			}
+			break
+		}
 	}
 
 	// 环境变量覆盖（最高优先级）
@@ -166,10 +182,8 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 		cfg.Timeout = defaultTimeout
 	}
 
-	// 确定服务器地址：sandbox > 动态域名 > 默认
-	if cfg.SandboxDebug {
-		cfg.ServerURL = sandboxServerURL
-	} else if cfg.ServerURL == "" {
+	// 确定服务器地址：动态域名 > 默认
+	if cfg.ServerURL == "" {
 		// 尝试动态域名获取
 		if cfg.EnableDynamicDomain {
 			domainConf := QueryDomains(cfg.License)
@@ -181,6 +195,11 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 		if cfg.ServerURL == "" {
 			cfg.ServerURL = defaultServerURL
 		}
+	}
+
+	// Set default tiger public key for response signature verification
+	if cfg.TigerPublicKey == "" {
+		cfg.TigerPublicKey = tigerPublicKey
 	}
 
 	// 校验必填字段

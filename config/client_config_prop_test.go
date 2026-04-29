@@ -10,11 +10,11 @@ import (
 	"pgregory.net/rapid"
 )
 
-// Feature: multi-language-sdks, Property 2: ClientConfig 字段设置 round-trip
+// Feature: multi-language-sdks, Property 2: ClientConfig field round-trip
 // **Validates: Requirements 2.1, 2.6**
 //
-// 对于任意有效的配置参数组合，通过代码设置到 ClientConfig 后，
-// 读取各字段的值应与设置的值完全一致。
+// For any valid combination of config parameters, after setting them on ClientConfig,
+// reading each field should return the exact same value that was set.
 func TestClientConfigFieldsRoundTrip(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		tigerID := rapid.StringMatching(`[a-zA-Z0-9]{1,20}`).Draw(t, "tigerID")
@@ -23,7 +23,6 @@ func TestClientConfigFieldsRoundTrip(t *testing.T) {
 		language := rapid.SampledFrom([]string{"zh_CN", "zh_TW", "en_US"}).Draw(t, "language")
 		timezone := rapid.StringMatching(`[A-Za-z/_]{3,30}`).Draw(t, "timezone")
 		timeoutSec := rapid.IntRange(1, 120).Draw(t, "timeoutSec")
-		sandbox := rapid.Bool().Draw(t, "sandbox")
 
 		cfg, err := NewClientConfig(
 			WithTigerID(tigerID),
@@ -32,33 +31,29 @@ func TestClientConfigFieldsRoundTrip(t *testing.T) {
 			WithLanguage(language),
 			WithTimezone(timezone),
 			WithTimeout(time.Duration(timeoutSec)*time.Second),
-			WithSandboxDebug(sandbox),
 		)
 		if err != nil {
-			t.Fatalf("创建配置失败: %v", err)
+			t.Fatalf("failed to create config: %v", err)
 		}
 
-		// 验证 round-trip：读取值应与设置值一致
+		// Verify round-trip: read values should match set values
 		if cfg.TigerID != tigerID {
-			t.Fatalf("TigerID: 期望 %q，实际 %q", tigerID, cfg.TigerID)
+			t.Fatalf("TigerID: expected %q, got %q", tigerID, cfg.TigerID)
 		}
 		if cfg.PrivateKey != privateKey {
-			t.Fatalf("PrivateKey: 期望 %q，实际 %q", privateKey, cfg.PrivateKey)
+			t.Fatalf("PrivateKey: expected %q, got %q", privateKey, cfg.PrivateKey)
 		}
 		if cfg.Account != account {
-			t.Fatalf("Account: 期望 %q，实际 %q", account, cfg.Account)
+			t.Fatalf("Account: expected %q, got %q", account, cfg.Account)
 		}
 		if cfg.Language != language {
-			t.Fatalf("Language: 期望 %q，实际 %q", language, cfg.Language)
+			t.Fatalf("Language: expected %q, got %q", language, cfg.Language)
 		}
 		if cfg.Timezone != timezone {
-			t.Fatalf("Timezone: 期望 %q，实际 %q", timezone, cfg.Timezone)
+			t.Fatalf("Timezone: expected %q, got %q", timezone, cfg.Timezone)
 		}
 		if cfg.Timeout != time.Duration(timeoutSec)*time.Second {
-			t.Fatalf("Timeout: 期望 %v，实际 %v", time.Duration(timeoutSec)*time.Second, cfg.Timeout)
-		}
-		if cfg.SandboxDebug != sandbox {
-			t.Fatalf("SandboxDebug: 期望 %v，实际 %v", sandbox, cfg.SandboxDebug)
+			t.Fatalf("Timeout: expected %v, got %v", time.Duration(timeoutSec)*time.Second, cfg.Timeout)
 		}
 	})
 }

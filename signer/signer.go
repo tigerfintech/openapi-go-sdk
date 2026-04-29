@@ -73,6 +73,30 @@ func SignWithRSA(privateKeyStr string, content string) (string, error) {
 	return base64.StdEncoding.EncodeToString(signature), nil
 }
 
+// LoadPublicKey loads an RSA public key from a base64-encoded string (DER format).
+func LoadPublicKey(base64Key string) (*rsa.PublicKey, error) {
+	if base64Key == "" {
+		return nil, fmt.Errorf("public key must not be empty")
+	}
+
+	derBytes, err := base64.StdEncoding.DecodeString(base64Key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to base64-decode public key: %w", err)
+	}
+
+	pubIface, err := x509.ParsePKIXPublicKey(derBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public key: %w", err)
+	}
+
+	rsaPub, ok := pubIface.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("public key is not RSA type")
+	}
+
+	return rsaPub, nil
+}
+
 // VerifyWithRSA 使用 RSA 公钥验证 SHA1WithRSA 签名。
 // signature 为 Base64 编码的签名字符串。
 func VerifyWithRSA(publicKey *rsa.PublicKey, content string, signature string) error {

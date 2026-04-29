@@ -1,6 +1,7 @@
 package client
 
 import (
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,22 +26,34 @@ const (
 	DefaultVersion = "2.0"
 )
 
-// HttpClient 封装 HTTP 请求、签名、重试、超时
+// HttpClient wraps HTTP requests with signing, retry, and timeout support.
 type HttpClient struct {
 	config      *config.ClientConfig
 	httpClient  *http.Client
 	retryPolicy *RetryPolicy
+	publicKey   *rsa.PublicKey
 }
 
-// NewHttpClient 创建 HttpClient 实例
+// NewHttpClient creates an HttpClient instance.
+// It loads the tiger public key for response signature verification if configured.
 func NewHttpClient(cfg *config.ClientConfig) *HttpClient {
-	return &HttpClient{
+	hc := &HttpClient{
 		config: cfg,
 		httpClient: &http.Client{
 			Timeout: cfg.Timeout,
 		},
 		retryPolicy: DefaultRetryPolicy(),
 	}
+
+	// Load tiger public key for response signature verification
+	if cfg.TigerPublicKey != "" {
+		pubKey, err := signer.LoadPublicKey(cfg.TigerPublicKey)
+		if err == nil {
+			hc.publicKey = pubKey
+		}
+	}
+
+	return hc
 }
 
 // buildCommonParams 构造公共请求参数
@@ -70,9 +83,22 @@ func (c *HttpClient) signParams(params map[string]string) (string, error) {
 	return sign, nil
 }
 
+// verifyResponseSign verifies the response signature using the tiger public key.
+// If the public key is not loaded or the response has no sign field, verification is skipped.
+func (c *HttpClient) verifyResponseSign(resp *ApiResponse, requestTimestamp string) error {
+	if c.publicKey == nil || resp.Sign == "" || requestTimestamp == "" {
+		return nil
+	}
+	if err := signer.VerifyWithRSA(c.publicKey, requestTimestamp, resp.Sign); err != nil {
+		return fmt.Errorf("response signature verification failed: %w", err)
+	}
+	return nil
+}
+
 // Execute 执行结构化 API 请求，返回解析后的 ApiResponse
 func (c *HttpClient) Execute(request *ApiRequest) (*ApiResponse, error) {
 	params := c.buildCommonParams(request.Method, request.BizContent)
+	requestTimestamp := params["timestamp"]
 	sign, err := c.signParams(params)
 	if err != nil {
 		return nil, err
@@ -104,6 +130,12 @@ func (c *HttpClient) Execute(request *ApiRequest) (*ApiResponse, error) {
 		if parseErr != nil {
 			return apiResp, parseErr
 		}
+
+		// Verify response signature
+		if err := c.verifyResponseSign(apiResp, requestTimestamp); err != nil {
+			return apiResp, err
+		}
+
 		return apiResp, nil
 	}
 

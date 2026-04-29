@@ -2,7 +2,6 @@ module github.com/tigerfintech/openapi-go-sdk
 
 go 1.20
 
-require (
-	github.com/gorilla/websocket v1.5.3
-	pgregory.net/rapid v1.1.0
-)
+require pgregory.net/rapid v1.1.0
+
+require google.golang.org/protobuf v1.34.2
