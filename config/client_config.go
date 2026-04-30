@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,6 +21,8 @@ const (
 	envTigerID    = "TIGEROPEN_TIGER_ID"
 	envPrivateKey = "TIGEROPEN_PRIVATE_KEY"
 	envAccount    = "TIGEROPEN_ACCOUNT"
+	envToken      = "TIGEROPEN_TOKEN"
+	envTokenFile  = "TIGEROPEN_TOKEN_FILE"
 )
 
 // ClientConfig holds authentication credentials and runtime parameters.
@@ -30,10 +33,12 @@ type ClientConfig struct {
 	License              string        `json:"license"`
 	Language             string        `json:"language"`
 	Timezone             string        `json:"timezone"`
+	DeviceID             string        `json:"device_id"`
 	Timeout              time.Duration `json:"-"`
 	Token                string        `json:"-"`
 	TokenRefreshDuration time.Duration `json:"-"`
 	ServerURL            string        `json:"-"`
+	QuoteServerURL       string        `json:"-"`
 	EnableDynamicDomain  bool          `json:"-"`
 	TigerPublicKey       string        `json:"-"`
 }
@@ -84,6 +89,16 @@ func WithToken(token string) Option {
 // WithTokenRefreshDuration 设置 Token 刷新间隔
 func WithTokenRefreshDuration(d time.Duration) Option {
 	return func(c *ClientConfig) { c.TokenRefreshDuration = d }
+}
+
+// WithDeviceID sets the device identifier (e.g. MAC address).
+func WithDeviceID(id string) Option {
+	return func(c *ClientConfig) { c.DeviceID = id }
+}
+
+// WithQuoteServerURL sets a dedicated quote server URL.
+func WithQuoteServerURL(url string) Option {
+	return func(c *ClientConfig) { c.QuoteServerURL = url }
 }
 
 // WithEnableDynamicDomain 设置是否启用动态域名获取（默认启用）
@@ -174,6 +189,22 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 		cfg.Account = v
 	}
 
+	// Load token from environment variable or token file
+	if cfg.Token == "" {
+		if v := os.Getenv(envToken); v != "" {
+			cfg.Token = v
+		} else {
+			tokenFilePath := os.Getenv(envTokenFile)
+			if tokenFilePath == "" {
+				tokenFilePath = defaultTokenFileName
+			}
+			tm := NewTokenManager(WithTokenFilePath(tokenFilePath))
+			if token, err := tm.LoadToken(); err == nil && token != "" {
+				cfg.Token = token
+			}
+		}
+	}
+
 	// 设置默认值
 	if cfg.Language == "" {
 		cfg.Language = defaultLanguage
@@ -182,11 +213,21 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 		cfg.Timeout = defaultTimeout
 	}
 
+	// Auto-detect device ID from MAC address if not set
+	if cfg.DeviceID == "" {
+		cfg.DeviceID = detectDeviceID()
+	}
+
 	// 确定服务器地址：动态域名 > 默认
-	if cfg.ServerURL == "" {
-		// 尝试动态域名获取
+	var domainConf map[string]interface{}
+	if cfg.ServerURL == "" || cfg.QuoteServerURL == "" {
 		if cfg.EnableDynamicDomain {
-			domainConf := QueryDomains(cfg.License)
+			domainConf = QueryDomains(cfg.License)
+		}
+	}
+
+	if cfg.ServerURL == "" {
+		if domainConf != nil {
 			if dynamicURL := resolveDynamicServerURL(domainConf, cfg.License); dynamicURL != "" {
 				cfg.ServerURL = dynamicURL
 			}
@@ -195,6 +236,17 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 		if cfg.ServerURL == "" {
 			cfg.ServerURL = defaultServerURL
 		}
+	}
+
+	// Resolve quote server URL from dynamic domains
+	if cfg.QuoteServerURL == "" && domainConf != nil {
+		if quoteURL := resolveDynamicQuoteServerURL(domainConf, cfg.License); quoteURL != "" {
+			cfg.QuoteServerURL = quoteURL
+		}
+	}
+	// Fallback: use ServerURL if QuoteServerURL is still empty
+	if cfg.QuoteServerURL == "" {
+		cfg.QuoteServerURL = cfg.ServerURL
 	}
 
 	// Set default tiger public key for response signature verification
@@ -211,4 +263,35 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+// detectDeviceID tries to find the MAC address of the network interface
+// used for the default route. Falls back to the first interface with a MAC.
+func detectDeviceID() string {
+	// Try to find MAC of the interface used for default route
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err == nil {
+		defer conn.Close()
+		localAddr := conn.LocalAddr().(*net.UDPAddr)
+		interfaces, _ := net.Interfaces()
+		for _, iface := range interfaces {
+			if len(iface.HardwareAddr) == 0 {
+				continue
+			}
+			addrs, _ := iface.Addrs()
+			for _, addr := range addrs {
+				if ipNet, ok := addr.(*net.IPNet); ok && ipNet.IP.Equal(localAddr.IP) {
+					return iface.HardwareAddr.String()
+				}
+			}
+		}
+	}
+	// Fallback: first interface with a MAC
+	interfaces, _ := net.Interfaces()
+	for _, iface := range interfaces {
+		if len(iface.HardwareAddr) > 0 {
+			return iface.HardwareAddr.String()
+		}
+	}
+	return ""
 }

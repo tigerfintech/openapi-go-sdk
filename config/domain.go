@@ -99,3 +99,16 @@ func resolveDynamicServerURL(domainConf map[string]interface{}, license string) 
 
 	return ""
 }
+
+// resolveDynamicQuoteServerURL resolves the quote server URL from dynamic domain config.
+// It looks for a "{LICENSE}-QUOTE" key first, then falls back to resolveDynamicServerURL.
+func resolveDynamicQuoteServerURL(domainConf map[string]interface{}, license string) string {
+	if license != "" {
+		if url, ok := domainConf[license+"-QUOTE"]; ok {
+			if s, ok := url.(string); ok {
+				return s + gatewaySuffix
+			}
+		}
+	}
+	return resolveDynamicServerURL(domainConf, license)
+}
