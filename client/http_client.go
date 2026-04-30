@@ -56,19 +56,27 @@ func NewHttpClient(cfg *config.ClientConfig) *HttpClient {
 	return hc
 }
 
-// buildCommonParams 构造公共请求参数
-func (c *HttpClient) buildCommonParams(apiMethod string, bizContent string) map[string]string {
+// buildCommonParams constructs common request parameters.
+// If version is non-empty, it overrides the default API version.
+func (c *HttpClient) buildCommonParams(apiMethod string, bizContent string, version string) map[string]string {
+	v := DefaultVersion
+	if version != "" {
+		v = version
+	}
 	params := map[string]string{
 		"tiger_id":    c.config.TigerID,
 		"method":      apiMethod,
 		"charset":     DefaultCharset,
 		"sign_type":   DefaultSignType,
 		"timestamp":   time.Now().Format("2006-01-02 15:04:05"),
-		"version":     DefaultVersion,
+		"version":     v,
 		"biz_content": bizContent,
 	}
 	if c.config.Language != "" {
 		params["language"] = c.config.Language
+	}
+	if c.config.DeviceID != "" {
+		params["device_id"] = c.config.DeviceID
 	}
 	return params
 }
@@ -97,7 +105,7 @@ func (c *HttpClient) verifyResponseSign(resp *ApiResponse, requestTimestamp stri
 
 // Execute 执行结构化 API 请求，返回解析后的 ApiResponse
 func (c *HttpClient) Execute(request *ApiRequest) (*ApiResponse, error) {
-	params := c.buildCommonParams(request.Method, request.BizContent)
+	params := c.buildCommonParams(request.Method, request.BizContent, request.Version)
 	requestTimestamp := params["timestamp"]
 	sign, err := c.signParams(params)
 	if err != nil {
@@ -155,7 +163,7 @@ func (c *HttpClient) ExecuteRaw(apiMethod string, requestJSON string) (string, e
 		return "", &TigerError{Code: -1, Message: "request_json 不是有效的 JSON", Category: CategoryUnknown}
 	}
 
-	params := c.buildCommonParams(apiMethod, requestJSON)
+	params := c.buildCommonParams(apiMethod, requestJSON, "")
 	sign, err := c.signParams(params)
 	if err != nil {
 		return "", err
@@ -219,4 +227,14 @@ func (c *HttpClient) doHTTPPost(params map[string]string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+// NewQuoteHttpClient creates an HttpClient that uses the QuoteServerURL.
+// If QuoteServerURL is set in the config, it overrides ServerURL for this client.
+func NewQuoteHttpClient(cfg *config.ClientConfig) *HttpClient {
+	cloned := *cfg
+	if cloned.QuoteServerURL != "" {
+		cloned.ServerURL = cloned.QuoteServerURL
+	}
+	return NewHttpClient(&cloned)
 }
