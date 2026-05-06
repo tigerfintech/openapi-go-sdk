@@ -1,8 +1,8 @@
 package model
 
 // MarketOrder 构造市价单
-func MarketOrder(account, symbol, secType, action string, quantity int64) Order {
-	return Order{
+func MarketOrder(account, symbol, secType, action string, quantity int64) OrderRequest {
+	return OrderRequest{
 		Account:       account,
 		Symbol:        symbol,
 		SecType:       secType,
@@ -14,8 +14,8 @@ func MarketOrder(account, symbol, secType, action string, quantity int64) Order 
 }
 
 // LimitOrder 构造限价单
-func LimitOrder(account, symbol, secType, action string, quantity int64, limitPrice float64) Order {
-	return Order{
+func LimitOrder(account, symbol, secType, action string, quantity int64, limitPrice float64) OrderRequest {
+	return OrderRequest{
 		Account:       account,
 		Symbol:        symbol,
 		SecType:       secType,
@@ -28,8 +28,8 @@ func LimitOrder(account, symbol, secType, action string, quantity int64, limitPr
 }
 
 // StopOrder 构造止损单
-func StopOrder(account, symbol, secType, action string, quantity int64, auxPrice float64) Order {
-	return Order{
+func StopOrder(account, symbol, secType, action string, quantity int64, auxPrice float64) OrderRequest {
+	return OrderRequest{
 		Account:       account,
 		Symbol:        symbol,
 		SecType:       secType,
@@ -42,8 +42,8 @@ func StopOrder(account, symbol, secType, action string, quantity int64, auxPrice
 }
 
 // StopLimitOrder 构造止损限价单
-func StopLimitOrder(account, symbol, secType, action string, quantity int64, limitPrice, auxPrice float64) Order {
-	return Order{
+func StopLimitOrder(account, symbol, secType, action string, quantity int64, limitPrice, auxPrice float64) OrderRequest {
+	return OrderRequest{
 		Account:       account,
 		Symbol:        symbol,
 		SecType:       secType,
@@ -57,8 +57,8 @@ func StopLimitOrder(account, symbol, secType, action string, quantity int64, lim
 }
 
 // TrailOrder 构造跟踪止损单
-func TrailOrder(account, symbol, secType, action string, quantity int64, trailingPercent float64) Order {
-	return Order{
+func TrailOrder(account, symbol, secType, action string, quantity int64, trailingPercent float64) OrderRequest {
+	return OrderRequest{
 		Account:         account,
 		Symbol:          symbol,
 		SecType:         secType,
@@ -71,8 +71,8 @@ func TrailOrder(account, symbol, secType, action string, quantity int64, trailin
 }
 
 // AuctionLimitOrder 构造竞价限价单
-func AuctionLimitOrder(account, symbol, secType, action string, quantity int64, limitPrice float64) Order {
-	return Order{
+func AuctionLimitOrder(account, symbol, secType, action string, quantity int64, limitPrice float64) OrderRequest {
+	return OrderRequest{
 		Account:       account,
 		Symbol:        symbol,
 		SecType:       secType,
@@ -85,8 +85,8 @@ func AuctionLimitOrder(account, symbol, secType, action string, quantity int64, 
 }
 
 // AuctionMarketOrder 构造竞价市价单
-func AuctionMarketOrder(account, symbol, secType, action string, quantity int64) Order {
-	return Order{
+func AuctionMarketOrder(account, symbol, secType, action string, quantity int64) OrderRequest {
+	return OrderRequest{
 		Account:       account,
 		Symbol:        symbol,
 		SecType:       secType,
@@ -98,8 +98,8 @@ func AuctionMarketOrder(account, symbol, secType, action string, quantity int64)
 }
 
 // AlgoOrder 构造算法订单（TWAP/VWAP）
-func AlgoOrder(account, symbol, secType, action string, quantity int64, limitPrice float64, algoType string, params AlgoParams) Order {
-	return Order{
+func AlgoOrder(account, symbol, secType, action string, quantity int64, limitPrice float64, algoType string, params AlgoParamsRequest) OrderRequest {
+	return OrderRequest{
 		Account:       account,
 		Symbol:        symbol,
 		SecType:       secType,
@@ -113,8 +113,8 @@ func AlgoOrder(account, symbol, secType, action string, quantity int64, limitPri
 }
 
 // NewOrderLeg 构造附加订单（止盈/止损）
-func NewOrderLeg(legType string, price float64, timeInForce string) OrderLeg {
-	return OrderLeg{
+func NewOrderLeg(legType string, price float64, timeInForce string) OrderLegRequest {
+	return OrderLegRequest{
 		LegType:     legType,
 		Price:       price,
 		TimeInForce: timeInForce,

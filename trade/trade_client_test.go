@@ -79,50 +79,56 @@ func newTestTradeClient(serverURL string) *TradeClient {
 
 func TestGetContract(t *testing.T) {
 	server := mockServer(t, map[string]interface{}{
-		"symbol": "AAPL", "secType": "STK",
+		"items": []map[string]interface{}{
+			{"symbol": "AAPL", "secType": "STK"},
+		},
 	})
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.GetContract("AAPL", "STK")
+	data, err := tc.Contract("AAPL", "STK")
 	if err != nil {
 		t.Fatalf("GetContract 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetContract 返回 nil data")
+	if len(data) == 0 {
+		t.Fatal("GetContract 返回空")
 	}
 }
 
 func TestGetContracts(t *testing.T) {
-	server := mockServer(t, []map[string]interface{}{
-		{"symbol": "AAPL", "secType": "STK"},
-		{"symbol": "GOOG", "secType": "STK"},
+	server := mockServer(t, map[string]interface{}{
+		"items": []map[string]interface{}{
+			{"symbol": "AAPL", "secType": "STK"},
+			{"symbol": "GOOG", "secType": "STK"},
+		},
 	})
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.GetContracts([]string{"AAPL", "GOOG"}, "STK")
+	data, err := tc.Contracts([]string{"AAPL", "GOOG"}, "STK")
 	if err != nil {
 		t.Fatalf("GetContracts 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetContracts 返回 nil data")
+	if len(data) != 2 {
+		t.Fatalf("GetContracts 期望返回 2 条,实际 %d", len(data))
 	}
 }
 
 func TestGetQuoteContract(t *testing.T) {
 	server := mockServer(t, map[string]interface{}{
-		"symbol": "AAPL", "secType": "OPT",
+		"symbol":  "AAPL",
+		"secType": "OPT",
+		"items":   []map[string]interface{}{{"symbol": "AAPL", "secType": "OPT"}},
 	})
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.GetQuoteContract("AAPL", "OPT")
+	data, err := tc.QuoteContract("AAPL", "OPT", "20260619")
 	if err != nil {
 		t.Fatalf("GetQuoteContract 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetQuoteContract 返回 nil data")
+	if len(data) == 0 {
+		t.Fatal("GetQuoteContract 返回空")
 	}
 }
 
@@ -135,7 +141,7 @@ func TestPlaceOrder(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	order := model.Order{
+	order := model.OrderRequest{
 		Symbol:        "AAPL",
 		SecType:       "STK",
 		Action:        "BUY",
@@ -160,7 +166,7 @@ func TestPreviewOrder(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	order := model.Order{
+	order := model.OrderRequest{
 		Symbol:        "AAPL",
 		SecType:       "STK",
 		Action:        "BUY",
@@ -183,7 +189,7 @@ func TestModifyOrder(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	order := model.Order{
+	order := model.OrderRequest{
 		OrderType:     "LMT",
 		TotalQuantity: 200,
 		LimitPrice:    155.0,
@@ -216,132 +222,147 @@ func TestCancelOrder(t *testing.T) {
 // === 15.5 订单查询测试 ===
 
 func TestGetOrders(t *testing.T) {
-	server := mockServer(t, []map[string]interface{}{
-		{"id": 1, "symbol": "AAPL"},
+	server := mockServer(t, map[string]interface{}{
+		"items": []map[string]interface{}{
+			{"id": 1, "symbol": "AAPL"},
+		},
 	})
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.GetOrders()
+	data, err := tc.Orders()
 	if err != nil {
 		t.Fatalf("GetOrders 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetOrders 返回 nil data")
+	if len(data) == 0 {
+		t.Fatal("GetOrders 返回空")
 	}
 }
 
 func TestGetActiveOrders(t *testing.T) {
-	server := mockServer(t, []map[string]interface{}{
-		{"id": 1, "status": "Submitted"},
+	server := mockServer(t, map[string]interface{}{
+		"items": []map[string]interface{}{
+			{"id": 1, "status": "Submitted"},
+		},
 	})
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.GetActiveOrders()
+	data, err := tc.ActiveOrders()
 	if err != nil {
 		t.Fatalf("GetActiveOrders 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetActiveOrders 返回 nil data")
+	if len(data) == 0 {
+		t.Fatal("GetActiveOrders 返回空")
 	}
 }
 
 func TestGetInactiveOrders(t *testing.T) {
-	server := mockServer(t, []map[string]interface{}{
-		{"id": 1, "status": "Cancelled"},
+	server := mockServer(t, map[string]interface{}{
+		"items": []map[string]interface{}{
+			{"id": 1, "status": "Cancelled"},
+		},
 	})
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.GetInactiveOrders()
+	data, err := tc.InactiveOrders()
 	if err != nil {
 		t.Fatalf("GetInactiveOrders 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetInactiveOrders 返回 nil data")
+	if len(data) == 0 {
+		t.Fatal("GetInactiveOrders 返回空")
 	}
 }
 
 func TestGetFilledOrders(t *testing.T) {
-	server := mockServer(t, []map[string]interface{}{
-		{"id": 1, "status": "Filled"},
+	server := mockServer(t, map[string]interface{}{
+		"items": []map[string]interface{}{
+			{"id": 1, "status": "Filled"},
+		},
 	})
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.GetFilledOrders()
+	data, err := tc.FilledOrders(0, 0)
 	if err != nil {
 		t.Fatalf("GetFilledOrders 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetFilledOrders 返回 nil data")
+	if len(data) == 0 {
+		t.Fatal("GetFilledOrders 返回空")
 	}
 }
 
 // === 15.7 持仓和资产查询测试 ===
 
 func TestGetPositions(t *testing.T) {
-	server := mockServer(t, []map[string]interface{}{
-		{"symbol": "AAPL", "quantity": 100},
+	server := mockServer(t, map[string]interface{}{
+		"items": []map[string]interface{}{
+			{"symbol": "AAPL", "position": 100},
+		},
 	})
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.GetPositions()
+	data, err := tc.Positions()
 	if err != nil {
 		t.Fatalf("GetPositions 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetPositions 返回 nil data")
+	if len(data) == 0 {
+		t.Fatal("GetPositions 返回空")
 	}
 }
 
 func TestGetAssets(t *testing.T) {
 	server := mockServer(t, map[string]interface{}{
-		"netLiquidation": 100000.0,
+		"items": []map[string]interface{}{
+			{"netLiquidation": 100000.0},
+		},
 	})
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.GetAssets()
+	data, err := tc.Assets()
 	if err != nil {
 		t.Fatalf("GetAssets 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetAssets 返回 nil data")
+	if len(data) == 0 {
+		t.Fatal("GetAssets 返回空")
 	}
 }
 
 func TestGetPrimeAssets(t *testing.T) {
 	server := mockServer(t, map[string]interface{}{
+		"accountId":      "U123456",
 		"netLiquidation": 200000.0,
 	})
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.GetPrimeAssets()
+	data, err := tc.PrimeAssets()
 	if err != nil {
 		t.Fatalf("GetPrimeAssets 失败: %v", err)
 	}
 	if data == nil {
-		t.Fatal("GetPrimeAssets 返回 nil data")
+		t.Fatal("GetPrimeAssets 返回 nil")
 	}
 }
 
 func TestGetOrderTransactions(t *testing.T) {
-	server := mockServer(t, []map[string]interface{}{
-		{"id": 12345, "filledQuantity": 50},
+	server := mockServer(t, map[string]interface{}{
+		"items": []map[string]interface{}{
+			{"id": 12345, "filledQuantity": 50},
+		},
 	})
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.GetOrderTransactions(12345)
+	data, err := tc.OrderTransactions(12345, "AAPL", "STK")
 	if err != nil {
 		t.Fatalf("GetOrderTransactions 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetOrderTransactions 返回 nil data")
+	if len(data) == 0 {
+		t.Fatal("GetOrderTransactions 返回空")
 	}
 }
 
@@ -352,7 +373,7 @@ func TestTradeClientApiError(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	_, err := tc.GetOrders()
+	_, err := tc.Orders()
 	if err == nil {
 		t.Fatal("期望返回错误，但返回了 nil")
 	}

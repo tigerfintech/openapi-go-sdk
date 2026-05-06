@@ -101,7 +101,7 @@ func TestAuctionMarketOrder(t *testing.T) {
 
 // 测试 AlgoOrder 构造函数
 func TestAlgoOrder(t *testing.T) {
-	params := AlgoParams{
+	params := AlgoParamsRequest{
 		AlgoStrategy:      "TWAP",
 		StartTime:         "09:30:00",
 		EndTime:           "16:00:00",

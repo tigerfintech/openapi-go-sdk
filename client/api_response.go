@@ -31,3 +31,22 @@ func ParseApiResponse(body []byte) (*ApiResponse, error) {
 	}
 	return &resp, nil
 }
+
+// UnmarshalData 把 ApiResponse.Data 解码到 out。
+// 兼容服务端偶发的双重编码(data 是 JSON 字符串包裹的 JSON)场景。
+func UnmarshalData(data json.RawMessage, out interface{}) error {
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	// 尝试直接解码
+	if err := json.Unmarshal(data, out); err == nil {
+		return nil
+	}
+	// 服务端偶尔把 data 编码成 JSON 字符串(如 trade 的部分接口)。先解一层。
+	var asStr string
+	if err := json.Unmarshal(data, &asStr); err == nil {
+		return json.Unmarshal([]byte(asStr), out)
+	}
+	// 都失败,返回原始错误
+	return json.Unmarshal(data, out)
+}
