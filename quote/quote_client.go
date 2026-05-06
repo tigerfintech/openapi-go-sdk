@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tigerfintech/openapi-go-sdk/client"
+	"github.com/tigerfintech/openapi-go-sdk/model"
 )
 
 // QuoteClient wraps all market data API calls.
@@ -20,84 +21,95 @@ func NewQuoteClient(httpClient *client.HttpClient) *QuoteClient {
 	return &QuoteClient{httpClient: httpClient}
 }
 
-// execute is the internal helper: build request, send, return data field.
-func (c *QuoteClient) execute(method string, bizParams interface{}) (json.RawMessage, error) {
+// callInto sends a request and unmarshals data into out.
+func (c *QuoteClient) callInto(method string, bizParams interface{}, out interface{}) error {
 	req, err := client.NewApiRequest(method, bizParams)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	resp, err := c.httpClient.Execute(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return resp.Data, nil
+	return client.UnmarshalData(resp.Data, out)
 }
 
-// executeVersioned is like execute but with a specific API version.
-func (c *QuoteClient) executeVersioned(method string, bizParams interface{}, version string) (json.RawMessage, error) {
+// callIntoVersioned is like callInto but with a specific API version.
+func (c *QuoteClient) callIntoVersioned(method string, bizParams interface{}, version string, out interface{}) error {
 	req, err := client.NewVersionedApiRequest(method, bizParams, version)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	resp, err := c.httpClient.Execute(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return resp.Data, nil
+	return client.UnmarshalData(resp.Data, out)
 }
 
 // === Basic market data methods ===
 
 // GetMarketState returns market status.
-func (c *QuoteClient) GetMarketState(market string) (json.RawMessage, error) {
-	params := map[string]interface{}{"market": market}
-	return c.execute("market_state", params)
+func (c *QuoteClient) GetMarketState(market string) ([]model.MarketState, error) {
+	var out []model.MarketState
+	err := c.callInto("market_state", map[string]interface{}{"market": market}, &out)
+	return out, err
 }
 
 // GetBrief returns real-time quotes.
-func (c *QuoteClient) GetBrief(symbols []string) (json.RawMessage, error) {
-	params := map[string]interface{}{"symbols": symbols}
-	return c.execute("quote_real_time", params)
+func (c *QuoteClient) GetBrief(symbols []string) ([]model.Brief, error) {
+	var out []model.Brief
+	err := c.callInto("quote_real_time", map[string]interface{}{"symbols": symbols}, &out)
+	return out, err
 }
 
 // GetKline returns K-line (candlestick) data.
-func (c *QuoteClient) GetKline(symbol, period string) (json.RawMessage, error) {
-	params := map[string]interface{}{
+func (c *QuoteClient) GetKline(symbol, period string) ([]model.Kline, error) {
+	var out []model.Kline
+	err := c.callInto("kline", map[string]interface{}{
 		"symbols": []string{symbol},
 		"period":  period,
-	}
-	return c.execute("kline", params)
+	}, &out)
+	return out, err
 }
 
 // GetTimeline returns intraday timeline data.
-func (c *QuoteClient) GetTimeline(symbols []string) (json.RawMessage, error) {
-	params := map[string]interface{}{"symbols": symbols}
-	return c.execute("timeline", params)
+func (c *QuoteClient) GetTimeline(symbols []string) ([]model.Timeline, error) {
+	var out []model.Timeline
+	err := c.callInto("timeline", map[string]interface{}{"symbols": symbols}, &out)
+	return out, err
 }
 
 // GetTradeTick returns tick-by-tick trade data.
-func (c *QuoteClient) GetTradeTick(symbols []string) (json.RawMessage, error) {
-	params := map[string]interface{}{"symbols": symbols}
-	return c.execute("trade_tick", params)
+func (c *QuoteClient) GetTradeTick(symbols []string) ([]model.TradeTick, error) {
+	var out []model.TradeTick
+	err := c.callInto("trade_tick", map[string]interface{}{"symbols": symbols}, &out)
+	return out, err
 }
 
 // GetQuoteDepth returns order book depth data.
-func (c *QuoteClient) GetQuoteDepth(symbol string) (json.RawMessage, error) {
-	params := map[string]interface{}{"symbol": symbol}
-	return c.execute("quote_depth", params)
+// market: required, e.g. "US"/"HK".
+func (c *QuoteClient) GetQuoteDepth(symbol, market string) ([]model.Depth, error) {
+	var out []model.Depth
+	err := c.callInto("quote_depth", map[string]interface{}{
+		"symbols": []string{symbol},
+		"market":  market,
+	}, &out)
+	return out, err
 }
 
 // === Option market data methods ===
 
 // GetOptionExpiration returns option expiration dates.
-func (c *QuoteClient) GetOptionExpiration(symbol string) (json.RawMessage, error) {
-	params := map[string]interface{}{"symbols": []string{symbol}}
-	return c.execute("option_expiration", params)
+func (c *QuoteClient) GetOptionExpiration(symbol string) ([]model.OptionExpiration, error) {
+	var out []model.OptionExpiration
+	err := c.callInto("option_expiration", map[string]interface{}{"symbols": []string{symbol}}, &out)
+	return out, err
 }
 
 // GetOptionChain returns the option chain for a symbol and expiry date.
-// Uses API v3 with option_basic array format and parsed expiry timestamp.
-func (c *QuoteClient) GetOptionChain(symbol, expiry string) (json.RawMessage, error) {
+// expiry: "YYYY-MM-DD" string.
+func (c *QuoteClient) GetOptionChain(symbol, expiry string) ([]model.OptionChain, error) {
 	expiryTs, err := parseOptionExpiry(expiry)
 	if err != nil {
 		return nil, fmt.Errorf("invalid expiry date: %w", err)
@@ -110,12 +122,13 @@ func (c *QuoteClient) GetOptionChain(symbol, expiry string) (json.RawMessage, er
 			},
 		},
 	}
-	return c.executeVersioned("option_chain", params, "3.0")
+	var out []model.OptionChain
+	err = c.callIntoVersioned("option_chain", params, "3.0", &out)
+	return out, err
 }
 
 // GetOptionBrief returns option quotes for the given identifiers.
-// Uses API v2 with parsed identifier fields.
-func (c *QuoteClient) GetOptionBrief(identifiers []string) (json.RawMessage, error) {
+func (c *QuoteClient) GetOptionBrief(identifiers []string) ([]model.Brief, error) {
 	optionBasics := make([]map[string]interface{}, 0, len(identifiers))
 	for _, id := range identifiers {
 		contract, err := optionContractFromIdentifier(id)
@@ -129,15 +142,13 @@ func (c *QuoteClient) GetOptionBrief(identifiers []string) (json.RawMessage, err
 			"strike": contract.Strike,
 		})
 	}
-	params := map[string]interface{}{
-		"option_basic": optionBasics,
-	}
-	return c.executeVersioned("option_brief", params, "2.0")
+	var out []model.Brief
+	err := c.callIntoVersioned("option_brief", map[string]interface{}{"option_basic": optionBasics}, "2.0", &out)
+	return out, err
 }
 
 // GetOptionKline returns option K-line data.
-// Uses API v2 with option_query array format.
-func (c *QuoteClient) GetOptionKline(identifier, period string) (json.RawMessage, error) {
+func (c *QuoteClient) GetOptionKline(identifier, period string) ([]model.Kline, error) {
 	contract, err := optionContractFromIdentifier(identifier)
 	if err != nil {
 		return nil, fmt.Errorf("invalid option identifier %q: %w", identifier, err)
@@ -153,80 +164,124 @@ func (c *QuoteClient) GetOptionKline(identifier, period string) (json.RawMessage
 			},
 		},
 	}
-	return c.executeVersioned("option_kline", params, "2.0")
+	var out []model.Kline
+	err = c.callIntoVersioned("option_kline", params, "2.0", &out)
+	return out, err
 }
 
 // === Futures market data methods ===
 
 // GetFutureExchange returns the list of futures exchanges.
-func (c *QuoteClient) GetFutureExchange() (json.RawMessage, error) {
-	params := map[string]interface{}{"sec_type": "FUT"}
-	return c.execute("future_exchange", params)
+func (c *QuoteClient) GetFutureExchange() ([]model.FutureExchange, error) {
+	var out []model.FutureExchange
+	err := c.callInto("future_exchange", map[string]interface{}{"sec_type": "FUT"}, &out)
+	return out, err
 }
 
 // GetFutureContracts returns futures contracts for an exchange.
-func (c *QuoteClient) GetFutureContracts(exchange string) (json.RawMessage, error) {
-	params := map[string]interface{}{"exchange": exchange}
-	return c.execute("future_contracts", params)
+func (c *QuoteClient) GetFutureContracts(exchange string) ([]model.FutureContractInfo, error) {
+	var out []model.FutureContractInfo
+	err := c.callInto("future_contract_by_exchange_code", map[string]interface{}{"exchange_code": exchange}, &out)
+	return out, err
 }
 
 // GetFutureRealTimeQuote returns real-time futures quotes.
-func (c *QuoteClient) GetFutureRealTimeQuote(symbols []string) (json.RawMessage, error) {
-	params := map[string]interface{}{"symbols": symbols}
-	return c.execute("future_real_time_quote", params)
+// contractCodes: future contract codes, e.g. ["CL2609"].
+func (c *QuoteClient) GetFutureRealTimeQuote(contractCodes []string) ([]model.FutureQuote, error) {
+	var out []model.FutureQuote
+	err := c.callInto("future_real_time_quote", map[string]interface{}{"contract_codes": contractCodes}, &out)
+	return out, err
 }
 
 // GetFutureKline returns futures K-line data.
-func (c *QuoteClient) GetFutureKline(symbol, period string) (json.RawMessage, error) {
-	params := map[string]interface{}{
-		"symbol": symbol,
-		"period": period,
+// beginTimeMs / endTimeMs: 13-digit ms timestamps; use -1 to represent unbounded.
+func (c *QuoteClient) GetFutureKline(req model.FutureKlineRequest) ([]model.FutureKline, error) {
+	if req.BeginTime == 0 {
+		req.BeginTime = -1
 	}
-	return c.execute("future_kline", params)
+	if req.EndTime == 0 {
+		req.EndTime = -1
+	}
+	var out []model.FutureKline
+	err := c.callInto("future_kline", req, &out)
+	return out, err
 }
 
 // === Fundamentals and capital flow methods ===
 
 // GetFinancialDaily returns daily financial data.
-func (c *QuoteClient) GetFinancialDaily(symbol string) (json.RawMessage, error) {
-	params := map[string]interface{}{"symbol": symbol}
-	return c.execute("financial_daily", params)
+func (c *QuoteClient) GetFinancialDaily(req model.FinancialDailyRequest) ([]model.FinancialDailyItem, error) {
+	var out []model.FinancialDailyItem
+	err := c.callInto("financial_daily", req, &out)
+	return out, err
 }
 
 // GetFinancialReport returns financial reports.
-func (c *QuoteClient) GetFinancialReport(symbol string) (json.RawMessage, error) {
-	params := map[string]interface{}{"symbol": symbol}
-	return c.execute("financial_report", params)
+func (c *QuoteClient) GetFinancialReport(req model.FinancialReportRequest) ([]model.FinancialReportItem, error) {
+	var out []model.FinancialReportItem
+	err := c.callInto("financial_report", req, &out)
+	return out, err
 }
 
-// GetCorporateAction returns corporate actions.
-func (c *QuoteClient) GetCorporateAction(symbol string) (json.RawMessage, error) {
-	params := map[string]interface{}{"symbol": symbol}
-	return c.execute("corporate_action", params)
+// GetCorporateAction returns corporate actions keyed by symbol.
+// The server returns a map {symbol: [...actions]}; this method flattens to a single slice.
+func (c *QuoteClient) GetCorporateAction(req model.CorporateActionRequest) ([]model.CorporateAction, error) {
+	var grouped map[string][]model.CorporateAction
+	if err := c.callInto("corporate_action", req, &grouped); err != nil {
+		return nil, err
+	}
+	var out []model.CorporateAction
+	for _, list := range grouped {
+		out = append(out, list...)
+	}
+	return out, nil
 }
 
 // GetCapitalFlow returns capital flow data.
-func (c *QuoteClient) GetCapitalFlow(symbol string) (json.RawMessage, error) {
-	params := map[string]interface{}{"symbol": symbol}
-	return c.execute("capital_flow", params)
+// period: e.g. "day"/"intraday"/"week"/"month".
+func (c *QuoteClient) GetCapitalFlow(symbol, market, period string) (*model.CapitalFlow, error) {
+	var out model.CapitalFlow
+	err := c.callInto("capital_flow", map[string]interface{}{
+		"symbol": symbol,
+		"market": market,
+		"period": period,
+	}, &out)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // GetCapitalDistribution returns capital distribution data.
-func (c *QuoteClient) GetCapitalDistribution(symbol string) (json.RawMessage, error) {
-	params := map[string]interface{}{"symbol": symbol}
-	return c.execute("capital_distribution", params)
+func (c *QuoteClient) GetCapitalDistribution(symbol, market string) (*model.CapitalDistribution, error) {
+	var out model.CapitalDistribution
+	err := c.callInto("capital_distribution", map[string]interface{}{
+		"symbol": symbol,
+		"market": market,
+	}, &out)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // === Scanner and quote permission methods ===
 
 // MarketScanner runs the stock screener.
-func (c *QuoteClient) MarketScanner(params map[string]interface{}) (json.RawMessage, error) {
-	return c.execute("market_scanner", params)
+func (c *QuoteClient) MarketScanner(req model.MarketScannerRequest) (*model.ScannerResult, error) {
+	var out model.ScannerResult
+	err := c.callInto("market_scanner", req, &out)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // GrabQuotePermission requests quote permissions.
-func (c *QuoteClient) GrabQuotePermission() (json.RawMessage, error) {
-	return c.execute("grab_quote_permission", nil)
+func (c *QuoteClient) GrabQuotePermission() ([]model.QuotePermission, error) {
+	var out []model.QuotePermission
+	err := c.callInto("grab_quote_permission", nil, &out)
+	return out, err
 }
 
 // === Option helper functions ===
@@ -251,27 +306,23 @@ func parseOptionExpiry(expiry string) (int64, error) {
 // optionContractFromIdentifier parses an OCC-style option identifier like "AAPL 240119C00150000"
 // into its component parts: symbol, expiry (ms timestamp), right (CALL/PUT), strike.
 func optionContractFromIdentifier(identifier string) (optionContract, error) {
-	// Format: "SYMBOL YYMMDDX00000000" where X is C or P
-	// The second part is always 15 characters: 6 date + 1 right + 8 strike
 	parts := strings.SplitN(strings.TrimSpace(identifier), " ", 2)
 	if len(parts) != 2 {
 		return optionContract{}, fmt.Errorf("expected format 'SYMBOL YYMMDDX00000000', got %q", identifier)
 	}
 
 	symbol := parts[0]
-	rest := parts[1]
+	rest := strings.TrimSpace(parts[1])
 	if len(rest) < 15 {
 		return optionContract{}, fmt.Errorf("option code too short: %q", rest)
 	}
 
-	// Parse date: YYMMDD
 	dateStr := rest[:6]
 	t, err := time.Parse("060102", dateStr)
 	if err != nil {
 		return optionContract{}, fmt.Errorf("invalid date in identifier: %q", dateStr)
 	}
 
-	// Parse right: C or P
 	rightChar := rest[6]
 	var right string
 	switch rightChar {
@@ -283,14 +334,13 @@ func optionContractFromIdentifier(identifier string) (optionContract, error) {
 		return optionContract{}, fmt.Errorf("invalid right character: %c", rightChar)
 	}
 
-	// Parse strike: 8 digits, divide by 1000 to get actual price
 	strikeStr := rest[7:]
 	var strikeInt int64
-	for _, c := range strikeStr {
-		if c < '0' || c > '9' {
+	for _, ch := range strikeStr {
+		if ch < '0' || ch > '9' {
 			return optionContract{}, fmt.Errorf("invalid strike digits: %q", strikeStr)
 		}
-		strikeInt = strikeInt*10 + int64(c-'0')
+		strikeInt = strikeInt*10 + int64(ch-'0')
 	}
 	strike := float64(strikeInt) / 1000.0
 
@@ -301,3 +351,6 @@ func optionContractFromIdentifier(identifier string) (optionContract, error) {
 		Strike: strike,
 	}, nil
 }
+
+// unused import guard for json (some build tags might omit all uses)
+var _ = json.RawMessage(nil)
