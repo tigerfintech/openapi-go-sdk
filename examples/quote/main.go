@@ -1,0 +1,297 @@
+// Quote example - 覆盖 QuoteClient 全部公开接口
+//
+// 配置从 ./tiger_openapi_config.properties 或 ~/.tigeropen/tiger_openapi_config.properties 自动读取。
+// 单个接口失败不中断后续,最后统计 PASS/FAIL。
+//
+// Run: go run ./examples/quote
+package main
+
+import (
+	"fmt"
+	"log"
+	"strings"
+
+	"github.com/tigerfintech/openapi-go-sdk/client"
+	"github.com/tigerfintech/openapi-go-sdk/config"
+	"github.com/tigerfintech/openapi-go-sdk/model"
+	"github.com/tigerfintech/openapi-go-sdk/quote"
+)
+
+type result struct {
+	name string
+	ok   bool
+	err  error
+	note string
+}
+
+var results []result
+
+func ok(name, note string) {
+	fmt.Printf("[ OK ] %-32s %s\n", name, truncate(note, 140))
+	results = append(results, result{name: name, ok: true, note: note})
+}
+
+func fail(name string, err error) {
+	fmt.Printf("[FAIL] %-32s %v\n", name, err)
+	results = append(results, result{name: name, err: err})
+}
+
+func skip(name, reason string) {
+	fmt.Printf("[SKIP] %-32s %s\n", name, reason)
+	results = append(results, result{name: name, err: fmt.Errorf("skipped: %s", reason)})
+}
+
+func main() {
+	cfg, err := config.NewClientConfig()
+	if err != nil {
+		log.Fatal("load config failed: ", err)
+	}
+	fmt.Printf("tiger_id=%s account=%s\n\n", cfg.TigerID, cfg.Account)
+
+	qc := quote.NewQuoteClient(client.NewQuoteHttpClient(cfg))
+
+	fmt.Println("=== Basic market data ===")
+	if states, err := qc.GetMarketState("US"); err != nil {
+		fail("GetMarketState(US)", err)
+	} else if len(states) > 0 {
+		ok("GetMarketState(US)", fmt.Sprintf("%s status=%s openTime=%s", states[0].Market, states[0].MarketStatus, states[0].OpenTime))
+	} else {
+		ok("GetMarketState(US)", "(empty)")
+	}
+
+	if briefs, err := qc.GetBrief([]string{"AAPL", "TSLA"}); err != nil {
+		fail("GetBrief", err)
+	} else {
+		summary := make([]string, 0, len(briefs))
+		for _, b := range briefs {
+			summary = append(summary, fmt.Sprintf("%s=%.2f", b.Symbol, b.LatestPrice))
+		}
+		ok("GetBrief", strings.Join(summary, " "))
+	}
+
+	if klines, err := qc.GetKline("AAPL", "day"); err != nil {
+		fail("GetKline(AAPL day)", err)
+	} else if len(klines) > 0 {
+		ok("GetKline(AAPL day)", fmt.Sprintf("symbol=%s bars=%d", klines[0].Symbol, len(klines[0].Items)))
+	} else {
+		ok("GetKline(AAPL day)", "(empty)")
+	}
+
+	if tl, err := qc.GetTimeline([]string{"AAPL"}); err != nil {
+		fail("GetTimeline", err)
+	} else if len(tl) > 0 {
+		n := 0
+		if tl[0].Intraday != nil {
+			n = len(tl[0].Intraday.Items)
+		}
+		ok("GetTimeline", fmt.Sprintf("intraday_points=%d preClose=%.2f", n, tl[0].PreClose))
+	} else {
+		ok("GetTimeline", "(empty)")
+	}
+
+	if tt, err := qc.GetTradeTick([]string{"AAPL"}); err != nil {
+		fail("GetTradeTick", err)
+	} else if len(tt) > 0 {
+		ok("GetTradeTick", fmt.Sprintf("ticks=%d", len(tt[0].Items)))
+	} else {
+		ok("GetTradeTick", "(empty)")
+	}
+
+	if d, err := qc.GetQuoteDepth("AAPL", "US"); err != nil {
+		fail("GetQuoteDepth(AAPL)", err)
+	} else if len(d) > 0 {
+		ok("GetQuoteDepth(AAPL)", fmt.Sprintf("asks=%d bids=%d", len(d[0].Asks), len(d[0].Bids)))
+	} else {
+		ok("GetQuoteDepth(AAPL)", "(empty)")
+	}
+
+	fmt.Println("\n=== Options ===")
+	var expiryDate, optIdentifier string
+	if exps, err := qc.GetOptionExpiration("AAPL"); err != nil {
+		fail("GetOptionExpiration(AAPL)", err)
+	} else if len(exps) > 0 && len(exps[0].Dates) > 0 {
+		ok("GetOptionExpiration(AAPL)", fmt.Sprintf("dates=%d first=%s", len(exps[0].Dates), exps[0].Dates[0]))
+		// 挑一个远期过期日
+		dates := exps[0].Dates
+		expiryDate = dates[len(dates)/2]
+	} else {
+		ok("GetOptionExpiration(AAPL)", "(empty)")
+	}
+
+	if expiryDate == "" {
+		skip("GetOptionChain", "no expiry available")
+		skip("GetOptionBrief", "no expiry available")
+		skip("GetOptionKline", "no expiry available")
+	} else {
+		if chain, err := qc.GetOptionChain("AAPL", expiryDate); err != nil {
+			fail("GetOptionChain(AAPL)", err)
+		} else if len(chain) > 0 && len(chain[0].Items) > 0 {
+			ok(fmt.Sprintf("GetOptionChain(%s)", expiryDate), fmt.Sprintf("rows=%d", len(chain[0].Items)))
+			mid := chain[0].Items[len(chain[0].Items)/2]
+			if mid.Call != nil {
+				optIdentifier = mid.Call.Identifier
+			} else if mid.Put != nil {
+				optIdentifier = mid.Put.Identifier
+			}
+		} else {
+			ok(fmt.Sprintf("GetOptionChain(%s)", expiryDate), "(empty items)")
+		}
+
+		if optIdentifier == "" {
+			skip("GetOptionBrief", "no identifier from chain")
+			skip("GetOptionKline", "no identifier from chain")
+		} else {
+			if briefs, err := qc.GetOptionBrief([]string{optIdentifier}); err != nil {
+				fail("GetOptionBrief", err)
+			} else if len(briefs) > 0 {
+				ok("GetOptionBrief", fmt.Sprintf("%s latestPrice=%.4f", briefs[0].Symbol, briefs[0].LatestPrice))
+			} else {
+				ok("GetOptionBrief", "(empty)")
+			}
+			if ks, err := qc.GetOptionKline(optIdentifier, "day"); err != nil {
+				fail("GetOptionKline", err)
+			} else if len(ks) > 0 {
+				ok("GetOptionKline", fmt.Sprintf("bars=%d", len(ks[0].Items)))
+			} else {
+				ok("GetOptionKline", "(empty)")
+			}
+		}
+	}
+
+	fmt.Println("\n=== Futures ===")
+	var exchangeCode, contractCode string
+	if exs, err := qc.GetFutureExchange(); err != nil {
+		fail("GetFutureExchange", err)
+	} else if len(exs) > 0 {
+		ok("GetFutureExchange", fmt.Sprintf("exchanges=%d first=%s", len(exs), exs[0].Code))
+		exchangeCode = exs[0].Code
+	} else {
+		ok("GetFutureExchange", "(empty)")
+	}
+
+	if exchangeCode == "" {
+		skip("GetFutureContracts", "no exchange")
+	} else {
+		if cs, err := qc.GetFutureContracts(exchangeCode); err != nil {
+			fail(fmt.Sprintf("GetFutureContracts(%s)", exchangeCode), err)
+		} else if len(cs) > 0 {
+			ok(fmt.Sprintf("GetFutureContracts(%s)", exchangeCode), fmt.Sprintf("contracts=%d first=%s", len(cs), cs[0].ContractCode))
+			contractCode = cs[0].ContractCode
+		} else {
+			ok(fmt.Sprintf("GetFutureContracts(%s)", exchangeCode), "(empty)")
+		}
+	}
+
+	if contractCode == "" {
+		skip("GetFutureRealTimeQuote", "no contract")
+		skip("GetFutureKline", "no contract")
+	} else {
+		if q, err := qc.GetFutureRealTimeQuote([]string{contractCode}); err != nil {
+			fail("GetFutureRealTimeQuote", err)
+		} else if len(q) > 0 {
+			ok("GetFutureRealTimeQuote", fmt.Sprintf("%s latestPrice=%.4f", q[0].ContractCode, q[0].LatestPrice))
+		} else {
+			ok("GetFutureRealTimeQuote", "(empty)")
+		}
+		if ks, err := qc.GetFutureKline(model.FutureKlineRequest{
+			ContractCodes: []string{contractCode}, Period: "day", BeginTime: -1, EndTime: -1,
+		}); err != nil {
+			fail(fmt.Sprintf("GetFutureKline(%s)", contractCode), err)
+		} else if len(ks) > 0 {
+			ok(fmt.Sprintf("GetFutureKline(%s)", contractCode), fmt.Sprintf("bars=%d", len(ks[0].Items)))
+		} else {
+			ok(fmt.Sprintf("GetFutureKline(%s)", contractCode), "(empty)")
+		}
+	}
+
+	fmt.Println("\n=== Fundamentals & capital flow ===")
+	if items, err := qc.GetFinancialDaily(model.FinancialDailyRequest{
+		Symbols: []string{"AAPL"}, Market: "US",
+		Fields:    []string{"shares_outstanding"},
+		BeginDate: "2026-05-05", EndDate: "2026-05-06",
+	}); err != nil {
+		fail("GetFinancialDaily(AAPL)", err)
+	} else {
+		ok("GetFinancialDaily(AAPL)", fmt.Sprintf("rows=%d", len(items)))
+	}
+
+	if items, err := qc.GetFinancialReport(model.FinancialReportRequest{
+		Symbols: []string{"AAPL"}, Market: "US",
+		Fields: []string{"total_revenue"}, PeriodType: "Annual",
+	}); err != nil {
+		fail("GetFinancialReport(AAPL)", err)
+	} else if len(items) > 0 {
+		ok("GetFinancialReport(AAPL)", fmt.Sprintf("%s %s=%s @%s", items[0].Symbol, items[0].Field, items[0].Value, items[0].FilingDate))
+	} else {
+		ok("GetFinancialReport(AAPL)", "(empty)")
+	}
+
+	if items, err := qc.GetCorporateAction(model.CorporateActionRequest{
+		Symbols: []string{"AAPL"}, Market: "US", ActionType: "DIVIDEND",
+		BeginDate: "2024-01-01", EndDate: "2024-12-31",
+	}); err != nil {
+		fail("GetCorporateAction(AAPL)", err)
+	} else {
+		ok("GetCorporateAction(AAPL)", fmt.Sprintf("rows=%d", len(items)))
+	}
+
+	if cf, err := qc.GetCapitalFlow("AAPL", "US", "day"); err != nil {
+		fail("GetCapitalFlow(AAPL)", err)
+	} else {
+		ok("GetCapitalFlow(AAPL)", fmt.Sprintf("%s period=%s rows=%d", cf.Symbol, cf.Period, len(cf.Items)))
+	}
+
+	if cd, err := qc.GetCapitalDistribution("AAPL", "US"); err != nil {
+		fail("GetCapitalDistribution(AAPL)", err)
+	} else {
+		ok("GetCapitalDistribution(AAPL)", fmt.Sprintf("%s netInflow=%.2f", cd.Symbol, cd.NetInflow))
+	}
+
+	fmt.Println("\n=== Scanner & permission ===")
+	if res, err := qc.MarketScanner(model.MarketScannerRequest{
+		Market: "US", Page: 0, PageSize: 10,
+	}); err != nil {
+		fail("MarketScanner", err)
+	} else {
+		ok("MarketScanner", fmt.Sprintf("page=%d/%d totalCount=%d items=%d", res.Page, res.TotalPage, res.TotalCount, len(res.Items)))
+	}
+
+	if perms, err := qc.GrabQuotePermission(); err != nil {
+		fail("GrabQuotePermission", err)
+	} else {
+		ok("GrabQuotePermission", fmt.Sprintf("permissions=%d", len(perms)))
+	}
+
+	printSummary()
+}
+
+func printSummary() {
+	fmt.Println("\n================ SUMMARY ================")
+	var pass, fa, sk int
+	for _, r := range results {
+		if r.ok {
+			pass++
+		} else if r.err != nil && strings.HasPrefix(r.err.Error(), "skipped") {
+			sk++
+		} else {
+			fa++
+		}
+	}
+	fmt.Printf("PASS=%d  FAIL=%d  SKIP=%d  TOTAL=%d\n", pass, fa, sk, len(results))
+	if fa > 0 {
+		fmt.Println("\nFailures:")
+		for _, r := range results {
+			if !r.ok && (r.err == nil || !strings.HasPrefix(r.err.Error(), "skipped")) {
+				fmt.Printf("  - %s: %v\n", r.name, r.err)
+			}
+		}
+	}
+	fmt.Println("=========================================")
+}
+
+func truncate(s string, max int) string {
+	if len(s) > max {
+		return s[:max] + "..."
+	}
+	return s
+}
