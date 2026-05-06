@@ -8,23 +8,25 @@ import (
 	"pgregory.net/rapid"
 )
 
-// 测试 Order JSON 序列化 round-trip（单元测试）
+// === Order (响应模型) 测试 ===
+
+// 测试 Order JSON round-trip（响应模型:camelCase)
 func TestOrderJSONRoundTrip(t *testing.T) {
 	original := Order{
-		Account:        "U123456",
-		ID:             1001,
-		OrderId:        2001,
-		Action:         "BUY",
-		OrderType:      string(OrderTypeLMT),
-		TotalQuantity:  100,
-		LimitPrice:     150.50,
-		Status:         string(OrderStatusSubmitted),
-		TimeInForce:    string(TimeInForceDAY),
-		OutsideRth:     true,
-		Symbol:         "AAPL",
-		SecType:        string(SecTypeSTK),
-		Market:         "US",
-		Currency:       "USD",
+		Account:       "U123456",
+		ID:            1001,
+		OrderId:       2001,
+		Action:        "BUY",
+		OrderType:     string(OrderTypeLMT),
+		TotalQuantity: 100,
+		LimitPrice:    150.50,
+		Status:        string(OrderStatusSubmitted),
+		TimeInForce:   string(TimeInForceDAY),
+		OutsideRth:    true,
+		Symbol:        "AAPL",
+		SecType:       string(SecTypeSTK),
+		Market:        "US",
+		Currency:      "USD",
 	}
 
 	data, err := json.Marshal(original)
@@ -42,7 +44,7 @@ func TestOrderJSONRoundTrip(t *testing.T) {
 	}
 }
 
-// 测试 Order JSON 字段名与 API JSON 一致
+// 测试 Order JSON 字段名为 camelCase（响应模型）
 func TestOrderJSONFieldNames(t *testing.T) {
 	o := Order{
 		Account:         "U123456",
@@ -78,7 +80,6 @@ func TestOrderJSONFieldNames(t *testing.T) {
 		t.Fatalf("解析为 map 失败: %v", err)
 	}
 
-	// 验证关键字段名保持 API 原始名
 	expectedFields := []string{
 		"account", "id", "orderId", "action", "orderType",
 		"totalQuantity", "limitPrice", "auxPrice", "trailingPercent",
@@ -88,20 +89,20 @@ func TestOrderJSONFieldNames(t *testing.T) {
 	}
 	for _, field := range expectedFields {
 		if _, ok := m[field]; !ok {
-			t.Errorf("缺少 API 字段名 %q，JSON: %s", field, string(data))
+			t.Errorf("响应模型缺少 camelCase 字段 %q, JSON: %s", field, string(data))
 		}
 	}
 
-	// 验证 right 字段不被改名
-	forbiddenFields := []string{"putCall", "put_call", "order_type", "limit_price"}
+	// 响应模型不应出现 snake_case
+	forbiddenFields := []string{"order_id", "order_type", "limit_price", "total_quantity", "time_in_force", "outside_rth", "sec_type", "putCall", "put_call"}
 	for _, field := range forbiddenFields {
 		if _, ok := m[field]; ok {
-			t.Errorf("不应存在改名后的字段 %q", field)
+			t.Errorf("响应模型不应存在字段 %q", field)
 		}
 	}
 }
 
-// 测试 Order 含 OrderLeg 和 AlgoParams 的 JSON round-trip
+// 测试 Order 含 OrderLeg 和 AlgoParams 的 round-trip（响应模型）
 func TestOrderWithLegsAndAlgoRoundTrip(t *testing.T) {
 	original := Order{
 		Account:       "U123456",
@@ -113,16 +114,8 @@ func TestOrderWithLegsAndAlgoRoundTrip(t *testing.T) {
 		Symbol:        "AAPL",
 		SecType:       "STK",
 		OrderLegs: []OrderLeg{
-			{
-				LegType:     "PROFIT",
-				Price:       160.0,
-				TimeInForce: "GTC",
-			},
-			{
-				LegType:     "LOSS",
-				Price:       140.0,
-				TimeInForce: "GTC",
-			},
+			{LegType: "PROFIT", Price: 160.0, TimeInForce: "GTC"},
+			{LegType: "LOSS", Price: 140.0, TimeInForce: "GTC"},
 		},
 		AlgoParams: &AlgoParams{
 			AlgoStrategy:      "TWAP",
@@ -147,7 +140,7 @@ func TestOrderWithLegsAndAlgoRoundTrip(t *testing.T) {
 	}
 }
 
-// 测试从 API JSON 反序列化 Order（使用真实 API 字段名）
+// 测试从服务端返回的 camelCase JSON 反序列化到 Order
 func TestOrderFromAPIJSON(t *testing.T) {
 	apiJSON := `{
 		"account": "U123456",
@@ -204,7 +197,7 @@ func TestOrderFromAPIJSON(t *testing.T) {
 	}
 }
 
-// Property 7 属性测试：Order JSON round-trip
+// Property 测试: Order round-trip
 func TestOrderJSONRoundTripProperty(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		original := Order{
@@ -254,4 +247,125 @@ func TestOrderJSONRoundTripProperty(t *testing.T) {
 			t.Error("JSON 中应包含 orderType 字段")
 		}
 	})
+}
+
+// === OrderRequest (请求模型) 测试 ===
+
+// 测试 OrderRequest JSON 字段名为 snake_case（请求模型）
+func TestOrderRequestJSONFieldNames(t *testing.T) {
+	req := OrderRequest{
+		Account:         "U123456",
+		ID:              1001,
+		OrderId:         2001,
+		Action:          "BUY",
+		OrderType:       "LMT",
+		TotalQuantity:   100,
+		LimitPrice:      150.50,
+		AuxPrice:        145.00,
+		TrailingPercent: 5.0,
+		TimeInForce:     "DAY",
+		OutsideRth:      true,
+		Symbol:          "AAPL",
+		SecType:         "STK",
+		Market:          "US",
+		Currency:        "USD",
+		Expiry:          "20250620",
+		Strike:          "150.0",
+		Right:           "CALL",
+		UserMark:        "test001",
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("序列化失败: %v", err)
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("解析为 map 失败: %v", err)
+	}
+
+	// 请求模型必须为 snake_case
+	expectedFields := []string{
+		"account", "id", "order_id", "action", "order_type",
+		"total_quantity", "limit_price", "aux_price", "trailing_percent",
+		"time_in_force", "outside_rth", "symbol", "sec_type",
+		"market", "currency", "expiry", "strike", "right", "user_mark",
+	}
+	for _, field := range expectedFields {
+		if _, ok := m[field]; !ok {
+			t.Errorf("请求模型缺少 snake_case 字段 %q, JSON: %s", field, string(data))
+		}
+	}
+
+	// 请求模型不应出现 camelCase
+	forbiddenFields := []string{"orderId", "orderType", "limitPrice", "totalQuantity", "timeInForce", "outsideRth", "secType", "userMark", "auxPrice"}
+	for _, field := range forbiddenFields {
+		if _, ok := m[field]; ok {
+			t.Errorf("请求模型不应存在 camelCase 字段 %q", field)
+		}
+	}
+}
+
+// 测试 OrderRequest 含 OrderLeg 和 AlgoParams 嵌套字段名
+func TestOrderRequestWithLegsAndAlgoFieldNames(t *testing.T) {
+	req := OrderRequest{
+		Account:       "U123456",
+		Action:        "BUY",
+		OrderType:     "LMT",
+		TotalQuantity: 100,
+		LimitPrice:    150.50,
+		TimeInForce:   "DAY",
+		Symbol:        "AAPL",
+		SecType:       "STK",
+		OrderLegs: []OrderLegRequest{
+			{LegType: "PROFIT", Price: 160.0, TimeInForce: "GTC"},
+		},
+		AlgoParams: &AlgoParamsRequest{
+			AlgoStrategy:      "TWAP",
+			StartTime:         "09:30:00",
+			EndTime:           "16:00:00",
+			ParticipationRate: 0.1,
+		},
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("序列化失败: %v", err)
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("解析为 map 失败: %v", err)
+	}
+
+	// order_legs / algo_params 顶层键
+	if _, ok := m["order_legs"]; !ok {
+		t.Errorf("缺少 order_legs 字段, JSON: %s", string(data))
+	}
+	if _, ok := m["algo_params"]; !ok {
+		t.Errorf("缺少 algo_params 字段, JSON: %s", string(data))
+	}
+
+	// OrderLegRequest 内字段
+	legs, _ := m["order_legs"].([]interface{})
+	if len(legs) == 0 {
+		t.Fatal("order_legs 为空")
+	}
+	leg, _ := legs[0].(map[string]interface{})
+	if _, ok := leg["leg_type"]; !ok {
+		t.Errorf("order_legs[0] 缺少 leg_type 字段: %+v", leg)
+	}
+	if _, ok := leg["time_in_force"]; !ok {
+		t.Errorf("order_legs[0] 缺少 time_in_force 字段: %+v", leg)
+	}
+
+	// AlgoParamsRequest 内字段
+	algo, _ := m["algo_params"].(map[string]interface{})
+	algoExpected := []string{"algo_strategy", "start_time", "end_time", "participation_rate"}
+	for _, f := range algoExpected {
+		if _, ok := algo[f]; !ok {
+			t.Errorf("algo_params 缺少 %q 字段: %+v", f, algo)
+		}
+	}
 }

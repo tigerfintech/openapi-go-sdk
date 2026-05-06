@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"pgregory.net/rapid"
@@ -32,7 +33,7 @@ func TestPositionJSONRoundTrip(t *testing.T) {
 		t.Fatalf("反序列化失败: %v", err)
 	}
 
-	if decoded != original {
+	if !reflect.DeepEqual(decoded, original) {
 		t.Errorf("round-trip 不一致:\n原始: %+v\n解码: %+v", original, decoded)
 	}
 }
@@ -153,7 +154,7 @@ func TestPositionJSONRoundTripProperty(t *testing.T) {
 			t.Fatalf("反序列化失败: %v", err)
 		}
 
-		if decoded != original {
+		if !reflect.DeepEqual(decoded, original) {
 			t.Errorf("round-trip 不一致:\n原始: %+v\n解码: %+v", original, decoded)
 		}
 	})

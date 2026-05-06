@@ -8,6 +8,7 @@ import (
 
 	"github.com/tigerfintech/openapi-go-sdk/client"
 	"github.com/tigerfintech/openapi-go-sdk/config"
+	"github.com/tigerfintech/openapi-go-sdk/model"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -157,13 +158,13 @@ func TestGetTradeTick(t *testing.T) {
 }
 
 func TestGetQuoteDepth(t *testing.T) {
-	server := mockServer(t, "quote_depth", map[string]interface{}{
-		"symbol": "AAPL",
+	server := mockServer(t, "quote_depth", []map[string]interface{}{
+		{"symbol": "AAPL"},
 	})
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetQuoteDepth("AAPL")
+	data, err := qc.GetQuoteDepth("AAPL", "US")
 	if err != nil {
 		t.Fatalf("GetQuoteDepth 失败: %v", err)
 	}
@@ -175,7 +176,9 @@ func TestGetQuoteDepth(t *testing.T) {
 // === 14.3 期权行情测试 ===
 
 func TestGetOptionExpiration(t *testing.T) {
-	server := mockServer(t, "option_expiration", []string{"2024-01-19", "2024-02-16"})
+	server := mockServer(t, "option_expiration", []map[string]interface{}{
+		{"symbol": "AAPL", "dates": []string{"2024-01-19"}},
+	})
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
@@ -190,7 +193,7 @@ func TestGetOptionExpiration(t *testing.T) {
 
 func TestGetOptionChain(t *testing.T) {
 	server := mockServer(t, "option_chain", []map[string]interface{}{
-		{"symbol": "AAPL", "expiry": "2024-01-19"},
+		{"symbol": "AAPL", "expiry": 1705622400000},
 	})
 	defer server.Close()
 
@@ -239,7 +242,9 @@ func TestGetOptionKline(t *testing.T) {
 // === 14.5 期货行情测试 ===
 
 func TestGetFutureExchange(t *testing.T) {
-	server := mockServer(t, "future_exchange", []string{"CME", "NYMEX"})
+	server := mockServer(t, "future_exchange", []map[string]interface{}{
+		{"code": "CME", "name": "CME", "zoneId": "America/Chicago"},
+	})
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
@@ -291,7 +296,12 @@ func TestGetFutureKline(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetFutureKline("ES2312", "day")
+	data, err := qc.GetFutureKline(model.FutureKlineRequest{
+		ContractCodes: []string{"ES2312"},
+		Period:        "day",
+		BeginTime:     -1,
+		EndTime:       -1,
+	})
 	if err != nil {
 		t.Fatalf("GetFutureKline 失败: %v", err)
 	}
@@ -309,7 +319,13 @@ func TestGetFinancialDaily(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetFinancialDaily("AAPL")
+	data, err := qc.GetFinancialDaily(model.FinancialDailyRequest{
+		Symbols:   []string{"AAPL"},
+		Market:    "US",
+		Fields:    []string{"shares_outstanding"},
+		BeginDate: "2024-01-01",
+		EndDate:   "2024-01-31",
+	})
 	if err != nil {
 		t.Fatalf("GetFinancialDaily 失败: %v", err)
 	}
@@ -325,7 +341,12 @@ func TestGetFinancialReport(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetFinancialReport("AAPL")
+	data, err := qc.GetFinancialReport(model.FinancialReportRequest{
+		Symbols:    []string{"AAPL"},
+		Market:     "US",
+		Fields:     []string{"total_revenue"},
+		PeriodType: "Annual",
+	})
 	if err != nil {
 		t.Fatalf("GetFinancialReport 失败: %v", err)
 	}
@@ -335,13 +356,21 @@ func TestGetFinancialReport(t *testing.T) {
 }
 
 func TestGetCorporateAction(t *testing.T) {
-	server := mockServer(t, "corporate_action", []map[string]interface{}{
-		{"symbol": "AAPL"},
+	server := mockServer(t, "corporate_action", map[string]interface{}{
+		"AAPL": []map[string]interface{}{
+			{"symbol": "AAPL", "actionType": "DIVIDEND"},
+		},
 	})
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetCorporateAction("AAPL")
+	data, err := qc.GetCorporateAction(model.CorporateActionRequest{
+		Symbols:    []string{"AAPL"},
+		Market:     "US",
+		ActionType: "DIVIDEND",
+		BeginDate:  "2024-01-01",
+		EndDate:    "2024-12-31",
+	})
 	if err != nil {
 		t.Fatalf("GetCorporateAction 失败: %v", err)
 	}
@@ -357,7 +386,7 @@ func TestGetCapitalFlow(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetCapitalFlow("AAPL")
+	data, err := qc.GetCapitalFlow("AAPL", "US", "day")
 	if err != nil {
 		t.Fatalf("GetCapitalFlow 失败: %v", err)
 	}
@@ -373,7 +402,7 @@ func TestGetCapitalDistribution(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetCapitalDistribution("AAPL")
+	data, err := qc.GetCapitalDistribution("AAPL", "US")
 	if err != nil {
 		t.Fatalf("GetCapitalDistribution 失败: %v", err)
 	}
@@ -385,17 +414,17 @@ func TestGetCapitalDistribution(t *testing.T) {
 // === 14.9 选股器和行情权限测试 ===
 
 func TestMarketScanner(t *testing.T) {
-	server := mockServer(t, "market_scanner", []map[string]interface{}{
-		{"symbol": "AAPL"},
+	server := mockServer(t, "market_scanner", map[string]interface{}{
+		"page":       0,
+		"totalPage":  1,
+		"totalCount": 1,
+		"pageSize":   5,
+		"items":      []map[string]interface{}{{"symbol": "AAPL", "market": "US"}},
 	})
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	params := map[string]interface{}{
-		"market":   "US",
-		"scanType": "TOP_GAINERS",
-	}
-	data, err := qc.MarketScanner(params)
+	data, err := qc.MarketScanner(model.MarketScannerRequest{Market: "US"})
 	if err != nil {
 		t.Fatalf("MarketScanner 失败: %v", err)
 	}
