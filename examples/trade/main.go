@@ -77,7 +77,7 @@ func main() {
 	}
 
 	fmt.Println("\n=== 账户/持仓 查询 ===")
-	if assets, err := tc.Assets(); err != nil {
+	if assets, err := tc.Assets(model.AssetsRequest{}); err != nil {
 		fail("Assets", err)
 	} else if len(assets) > 0 {
 		a := assets[0]
@@ -87,7 +87,7 @@ func main() {
 		ok("Assets", "(empty)")
 	}
 
-	if pa, err := tc.PrimeAssets(); err != nil {
+	if pa, err := tc.PrimeAssets(model.AssetsRequest{}); err != nil {
 		fail("PrimeAssets", err)
 	} else {
 		var totalBP float64
@@ -98,7 +98,7 @@ func main() {
 			pa.AccountID, len(pa.Segments), totalBP))
 	}
 
-	if ps, err := tc.Positions(); err != nil {
+	if ps, err := tc.Positions(model.PositionsRequest{}); err != nil {
 		fail("Positions", err)
 	} else {
 		var totalMV float64
@@ -109,40 +109,47 @@ func main() {
 	}
 
 	fmt.Println("\n=== 订单 查询 ===")
-	if os, err := tc.Orders(); err != nil {
+	if os, err := tc.Orders(model.OrdersRequest{}); err != nil {
 		fail("Orders", err)
 	} else {
 		ok("Orders", fmt.Sprintf("count=%d", len(os)))
 	}
-	if os, err := tc.ActiveOrders(); err != nil {
+	if os, err := tc.ActiveOrders(model.OrdersRequest{}); err != nil {
 		fail("ActiveOrders", err)
 	} else {
 		ok("ActiveOrders", fmt.Sprintf("count=%d", len(os)))
 	}
-	if os, err := tc.InactiveOrders(); err != nil {
+	if os, err := tc.InactiveOrders(model.OrdersRequest{}); err != nil {
 		fail("InactiveOrders", err)
 	} else {
 		ok("InactiveOrders", fmt.Sprintf("count=%d", len(os)))
 	}
 	now := time.Now().UnixMilli()
-	if os, err := tc.FilledOrders(now-30*24*3600*1000, now); err != nil {
+	if os, err := tc.FilledOrders(model.OrdersRequest{StartDate: now - 30*24*3600*1000, EndDate: now}); err != nil {
 		fail("FilledOrders", err)
 	} else {
 		ok("FilledOrders", fmt.Sprintf("count=%d (last 30d)", len(os)))
 	}
 
 	var existingOrderID int64
-	if orders, err := tc.Orders(); err == nil && len(orders) > 0 {
+	if orders, err := tc.Orders(model.OrdersRequest{}); err == nil && len(orders) > 0 {
 		existingOrderID = orders[0].ID
 	}
 	if existingOrderID != 0 {
-		if txs, err := tc.OrderTransactions(existingOrderID, "AAPL", "STK"); err != nil {
+		// 按 Order ID 查单笔订单详情（演示新增的 GetOrder）
+		if o, err := tc.GetOrder(model.GetOrderRequest{Id: existingOrderID}); err != nil {
+			fail(fmt.Sprintf("GetOrder(%d)", existingOrderID), err)
+		} else {
+			ok(fmt.Sprintf("GetOrder(%d)", existingOrderID), fmt.Sprintf("status=%s symbol=%s", o.Status, o.Symbol))
+		}
+		// 查成交明细（过滤条件改为全可选，按 OrderId 过滤）
+		if txs, err := tc.OrderTransactions(model.OrderTransactionsRequest{OrderId: existingOrderID}); err != nil {
 			fail(fmt.Sprintf("OrderTransactions(%d)", existingOrderID), err)
 		} else {
 			ok(fmt.Sprintf("OrderTransactions(%d)", existingOrderID), fmt.Sprintf("count=%d", len(txs)))
 		}
 	} else {
-		skip("OrderTransactions", "no existing order")
+		skip("GetOrder / OrderTransactions", "no existing order")
 	}
 
 	fmt.Println("\n=== 下单/改单/撤单 ===")
@@ -179,6 +186,89 @@ func main() {
 		} else {
 			ok(fmt.Sprintf("CancelOrder(%d)", placed.ID), fmt.Sprintf("id=%d", canc.ID))
 		}
+	}
+
+	// ===== v0.3.0 新增 trade 接口 =====
+	fmt.Println("\n=== v0.3.0: 账户管理 / 衍生品 ===")
+
+	if accts, err := tc.ManagedAccounts(model.ManagedAccountsRequest{}); err != nil {
+		fail("ManagedAccounts", err)
+	} else {
+		ok("ManagedAccounts", fmt.Sprintf("count=%d", len(accts)))
+	}
+
+	if dc, err := tc.DerivativeContracts(model.DerivativeContractsRequest{
+		Symbols: []string{"AAPL"}, SecType: "OPT", Expiry: "20260619",
+	}); err != nil {
+		fail("DerivativeContracts(AAPL OPT)", err)
+	} else {
+		ok("DerivativeContracts(AAPL OPT)", fmt.Sprintf("count=%d", len(dc)))
+	}
+
+	fmt.Println("\n=== v0.3.0: 资产分析 ===")
+
+	if aa, err := tc.AnalyticsAsset(model.AnalyticsAssetRequest{
+		SegType: "SEC", StartDate: "2025-05-01", EndDate: "2025-05-07",
+	}); err != nil {
+		fail("AnalyticsAsset", err)
+	} else {
+		ok("AnalyticsAsset", fmt.Sprintf("rows=%d", len(aa)))
+	}
+
+	if ag, err := tc.AggregateAssets(model.AggregateAssetsRequest{BaseCurrency: "USD"}); err != nil {
+		fail("AggregateAssets", err)
+	} else if ag != nil {
+		ok("AggregateAssets", fmt.Sprintf("netLiquidation=%.2f currencies=%d", ag.NetLiquidation, len(ag.CurrencyAssets)))
+	}
+
+	fmt.Println("\n=== v0.3.0: 资金明细/历史 ===")
+
+	if fd, err := tc.FundDetails(model.FundDetailsRequest{
+		SegTypes: []string{"SEC"}, Limit: 10,
+	}); err != nil {
+		fail("FundDetails", err)
+	} else {
+		ok("FundDetails", fmt.Sprintf("rows=%d", len(fd)))
+	}
+
+	if fh, err := tc.FundingHistory(model.FundingHistoryRequest{SegType: "SEC"}); err != nil {
+		fail("FundingHistory", err)
+	} else {
+		ok("FundingHistory", fmt.Sprintf("rows=%d", len(fh)))
+	}
+
+	fmt.Println("\n=== v0.3.0: 子账户资金调拨（只读） ===")
+
+	if sf, err := tc.SegmentFundAvailable(model.SegmentFundRequest{
+		FromSegment: "SEC", ToSegment: "FUT", Currency: "USD",
+	}); err != nil {
+		fail("SegmentFundAvailable", err)
+	} else {
+		ok("SegmentFundAvailable", fmt.Sprintf("rows=%d", len(sf)))
+	}
+
+	if sh, err := tc.SegmentFundHistory(model.SegmentFundRequest{Limit: 10}); err != nil {
+		fail("SegmentFundHistory", err)
+	} else {
+		ok("SegmentFundHistory", fmt.Sprintf("rows=%d", len(sh)))
+	}
+
+	fmt.Println("\n=== v0.3.0: 内部/外部转股（只读） ===")
+
+	if recs, err := tc.PositionTransferRecords(model.PositionTransferRecordsRequest{
+		SinceDate: "2025-01-01", ToDate: "2025-05-07",
+	}); err != nil {
+		fail("PositionTransferRecords", err)
+	} else {
+		ok("PositionTransferRecords", fmt.Sprintf("rows=%d", len(recs)))
+	}
+
+	if ext, err := tc.PositionTransferExternalRecords(model.PositionTransferExternalRecordsRequest{
+		SinceDate: "2025-01-01", ToDate: "2025-05-07",
+	}); err != nil {
+		fail("PositionTransferExternalRecords", err)
+	} else {
+		ok("PositionTransferExternalRecords", fmt.Sprintf("rows=%d", len(ext)))
 	}
 
 	printSummary()

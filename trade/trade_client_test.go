@@ -230,7 +230,7 @@ func TestGetOrders(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.Orders()
+	data, err := tc.Orders(model.OrdersRequest{})
 	if err != nil {
 		t.Fatalf("GetOrders 失败: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestGetActiveOrders(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.ActiveOrders()
+	data, err := tc.ActiveOrders(model.OrdersRequest{})
 	if err != nil {
 		t.Fatalf("GetActiveOrders 失败: %v", err)
 	}
@@ -266,7 +266,7 @@ func TestGetInactiveOrders(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.InactiveOrders()
+	data, err := tc.InactiveOrders(model.OrdersRequest{})
 	if err != nil {
 		t.Fatalf("GetInactiveOrders 失败: %v", err)
 	}
@@ -284,7 +284,7 @@ func TestGetFilledOrders(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.FilledOrders(0, 0)
+	data, err := tc.FilledOrders(model.OrdersRequest{StartDate: 0, EndDate: 0})
 	if err != nil {
 		t.Fatalf("GetFilledOrders 失败: %v", err)
 	}
@@ -304,7 +304,7 @@ func TestGetPositions(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.Positions()
+	data, err := tc.Positions(model.PositionsRequest{})
 	if err != nil {
 		t.Fatalf("GetPositions 失败: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestGetAssets(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.Assets()
+	data, err := tc.Assets(model.AssetsRequest{})
 	if err != nil {
 		t.Fatalf("GetAssets 失败: %v", err)
 	}
@@ -339,7 +339,7 @@ func TestGetPrimeAssets(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.PrimeAssets()
+	data, err := tc.PrimeAssets(model.AssetsRequest{})
 	if err != nil {
 		t.Fatalf("GetPrimeAssets 失败: %v", err)
 	}
@@ -357,12 +357,30 @@ func TestGetOrderTransactions(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	data, err := tc.OrderTransactions(12345, "AAPL", "STK")
+	data, err := tc.OrderTransactions(model.OrderTransactionsRequest{OrderId: 12345, Symbol: "AAPL", SecType: "STK"})
 	if err != nil {
 		t.Fatalf("GetOrderTransactions 失败: %v", err)
 	}
 	if len(data) == 0 {
 		t.Fatal("GetOrderTransactions 返回空")
+	}
+}
+
+func TestGetOrder(t *testing.T) {
+	server := mockServer(t, map[string]interface{}{
+		"id":     12345,
+		"symbol": "AAPL",
+		"status": "Filled",
+	})
+	defer server.Close()
+
+	tc := newTestTradeClient(server.URL)
+	data, err := tc.GetOrder(model.GetOrderRequest{Id: 12345})
+	if err != nil {
+		t.Fatalf("GetOrder 失败: %v", err)
+	}
+	if data == nil || data.ID != 12345 {
+		t.Fatalf("GetOrder 返回异常: %+v", data)
 	}
 }
 
@@ -373,7 +391,7 @@ func TestTradeClientApiError(t *testing.T) {
 	defer server.Close()
 
 	tc := newTestTradeClient(server.URL)
-	_, err := tc.Orders()
+	_, err := tc.Orders(model.OrdersRequest{})
 	if err == nil {
 		t.Fatal("期望返回错误，但返回了 nil")
 	}

@@ -59,7 +59,7 @@ func main() {
 		ok("GetMarketState(US)", "(empty)")
 	}
 
-	if briefs, err := qc.GetBrief([]string{"AAPL", "TSLA"}); err != nil {
+	if briefs, err := qc.GetBrief(model.BriefRequest{Symbols: []string{"AAPL", "TSLA"}}); err != nil {
 		fail("GetBrief", err)
 	} else {
 		summary := make([]string, 0, len(briefs))
@@ -89,7 +89,7 @@ func main() {
 		ok("GetTimeline", "(empty)")
 	}
 
-	if tt, err := qc.GetTradeTick([]string{"AAPL"}); err != nil {
+	if tt, err := qc.GetTradeTick(model.TradeTickRequest{Symbols: []string{"AAPL"}}); err != nil {
 		fail("GetTradeTick", err)
 	} else if len(tt) > 0 {
 		ok("GetTradeTick", fmt.Sprintf("ticks=%d", len(tt[0].Items)))
@@ -97,7 +97,7 @@ func main() {
 		ok("GetTradeTick", "(empty)")
 	}
 
-	if d, err := qc.GetQuoteDepth("AAPL", "US"); err != nil {
+	if d, err := qc.GetQuoteDepth(model.DepthQuoteRequest{Symbols: []string{"AAPL"}, Market: "US"}); err != nil {
 		fail("GetQuoteDepth(AAPL)", err)
 	} else if len(d) > 0 {
 		ok("GetQuoteDepth(AAPL)", fmt.Sprintf("asks=%d bids=%d", len(d[0].Asks), len(d[0].Bids)))
@@ -186,7 +186,7 @@ func main() {
 		skip("GetFutureRealTimeQuote", "no contract")
 		skip("GetFutureKline", "no contract")
 	} else {
-		if q, err := qc.GetFutureRealTimeQuote([]string{contractCode}); err != nil {
+		if q, err := qc.GetFutureRealTimeQuote(model.FutureBriefRequest{ContractCodes: []string{contractCode}}); err != nil {
 			fail("GetFutureRealTimeQuote", err)
 		} else if len(q) > 0 {
 			ok("GetFutureRealTimeQuote", fmt.Sprintf("%s latestPrice=%.4f", q[0].ContractCode, q[0].LatestPrice))
@@ -262,6 +262,216 @@ func main() {
 		ok("GrabQuotePermission", fmt.Sprintf("permissions=%d", len(perms)))
 	}
 
+	// ===== v0.3.0 新增 API =====
+	fmt.Println("\n=== v0.3.0: 股票基础扩展 ===")
+
+	if items, err := qc.GetSymbols(model.SymbolsRequest{Market: "US", SecType: "STK"}); err != nil {
+		fail("GetSymbols(US)", err)
+	} else {
+		ok("GetSymbols(US)", fmt.Sprintf("count=%d first=%s", len(items), firstOrEmpty(items)))
+	}
+
+	if items, err := qc.GetSymbolNames(model.SymbolsRequest{Market: "US"}); err != nil {
+		fail("GetSymbolNames(US)", err)
+	} else {
+		ok("GetSymbolNames(US)", fmt.Sprintf("count=%d", len(items)))
+	}
+
+	if items, err := qc.GetTradeMetas(model.TradeMetasRequest{Symbols: []string{"AAPL"}}); err != nil {
+		fail("GetTradeMetas(AAPL)", err)
+	} else {
+		ok("GetTradeMetas(AAPL)", fmt.Sprintf("count=%d", len(items)))
+	}
+
+	if items, err := qc.GetStockDetails(model.StockDetailsRequest{Symbols: []string{"AAPL"}}); err != nil {
+		fail("GetStockDetails(AAPL)", err)
+	} else {
+		ok("GetStockDetails(AAPL)", fmt.Sprintf("count=%d", len(items)))
+	}
+
+	if items, err := qc.GetStockDelayBriefs(model.StockDelayBriefsRequest{Symbols: []string{"AAPL"}}); err != nil {
+		fail("GetStockDelayBriefs(AAPL)", err)
+	} else {
+		ok("GetStockDelayBriefs(AAPL)", fmt.Sprintf("count=%d", len(items)))
+	}
+
+	if items, err := qc.GetBars(model.BarsRequest{
+		Symbols: []string{"AAPL"}, Period: "day", Limit: 10,
+	}); err != nil {
+		fail("GetBars(AAPL day)", err)
+	} else if len(items) > 0 {
+		ok("GetBars(AAPL day)", fmt.Sprintf("bars=%d", len(items[0].Items)))
+	} else {
+		ok("GetBars(AAPL day)", "(empty)")
+	}
+
+	if items, err := qc.GetTimelineHistory(model.TimelineHistoryRequest{
+		Symbols: []string{"AAPL"}, Date: "2025-05-07",
+	}); err != nil {
+		fail("GetTimelineHistory(AAPL)", err)
+	} else {
+		ok("GetTimelineHistory(AAPL)", fmt.Sprintf("count=%d", len(items)))
+	}
+
+	if items, err := qc.GetTradeRank(model.TradeRankRequest{Market: "US"}); err != nil {
+		fail("GetTradeRank(US)", err)
+	} else {
+		ok("GetTradeRank(US)", fmt.Sprintf("rows=%d", len(items)))
+	}
+
+	if items, err := qc.GetShortInterest(model.ShortInterestRequest{Symbols: []string{"AAPL"}}); err != nil {
+		fail("GetShortInterest(AAPL)", err)
+	} else {
+		ok("GetShortInterest(AAPL)", fmt.Sprintf("rows=%d", len(items)))
+	}
+
+	if sb, err := qc.GetStockBroker(model.StockBrokerRequest{Symbol: "00700", Limit: 3}); err != nil {
+		fail("GetStockBroker(00700)", err)
+	} else if sb != nil {
+		ok("GetStockBroker(00700)", fmt.Sprintf("askLevels=%d bidLevels=%d", len(sb.LevelAskList), len(sb.LevelBidList)))
+	}
+
+	if data, err := qc.GetStockFundamental(model.StockFundamentalRequest{Symbols: []string{"AAPL"}, Market: "US"}); err != nil {
+		fail("GetStockFundamental(AAPL)", err)
+	} else {
+		ok("GetStockFundamental(AAPL)", fmt.Sprintf("keys=%d", len(data)))
+	}
+
+	if si, err := qc.GetStockIndustry(model.StockIndustryRequest{Symbol: "AAPL", Market: "US"}); err != nil {
+		fail("GetStockIndustry(AAPL)", err)
+	} else if len(si) > 0 {
+		ok("GetStockIndustry(AAPL)", fmt.Sprintf("levels=%d first=%s", len(si), si[0].Level))
+	} else {
+		ok("GetStockIndustry(AAPL)", "(empty)")
+	}
+
+	if perms, err := qc.GetQuotePermission(model.QuotePermissionRequest{}); err != nil {
+		fail("GetQuotePermission", err)
+	} else {
+		ok("GetQuotePermission", fmt.Sprintf("count=%d", len(perms)))
+	}
+
+	if items, err := qc.GetKlineQuota(model.KlineQuotaRequest{WithDetails: true}); err != nil {
+		fail("GetKlineQuota", err)
+	} else {
+		ok("GetKlineQuota", fmt.Sprintf("methods=%d", len(items)))
+	}
+
+	fmt.Println("\n=== v0.3.0: 期货扩展 ===")
+
+	// 尝试用已有 contractCode 测期货扩展接口
+	futureContract := "MEUR2609"
+
+	if items, err := qc.GetFutureContract(model.FutureContractSingleRequest{ContractCode: futureContract}); err != nil {
+		fail("GetFutureContract(MEUR2609)", err)
+	} else {
+		ok("GetFutureContract(MEUR2609)", fmt.Sprintf("count=%d", len(items)))
+	}
+
+	if items, err := qc.GetAllFutureContracts(model.AllFutureContractsRequest{Type: "MEUR"}); err != nil {
+		fail("GetAllFutureContracts(MEUR)", err)
+	} else {
+		ok("GetAllFutureContracts(MEUR)", fmt.Sprintf("count=%d", len(items)))
+	}
+
+	if c, err := qc.GetCurrentFutureContract(model.FutureContractSingleRequest{Type: "MEUR"}); err != nil {
+		fail("GetCurrentFutureContract(MEUR)", err)
+	} else if c != nil {
+		ok("GetCurrentFutureContract(MEUR)", fmt.Sprintf("code=%s", c.ContractCode))
+	}
+
+	if items, err := qc.GetFutureContinuousContracts(model.FutureContinuousContractsRequest{Type: "MEUR"}); err != nil {
+		fail("GetFutureContinuousContracts(MEUR)", err)
+	} else {
+		ok("GetFutureContinuousContracts(MEUR)", fmt.Sprintf("count=%d", len(items)))
+	}
+
+	if items, err := qc.GetFutureBars(model.FutureBarsRequest{
+		ContractCodes: []string{futureContract}, Period: "day", Limit: 10,
+	}); err != nil {
+		fail("GetFutureBars", err)
+	} else if len(items) > 0 {
+		ok("GetFutureBars", fmt.Sprintf("bars=%d", len(items[0].Items)))
+	} else {
+		ok("GetFutureBars", "(empty)")
+	}
+
+	if items, err := qc.GetFutureTradeTicks(model.FutureTradeTicksRequest{ContractCode: futureContract, Limit: 10}); err != nil {
+		fail("GetFutureTradeTicks", err)
+	} else {
+		ok("GetFutureTradeTicks", fmt.Sprintf("count=%d", len(items)))
+	}
+
+	if items, err := qc.GetFutureDepth(model.FutureDepthRequest{ContractCodes: []string{futureContract}}); err != nil {
+		fail("GetFutureDepth", err)
+	} else {
+		ok("GetFutureDepth", fmt.Sprintf("count=%d", len(items)))
+	}
+
+	if tt, err := qc.GetFutureTradingTimes(model.FutureTradingTimesRequest{ContractCode: futureContract}); err != nil {
+		fail("GetFutureTradingTimes", err)
+	} else if tt != nil {
+		ok("GetFutureTradingTimes", fmt.Sprintf("zone=%s segments=%d", tt.Zone, len(tt.TradingTimes)))
+	}
+
+	fmt.Println("\n=== v0.3.0: 基金/窝轮/行业/日历 ===")
+
+	if items, err := qc.GetFundSymbols(model.FundSymbolsRequest{}); err != nil {
+		fail("GetFundSymbols", err)
+	} else {
+		ok("GetFundSymbols", fmt.Sprintf("count=%d first=%s", len(items), firstOrEmpty(items)))
+	}
+
+	if items, err := qc.GetIndustryList(model.IndustryListRequest{IndustryLevel: "GSECTOR"}); err != nil {
+		fail("GetIndustryList(GSECTOR)", err)
+	} else {
+		ok("GetIndustryList(GSECTOR)", fmt.Sprintf("count=%d", len(items)))
+	}
+
+	if items, err := qc.GetTradingCalendar(model.TradingCalendarRequest{
+		Market: "US", BeginDate: "2025-05-01", EndDate: "2025-05-31",
+	}); err != nil {
+		fail("GetTradingCalendar(US)", err)
+	} else {
+		ok("GetTradingCalendar(US)", fmt.Sprintf("days=%d", len(items)))
+	}
+
+	if items, err := qc.GetCorporateSplit(model.CorporateActionRequest{
+		Symbols: []string{"AAPL"}, Market: "US", BeginDate: "2020-01-01", EndDate: "2024-12-31",
+	}); err != nil {
+		fail("GetCorporateSplit(AAPL)", err)
+	} else {
+		ok("GetCorporateSplit(AAPL)", fmt.Sprintf("rows=%d", len(items)))
+	}
+
+	if items, err := qc.GetCorporateDividend(model.CorporateActionRequest{
+		Symbols: []string{"AAPL"}, Market: "US", BeginDate: "2024-01-01", EndDate: "2024-12-31",
+	}); err != nil {
+		fail("GetCorporateDividend(AAPL)", err)
+	} else {
+		ok("GetCorporateDividend(AAPL)", fmt.Sprintf("rows=%d", len(items)))
+	}
+
+	if items, err := qc.GetFinancialCurrency(model.FinancialCurrencyRequest{Symbols: []string{"AAPL"}, Market: "US"}); err != nil {
+		fail("GetFinancialCurrency(AAPL)", err)
+	} else {
+		ok("GetFinancialCurrency(AAPL)", fmt.Sprintf("rows=%d", len(items)))
+	}
+
+	if items, err := qc.GetFinancialExchangeRate(model.FinancialExchangeRateRequest{
+		CurrencyList: []string{"USD"}, BeginDate: "20250501", EndDate: "20250507",
+	}); err != nil {
+		fail("GetFinancialExchangeRate(USD)", err)
+	} else {
+		ok("GetFinancialExchangeRate(USD)", fmt.Sprintf("rows=%d", len(items)))
+	}
+
+	if items, err := qc.GetQuoteOvernight(model.QuoteOvernightRequest{Symbols: []string{"AAPL"}}); err != nil {
+		fail("GetQuoteOvernight(AAPL)", err)
+	} else {
+		ok("GetQuoteOvernight(AAPL)", fmt.Sprintf("rows=%d", len(items)))
+	}
+
 	printSummary()
 }
 
@@ -294,4 +504,11 @@ func truncate(s string, max int) string {
 		return s[:max] + "..."
 	}
 	return s
+}
+
+func firstOrEmpty(xs []string) string {
+	if len(xs) == 0 {
+		return ""
+	}
+	return xs[0]
 }

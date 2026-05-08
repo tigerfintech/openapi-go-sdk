@@ -119,6 +119,11 @@ func SubjectToDataType(subject SubjectType) pb.SocketCommon_DataType {
 		return pb.SocketCommon_OptionTop
 	case SubjectKline:
 		return pb.SocketCommon_Kline
+	case SubjectCc:
+		return pb.SocketCommon_Cc
+	case SubjectMarket:
+		// Market 订阅协议上 dataType = Quote，只设置 market 字段
+		return pb.SocketCommon_Quote
 	default:
 		return pb.SocketCommon_Unknown
 	}

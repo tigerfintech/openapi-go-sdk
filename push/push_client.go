@@ -626,6 +626,13 @@ func (c *PushClient) dispatchPushData(pushData *pb.PushData, cb *Callbacks) {
 				cb.OnKline(d)
 			}
 		}
+	case pb.SocketCommon_Cc:
+		// Cc(加密货币)推送复用 QuoteData body,路由到 OnQuote 回调。
+		if cb.OnQuote != nil {
+			if d := pushData.GetQuoteData(); d != nil {
+				cb.OnQuote(d)
+			}
+		}
 	default:
 		if cb.OnError != nil {
 			cb.OnError(fmt.Errorf("未知的 DataType: %v", pushData.DataType))
@@ -914,4 +921,86 @@ func (c *PushClient) removeSubscription(subject SubjectType, symbols []string) {
 			delete(c.subscriptions, subject)
 		}
 	}
+}
+
+// ============================================================================
+// Batch 6: stock_top / option_top / cc / market 订阅
+// ============================================================================
+
+// SubscribeStockTop 订阅股票榜单行情。indicators 是 indicator 字符串列表（作为 symbols 字段传输）。
+func (c *PushClient) SubscribeStockTop(market string, indicators []string) error {
+	if err := c.subscribe(SubjectStockTop, indicators, "", market); err != nil {
+		return err
+	}
+	c.addSubscription(SubjectStockTop, indicators)
+	return nil
+}
+
+// UnsubscribeStockTop 退订股票榜单行情。
+func (c *PushClient) UnsubscribeStockTop(market string, indicators []string) error {
+	symbolsStr := strings.Join(indicators, ",")
+	req := BuildUnSubscribeMessage(SubjectToDataType(SubjectStockTop), symbolsStr, "", market)
+	if err := c.sendMessage(req); err != nil {
+		return err
+	}
+	c.removeSubscription(SubjectStockTop, indicators)
+	return nil
+}
+
+// SubscribeOptionTop 订阅期权榜单行情。
+func (c *PushClient) SubscribeOptionTop(market string, indicators []string) error {
+	if err := c.subscribe(SubjectOptionTop, indicators, "", market); err != nil {
+		return err
+	}
+	c.addSubscription(SubjectOptionTop, indicators)
+	return nil
+}
+
+// UnsubscribeOptionTop 退订期权榜单行情。
+func (c *PushClient) UnsubscribeOptionTop(market string, indicators []string) error {
+	symbolsStr := strings.Join(indicators, ",")
+	req := BuildUnSubscribeMessage(SubjectToDataType(SubjectOptionTop), symbolsStr, "", market)
+	if err := c.sendMessage(req); err != nil {
+		return err
+	}
+	c.removeSubscription(SubjectOptionTop, indicators)
+	return nil
+}
+
+// SubscribeCc 订阅数字货币行情。
+func (c *PushClient) SubscribeCc(symbols []string) error {
+	if err := c.subscribe(SubjectCc, symbols, "", ""); err != nil {
+		return err
+	}
+	c.addSubscription(SubjectCc, symbols)
+	return nil
+}
+
+// UnsubscribeCc 退订数字货币行情。symbols 为空则退订全部。
+func (c *PushClient) UnsubscribeCc(symbols []string) error {
+	if err := c.unsubscribe(SubjectCc, symbols); err != nil {
+		return err
+	}
+	c.removeSubscription(SubjectCc, symbols)
+	return nil
+}
+
+// SubscribeMarket 订阅市场状态推送（dataType=Quote + market）。
+func (c *PushClient) SubscribeMarket(market string) error {
+	// 服务端约定：订阅 market 时 symbols 为空、只带 market 字段。
+	if err := c.subscribe(SubjectMarket, nil, "", market); err != nil {
+		return err
+	}
+	c.addSubscription(SubjectMarket, []string{market})
+	return nil
+}
+
+// UnsubscribeMarket 退订市场状态推送。
+func (c *PushClient) UnsubscribeMarket(market string) error {
+	req := BuildUnSubscribeMessage(SubjectToDataType(SubjectMarket), "", "", market)
+	if err := c.sendMessage(req); err != nil {
+		return err
+	}
+	c.removeSubscription(SubjectMarket, []string{market})
+	return nil
 }

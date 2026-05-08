@@ -55,20 +55,43 @@ const (
 	OrderTypeOCA    OrderType = "OCA"
 )
 
-// OrderStatus 订单状态枚举
+// OrderStatus 订单状态枚举。对齐 Java SDK `OrderStatus` 定义。
+// Code 值与服务端 wire 数字一致；字符串值与服务端返回的字符串 status 一致。
 type OrderStatus string
 
 const (
-	OrderStatusPendingNew      OrderStatus = "PendingNew"
-	OrderStatusInitial         OrderStatus = "Initial"
-	OrderStatusSubmitted       OrderStatus = "Submitted"
-	OrderStatusPartiallyFilled OrderStatus = "PartiallyFilled"
-	OrderStatusFilled          OrderStatus = "Filled"
-	OrderStatusCancelled       OrderStatus = "Cancelled"
-	OrderStatusPendingCancel   OrderStatus = "PendingCancel"
-	OrderStatusInactive        OrderStatus = "Inactive"
-	OrderStatusInvalid         OrderStatus = "Invalid"
+	OrderStatusInvalid       OrderStatus = "Invalid"       // -2
+	OrderStatusInitial       OrderStatus = "Initial"       // -1
+	OrderStatusPendingCancel OrderStatus = "PendingCancel" //  3
+	OrderStatusCancelled     OrderStatus = "Cancelled"     //  4
+	OrderStatusSubmitted     OrderStatus = "Submitted"     //  5
+	OrderStatusFilled        OrderStatus = "Filled"        //  6
+	OrderStatusInactive      OrderStatus = "Inactive"      //  7
+	OrderStatusPendingSubmit OrderStatus = "PendingSubmit" //  8
 )
+
+// Code 返回订单状态对应的服务端数字码,未知状态返回 0。
+func (s OrderStatus) Code() int {
+	switch s {
+	case OrderStatusInvalid:
+		return -2
+	case OrderStatusInitial:
+		return -1
+	case OrderStatusPendingCancel:
+		return 3
+	case OrderStatusCancelled:
+		return 4
+	case OrderStatusSubmitted:
+		return 5
+	case OrderStatusFilled:
+		return 6
+	case OrderStatusInactive:
+		return 7
+	case OrderStatusPendingSubmit:
+		return 8
+	}
+	return 0
+}
 
 // BarPeriod K 线周期枚举
 type BarPeriod string
@@ -110,6 +133,7 @@ const (
 	LicenseTBSG License = "TBSG"
 	LicenseTBHK License = "TBHK"
 	LicenseTBAU License = "TBAU"
+	LicenseTBMS License = "TBMS"
 	LicenseTBUS License = "TBUS"
 )
 
@@ -120,4 +144,69 @@ const (
 	TimeInForceDAY TimeInForce = "DAY"
 	TimeInForceGTC TimeInForce = "GTC"
 	TimeInForceOPG TimeInForce = "OPG"
+)
+
+// OrderSortBy 订单排序字段
+type OrderSortBy string
+
+const (
+	OrderSortByLatestCreated       OrderSortBy = "LATEST_CREATED"
+	OrderSortByLatestStatusUpdated OrderSortBy = "LATEST_STATUS_UPDATED"
+)
+
+// SegmentType 账户分部类型
+type SegmentType string
+
+const (
+	SegmentTypeAll  SegmentType = "ALL"
+	SegmentTypeSec  SegmentType = "SEC"
+	SegmentTypeFut  SegmentType = "FUT"
+	SegmentTypeFund SegmentType = "FUND"
+)
+
+// CorporateActionType 公司行动类型
+type CorporateActionType string
+
+const (
+	CorporateActionTypeSplit     CorporateActionType = "split"
+	CorporateActionTypeDividend  CorporateActionType = "dividend"
+	CorporateActionTypeEarning   CorporateActionType = "earning"
+)
+
+// IndustryLevel 行业级别（1~4 级）
+type IndustryLevel string
+
+const (
+	IndustryLevelGSector IndustryLevel = "GSECTOR"
+	IndustryLevelGGroup  IndustryLevel = "GGROUP"
+	IndustryLevelGInd    IndustryLevel = "GIND"
+	IndustryLevelGSubInd IndustryLevel = "GSUBIND"
+)
+
+// SortDirection 排序方向
+type SortDirection string
+
+const (
+	SortDirectionNo     SortDirection = "SortDir_No"
+	SortDirectionAscend SortDirection = "SortDir_Ascend"
+	SortDirectionDescend SortDirection = "SortDir_Descend"
+)
+
+// OptionAnalysisPeriod 期权分析周期
+type OptionAnalysisPeriod string
+
+const (
+	OptionAnalysisPeriodThreeYear     OptionAnalysisPeriod = "3year"
+	OptionAnalysisPeriodFiftyTwoWeek  OptionAnalysisPeriod = "52week"
+	OptionAnalysisPeriodTwentySixWeek OptionAnalysisPeriod = "26week"
+	OptionAnalysisPeriodThirteenWeek  OptionAnalysisPeriod = "13week"
+)
+
+// FinancialReportPeriod 财报类型
+type FinancialReportPeriod string
+
+const (
+	FinancialReportPeriodAnnual    FinancialReportPeriod = "Annual"
+	FinancialReportPeriodQuarterly FinancialReportPeriod = "Quarterly"
+	FinancialReportPeriodLTM       FinancialReportPeriod = "LTM"
 )

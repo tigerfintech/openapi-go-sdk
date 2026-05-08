@@ -109,15 +109,14 @@ func TestOrderStatusValues(t *testing.T) {
 		val  OrderStatus
 		want string
 	}{
-		{"PendingNew", OrderStatusPendingNew, "PendingNew"},
-		{"Initial", OrderStatusInitial, "Initial"},
-		{"Submitted", OrderStatusSubmitted, "Submitted"},
-		{"PartiallyFilled", OrderStatusPartiallyFilled, "PartiallyFilled"},
-		{"Filled", OrderStatusFilled, "Filled"},
-		{"Cancelled", OrderStatusCancelled, "Cancelled"},
-		{"PendingCancel", OrderStatusPendingCancel, "PendingCancel"},
-		{"Inactive", OrderStatusInactive, "Inactive"},
 		{"Invalid", OrderStatusInvalid, "Invalid"},
+		{"Initial", OrderStatusInitial, "Initial"},
+		{"PendingCancel", OrderStatusPendingCancel, "PendingCancel"},
+		{"Cancelled", OrderStatusCancelled, "Cancelled"},
+		{"Submitted", OrderStatusSubmitted, "Submitted"},
+		{"Filled", OrderStatusFilled, "Filled"},
+		{"Inactive", OrderStatusInactive, "Inactive"},
+		{"PendingSubmit", OrderStatusPendingSubmit, "PendingSubmit"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

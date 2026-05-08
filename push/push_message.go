@@ -15,6 +15,8 @@ const (
 	SubjectOptionTop   SubjectType = "option_top"
 	SubjectFullTick    SubjectType = "full_tick"
 	SubjectQuoteBBO    SubjectType = "quote_bbo"
+	SubjectCc          SubjectType = "cc"
+	SubjectMarket      SubjectType = "market"
 	SubjectAsset       SubjectType = "asset"
 	SubjectPosition    SubjectType = "position"
 	SubjectOrder       SubjectType = "order"

@@ -19,9 +19,9 @@ func TestHttpClient_Execute_Success(t *testing.T) {
 		if ct != "application/json;charset=UTF-8" {
 			t.Errorf("期望 Content-Type 为 application/json;charset=UTF-8，实际为 %s", ct)
 		}
-		// 验证 User-Agent
+		// 验证 User-Agent 与 SDKVersion 保持一致
 		ua := r.Header.Get("User-Agent")
-		expected := "openapi-go-sdk-0.1.0"
+		expected := UserAgentPrefix + SDKVersion
 		if ua != expected {
 			t.Errorf("期望 User-Agent 为 %s，实际为 %s", expected, ua)
 		}
