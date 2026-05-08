@@ -125,3 +125,151 @@ type Transaction struct {
 	TransactedAt   int64   `json:"transactedAt,omitempty"`
 	Time           int64   `json:"time,omitempty"`
 }
+
+// ManagedAccount 机构子账户信息（来自 /accounts）。
+type ManagedAccount struct {
+	Account     string `json:"account,omitempty"`
+	AccountType string `json:"accountType,omitempty"`
+	Capability  string `json:"capability,omitempty"`
+	Status      string `json:"status,omitempty"`
+}
+
+// AnalyticsAsset 资产分析（按日）条目。
+type AnalyticsAsset struct {
+	Date          string  `json:"date,omitempty"`
+	HoldingValue  float64 `json:"holdingValue,omitempty"`
+	CashBalance   float64 `json:"cashBalance,omitempty"`
+	Pnl           float64 `json:"pnl,omitempty"`
+	PnlRate       float64 `json:"pnlRate,omitempty"`
+	NetValueIndex float64 `json:"netValueIndex,omitempty"`
+	Currency      string  `json:"currency,omitempty"`
+	SegType       string  `json:"segType,omitempty"`
+}
+
+// AggregateAssets 综合账户总览。
+type AggregateAssets struct {
+	AccountID          string          `json:"accountId,omitempty"`
+	NetLiquidation     float64         `json:"netLiquidation,omitempty"`
+	GrossPositionValue float64         `json:"grossPositionValue,omitempty"`
+	CashBalance        float64         `json:"cashBalance,omitempty"`
+	BaseCurrency       string          `json:"baseCurrency,omitempty"`
+	CurrencyAssets     []CurrencyAsset `json:"currencyAssets,omitempty"`
+}
+
+// SegmentFund 子账户资金调拨（查询可用 / 执行转账 的共用响应结构）。
+type SegmentFund struct {
+	ID           string  `json:"id,omitempty"`
+	Status       string  `json:"status,omitempty"`
+	FromSegment  string  `json:"fromSegment,omitempty"`
+	ToSegment    string  `json:"toSegment,omitempty"`
+	Currency     string  `json:"currency,omitempty"`
+	Amount       float64 `json:"amount,omitempty"`
+	AvailableAmt float64 `json:"availableAmount,omitempty"`
+	SubmitTime   int64   `json:"submitTime,omitempty"`
+}
+
+// SegmentFundHistoryItem 资金调拨历史条目。
+type SegmentFundHistoryItem struct {
+	ID          int64   `json:"id,omitempty"`
+	FromSegment string  `json:"fromSegment,omitempty"`
+	ToSegment   string  `json:"toSegment,omitempty"`
+	Currency    string  `json:"currency,omitempty"`
+	Amount      float64 `json:"amount,omitempty"`
+	Status      string  `json:"status,omitempty"`
+	SubmitTime  int64   `json:"submitTime,omitempty"`
+	UpdateTime  int64   `json:"updateTime,omitempty"`
+}
+
+// FundDetails 资金明细条目（/fund_details）。
+type FundDetails struct {
+	ID         int64   `json:"id,omitempty"`
+	Account    string  `json:"account,omitempty"`
+	SegType    string  `json:"segType,omitempty"`
+	FundType   string  `json:"fundType,omitempty"`
+	Currency   string  `json:"currency,omitempty"`
+	Amount     float64 `json:"amount,omitempty"`
+	Balance    float64 `json:"balance,omitempty"`
+	OccurTime  int64   `json:"occurTime,omitempty"`
+	Remark     string  `json:"remark,omitempty"`
+	ExternalID string  `json:"externalId,omitempty"`
+}
+
+// FundingHistoryItem 调拨记录（/transfer_fund）。
+type FundingHistoryItem struct {
+	ID         string  `json:"id,omitempty"`
+	SegType    string  `json:"segType,omitempty"`
+	Currency   string  `json:"currency,omitempty"`
+	Amount     float64 `json:"amount,omitempty"`
+	Status     string  `json:"status,omitempty"`
+	SubmitTime int64   `json:"submitTime,omitempty"`
+	UpdateTime int64   `json:"updateTime,omitempty"`
+}
+
+// EstimateTradableQuantity 可交易数量估算结果。
+type EstimateTradableQuantity struct {
+	TradableQuantity      float64 `json:"tradableQuantity,omitempty"`
+	MaxCashBuyQuantity    float64 `json:"maxCashBuyQuantity,omitempty"`
+	MaxMarginBuyQuantity  float64 `json:"maxMarginBuyQuantity,omitempty"`
+	MaxShortSellQuantity  float64 `json:"maxShortSellQuantity,omitempty"`
+	MaxPositionSellQty    float64 `json:"maxPositionSellQuantity,omitempty"`
+	CashBuyingPower       float64 `json:"cashBuyingPower,omitempty"`
+	Currency              string  `json:"currency,omitempty"`
+}
+
+// ForexOrderResult 外汇下单返回结果。
+type ForexOrderResult struct {
+	ID             string  `json:"id,omitempty"`
+	Status         string  `json:"status,omitempty"`
+	SourceCurrency string  `json:"sourceCurrency,omitempty"`
+	TargetCurrency string  `json:"targetCurrency,omitempty"`
+	SourceAmount   float64 `json:"sourceAmount,omitempty"`
+	TargetAmount   float64 `json:"targetAmount,omitempty"`
+	Rate           float64 `json:"rate,omitempty"`
+	SubmitTime     int64   `json:"submitTime,omitempty"`
+}
+
+// TransferItem 内部转股单项。
+type TransferItem struct {
+	Symbol   string `json:"symbol,omitempty"`
+	Quantity int64  `json:"quantity,omitempty"`
+	Expiry   string `json:"expiry,omitempty"`
+	Strike   string `json:"strike,omitempty"`
+	Right    string `json:"right,omitempty"`
+	SecType  string `json:"sec_type,omitempty"`
+}
+
+// PositionTransferRecord 内部转股记录。
+type PositionTransferRecord struct {
+	ID          string         `json:"id,omitempty"`
+	FromAccount string         `json:"fromAccount,omitempty"`
+	ToAccount   string         `json:"toAccount,omitempty"`
+	Market      string         `json:"market,omitempty"`
+	Status      string         `json:"status,omitempty"`
+	SubmitTime  int64          `json:"submitTime,omitempty"`
+	Transfers   []TransferItem `json:"transfers,omitempty"`
+}
+
+// PositionTransferDetail 内部转股详情。
+type PositionTransferDetail struct {
+	ID          string         `json:"id,omitempty"`
+	FromAccount string         `json:"fromAccount,omitempty"`
+	ToAccount   string         `json:"toAccount,omitempty"`
+	Market      string         `json:"market,omitempty"`
+	Status      string         `json:"status,omitempty"`
+	SubmitTime  int64          `json:"submitTime,omitempty"`
+	UpdateTime  int64          `json:"updateTime,omitempty"`
+	Transfers   []TransferItem `json:"transfers,omitempty"`
+	Remark      string         `json:"remark,omitempty"`
+}
+
+// PositionTransferExternalRecord 外部转股记录。
+type PositionTransferExternalRecord struct {
+	ID         string `json:"id,omitempty"`
+	Market     string `json:"market,omitempty"`
+	Symbol     string `json:"symbol,omitempty"`
+	Quantity   int64  `json:"quantity,omitempty"`
+	Direction  string `json:"direction,omitempty"`
+	Status     string `json:"status,omitempty"`
+	SubmitTime int64  `json:"submitTime,omitempty"`
+	UpdateTime int64  `json:"updateTime,omitempty"`
+}

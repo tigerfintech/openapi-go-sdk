@@ -100,7 +100,7 @@ func TestGetBrief(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetBrief([]string{"AAPL"})
+	data, err := qc.GetBrief(model.BriefRequest{Symbols: []string{"AAPL"}})
 	if err != nil {
 		t.Fatalf("GetBrief 失败: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestGetTradeTick(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetTradeTick([]string{"AAPL"})
+	data, err := qc.GetTradeTick(model.TradeTickRequest{Symbols: []string{"AAPL"}})
 	if err != nil {
 		t.Fatalf("GetTradeTick 失败: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestGetQuoteDepth(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetQuoteDepth("AAPL", "US")
+	data, err := qc.GetQuoteDepth(model.DepthQuoteRequest{Symbols: []string{"AAPL"}, Market: "US"})
 	if err != nil {
 		t.Fatalf("GetQuoteDepth 失败: %v", err)
 	}
@@ -280,7 +280,7 @@ func TestGetFutureRealTimeQuote(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetFutureRealTimeQuote([]string{"ES2312"})
+	data, err := qc.GetFutureRealTimeQuote(model.FutureBriefRequest{ContractCodes: []string{"ES2312"}})
 	if err != nil {
 		t.Fatalf("GetFutureRealTimeQuote 失败: %v", err)
 	}

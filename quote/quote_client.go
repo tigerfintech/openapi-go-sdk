@@ -47,6 +47,46 @@ func (c *QuoteClient) callIntoVersioned(method string, bizParams interface{}, ve
 	return client.UnmarshalData(resp.Data, out)
 }
 
+// callIntoItems unwraps server {"items":[...]} envelope and unmarshals into items.
+func (c *QuoteClient) callIntoItems(method string, bizParams interface{}, items interface{}) error {
+	var wrap struct {
+		Items json.RawMessage `json:"items"`
+	}
+	if err := c.callInto(method, bizParams, &wrap); err != nil {
+		return err
+	}
+	if len(wrap.Items) == 0 || string(wrap.Items) == "null" {
+		return nil
+	}
+	return json.Unmarshal(wrap.Items, items)
+}
+
+// callIntoListOrObject tries to unmarshal as a list first; if server returns a
+// single object, wraps it into a single-element list. Used by endpoints like
+// future_contract_by_contract_code / future_continuous_contracts that have
+// inconsistent server response shapes.
+func (c *QuoteClient) callIntoListOrObject(method string, bizParams interface{}, out interface{}) error {
+	req, err := client.NewApiRequest(method, bizParams)
+	if err != nil {
+		return err
+	}
+	resp, err := c.httpClient.Execute(req)
+	if err != nil {
+		return err
+	}
+	// Try list first
+	if err := client.UnmarshalData(resp.Data, out); err == nil {
+		return nil
+	}
+	// Fall back to single object, wrap into [raw]
+	var single json.RawMessage
+	if err := client.UnmarshalData(resp.Data, &single); err != nil {
+		return err
+	}
+	wrapped := append(append([]byte("["), []byte(single)...), ']')
+	return json.Unmarshal(wrapped, out)
+}
+
 // === Basic market data methods ===
 
 // GetMarketState returns market status.
@@ -56,10 +96,12 @@ func (c *QuoteClient) GetMarketState(market string) ([]model.MarketState, error)
 	return out, err
 }
 
-// GetBrief returns real-time quotes.
-func (c *QuoteClient) GetBrief(symbols []string) ([]model.Brief, error) {
+// GetBrief returns real-time stock quotes with full filter options.
+// Wire method: quote_real_time. Accepts BriefRequest for include_hour_trading / sec_type / lang.
+// 对应 Python get_stock_briefs。
+func (c *QuoteClient) GetBrief(req model.BriefRequest) ([]model.Brief, error) {
 	var out []model.Brief
-	err := c.callInto("quote_real_time", map[string]interface{}{"symbols": symbols}, &out)
+	err := c.callInto("quote_real_time", req, &out)
 	return out, err
 }
 
@@ -80,21 +122,19 @@ func (c *QuoteClient) GetTimeline(symbols []string) ([]model.Timeline, error) {
 	return out, err
 }
 
-// GetTradeTick returns tick-by-tick trade data.
-func (c *QuoteClient) GetTradeTick(symbols []string) ([]model.TradeTick, error) {
+// GetTradeTick returns tick-by-tick trade data with pagination support.
+// Wire method: trade_tick. Accepts TradeTickRequest for begin_index/end_index/limit/lang.
+func (c *QuoteClient) GetTradeTick(req model.TradeTickRequest) ([]model.TradeTick, error) {
 	var out []model.TradeTick
-	err := c.callInto("trade_tick", map[string]interface{}{"symbols": symbols}, &out)
+	err := c.callInto("trade_tick", req, &out)
 	return out, err
 }
 
 // GetQuoteDepth returns order book depth data.
-// market: required, e.g. "US"/"HK".
-func (c *QuoteClient) GetQuoteDepth(symbol, market string) ([]model.Depth, error) {
+// Wire method: quote_depth. Accepts DepthQuoteRequest for symbols/market/trade_session/lang.
+func (c *QuoteClient) GetQuoteDepth(req model.DepthQuoteRequest) ([]model.Depth, error) {
 	var out []model.Depth
-	err := c.callInto("quote_depth", map[string]interface{}{
-		"symbols": []string{symbol},
-		"market":  market,
-	}, &out)
+	err := c.callInto("quote_depth", req, &out)
 	return out, err
 }
 
@@ -186,10 +226,10 @@ func (c *QuoteClient) GetFutureContracts(exchange string) ([]model.FutureContrac
 }
 
 // GetFutureRealTimeQuote returns real-time futures quotes.
-// contractCodes: future contract codes, e.g. ["CL2609"].
-func (c *QuoteClient) GetFutureRealTimeQuote(contractCodes []string) ([]model.FutureQuote, error) {
+// Wire method: future_real_time_quote. Accepts FutureBriefRequest for contract_codes/lang.
+func (c *QuoteClient) GetFutureRealTimeQuote(req model.FutureBriefRequest) ([]model.FutureQuote, error) {
 	var out []model.FutureQuote
-	err := c.callInto("future_real_time_quote", map[string]interface{}{"contract_codes": contractCodes}, &out)
+	err := c.callInto("future_real_time_quote", req, &out)
 	return out, err
 }
 
@@ -354,3 +394,477 @@ func optionContractFromIdentifier(identifier string) (optionContract, error) {
 
 // unused import guard for json (some build tags might omit all uses)
 var _ = json.RawMessage(nil)
+
+// ============================================================================
+// Batch 3: 股票基础查询 + 时间序列
+// ============================================================================
+
+// GetSymbols 查询全量合约代码。wire: all_symbols
+// 服务端返回字符串列表，不是对象列表。
+func (c *QuoteClient) GetSymbols(req model.SymbolsRequest) ([]string, error) {
+	var out []string
+	err := c.callInto("all_symbols", req, &out)
+	return out, err
+}
+
+// GetSymbolNames 查询全量合约代码+名称。wire: all_symbol_names
+func (c *QuoteClient) GetSymbolNames(req model.SymbolsRequest) ([]model.SymbolName, error) {
+	var out []model.SymbolName
+	err := c.callInto("all_symbol_names", req, &out)
+	return out, err
+}
+
+// GetTradeMetas 交易元数据。wire: quote_stock_trade
+func (c *QuoteClient) GetTradeMetas(req model.TradeMetasRequest) ([]model.TradeMeta, error) {
+	var out []model.TradeMeta
+	err := c.callInto("quote_stock_trade", req, &out)
+	return out, err
+}
+
+// GetStockDetails 股票详情。wire: stock_detail。服务端返回 {items:[...]}。
+func (c *QuoteClient) GetStockDetails(req model.StockDetailsRequest) ([]model.StockDetail, error) {
+	var out []model.StockDetail
+	err := c.callIntoItems("stock_detail", req, &out)
+	return out, err
+}
+
+// GetStockDelayBriefs 延时行情。wire: quote_delay
+func (c *QuoteClient) GetStockDelayBriefs(req model.StockDelayBriefsRequest) ([]model.Brief, error) {
+	var out []model.Brief
+	err := c.callInto("quote_delay", req, &out)
+	return out, err
+}
+
+// GetBars K 线（完整参数版）。wire: kline
+// 推荐使用 BarsRequest 以访问时间范围、分页、交易时段、复权选项。
+func (c *QuoteClient) GetBars(req model.BarsRequest) ([]model.Kline, error) {
+	var out []model.Kline
+	err := c.callInto("kline", req, &out)
+	return out, err
+}
+
+// GetBarsByPage 客户端分页封装：循环调用 GetBars 直到获得 TotalSize 条 K 线。
+// 返回时按时间升序合并（与 Python get_bars_by_page 行为一致）。
+func (c *QuoteClient) GetBarsByPage(req model.BarsByPageRequest) ([]model.KlineItem, error) {
+	if req.PageSize <= 0 {
+		req.PageSize = 200
+	}
+	if req.TotalSize <= 0 {
+		req.TotalSize = 1000
+	}
+	var acc []model.KlineItem
+	beginTime := req.BeginTime
+	endTime := req.EndTime
+	if endTime == 0 {
+		endTime = -1
+	}
+	if beginTime == 0 {
+		beginTime = -1
+	}
+	for len(acc) < req.TotalSize {
+		sub := model.BarsRequest{
+			Symbols:      []string{req.Symbol},
+			Period:       req.Period,
+			Right:        req.Right,
+			BeginTime:    beginTime,
+			EndTime:      endTime,
+			Limit:        req.PageSize,
+			TradeSession: req.TradeSession,
+			Lang:         req.Lang,
+		}
+		var pageOut []model.Kline
+		if err := c.callInto("kline", sub, &pageOut); err != nil {
+			return acc, err
+		}
+		if len(pageOut) == 0 || len(pageOut[0].Items) == 0 {
+			break
+		}
+		items := pageOut[0].Items
+		acc = append(acc, items...)
+		if len(items) < req.PageSize {
+			break
+		}
+		// 以最早一根 bar 的时间作为下一页的 endTime
+		oldest := items[0].Time
+		for _, it := range items {
+			if it.Time < oldest {
+				oldest = it.Time
+			}
+		}
+		endTime = oldest - 1
+	}
+	return acc, nil
+}
+
+// GetTimelineHistory 历史分时。wire: history_timeline
+func (c *QuoteClient) GetTimelineHistory(req model.TimelineHistoryRequest) ([]model.Timeline, error) {
+	var out []model.Timeline
+	err := c.callInto("history_timeline", req, &out)
+	return out, err
+}
+
+// GetTradeRank 成交榜单（涨跌幅榜）。wire: trade_rank
+func (c *QuoteClient) GetTradeRank(req model.TradeRankRequest) ([]model.TradeRankItem, error) {
+	var out []model.TradeRankItem
+	err := c.callInto("trade_rank", req, &out)
+	return out, err
+}
+
+// GetShortInterest 做空数据。wire: quote_shortable_stocks
+func (c *QuoteClient) GetShortInterest(req model.ShortInterestRequest) ([]model.ShortInterest, error) {
+	var out []model.ShortInterest
+	err := c.callInto("quote_shortable_stocks", req, &out)
+	return out, err
+}
+
+// GetStockBroker 经纪商持仓。wire: stock_broker
+func (c *QuoteClient) GetStockBroker(req model.StockBrokerRequest) (*model.StockBroker, error) {
+	var out model.StockBroker
+	if err := c.callInto("stock_broker", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetStockFundamental 股票基本面。wire: stock_fundamental
+// 服务端返回按 symbol 分组的结构；此处返回原始 JSON 由调用方进一步解析。
+func (c *QuoteClient) GetStockFundamental(req model.StockFundamentalRequest) (map[string]interface{}, error) {
+	var out map[string]interface{}
+	err := c.callInto("stock_fundamental", req, &out)
+	return out, err
+}
+
+// GetStockIndustry 股票所属行业。wire: stock_industry
+// 服务端返回数组（按 level 返回各级行业）。
+func (c *QuoteClient) GetStockIndustry(req model.StockIndustryRequest) ([]model.StockIndustry, error) {
+	var out []model.StockIndustry
+	err := c.callInto("stock_industry", req, &out)
+	return out, err
+}
+
+// GetQuotePermission 查询行情权限详情。wire: get_quote_permission
+func (c *QuoteClient) GetQuotePermission(req model.QuotePermissionRequest) ([]model.QuotePermission, error) {
+	var out []model.QuotePermission
+	err := c.callInto("get_quote_permission", req, &out)
+	return out, err
+}
+
+// GetKlineQuota K 线配额查询。wire: kline_quota
+func (c *QuoteClient) GetKlineQuota(req model.KlineQuotaRequest) ([]model.KlineQuota, error) {
+	var out []model.KlineQuota
+	err := c.callInto("kline_quota", req, &out)
+	return out, err
+}
+
+// ============================================================================
+// Batch 4: 期权/期货扩展
+// ============================================================================
+
+// GetOptionBars 期权 K 线。wire: option_kline
+func (c *QuoteClient) GetOptionBars(req model.OptionBarsRequest) ([]model.Kline, error) {
+	var out []model.Kline
+	err := c.callIntoVersioned("option_kline", req, "2.0", &out)
+	return out, err
+}
+
+// GetOptionTradeTicks 期权逐笔成交。wire: option_trade_tick
+func (c *QuoteClient) GetOptionTradeTicks(req model.OptionTradeTicksRequest) ([]model.TradeTick, error) {
+	var out []model.TradeTick
+	err := c.callInto("option_trade_tick", req, &out)
+	return out, err
+}
+
+// GetOptionTimeline 期权分时。wire: option_timeline
+func (c *QuoteClient) GetOptionTimeline(req model.OptionTimelineRequest) ([]model.Timeline, error) {
+	var out []model.Timeline
+	err := c.callInto("option_timeline", req, &out)
+	return out, err
+}
+
+// GetOptionDepth 期权盘口深度。wire: option_depth
+func (c *QuoteClient) GetOptionDepth(req model.OptionDepthRequest) ([]model.Depth, error) {
+	var out []model.Depth
+	err := c.callInto("option_depth", req, &out)
+	return out, err
+}
+
+// GetOptionSymbols 期权代码列表。wire: option_symbol
+func (c *QuoteClient) GetOptionSymbols(req model.OptionSymbolsRequest) ([]model.OptionSymbol, error) {
+	var out []model.OptionSymbol
+	err := c.callInto("option_symbol", req, &out)
+	return out, err
+}
+
+// GetOptionAnalysis 期权分析（隐含/历史波动率）。wire: option_analysis
+func (c *QuoteClient) GetOptionAnalysis(req model.OptionAnalysisRequest) ([]model.OptionAnalysis, error) {
+	var out []model.OptionAnalysis
+	err := c.callInto("option_analysis", req, &out)
+	return out, err
+}
+
+// GetFutureContract 按 contract_code 查单个期货合约。wire: future_contract_by_contract_code
+// 服务端可能返回单个对象或列表，此处统一展开为 []FutureContractInfo。
+func (c *QuoteClient) GetFutureContract(req model.FutureContractSingleRequest) ([]model.FutureContractInfo, error) {
+	var out []model.FutureContractInfo
+	err := c.callIntoListOrObject("future_contract_by_contract_code", req, &out)
+	return out, err
+}
+
+// GetAllFutureContracts 查询所有期货合约。wire: future_contracts
+func (c *QuoteClient) GetAllFutureContracts(req model.AllFutureContractsRequest) ([]model.FutureContractInfo, error) {
+	var out []model.FutureContractInfo
+	err := c.callInto("future_contracts", req, &out)
+	return out, err
+}
+
+// GetCurrentFutureContract 当前主力合约。wire: future_current_contract
+func (c *QuoteClient) GetCurrentFutureContract(req model.FutureContractSingleRequest) (*model.FutureContractInfo, error) {
+	var out model.FutureContractInfo
+	if err := c.callInto("future_current_contract", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetFutureContinuousContracts 连续主力合约。wire: future_continuous_contracts
+func (c *QuoteClient) GetFutureContinuousContracts(req model.FutureContinuousContractsRequest) ([]model.FutureContractInfo, error) {
+	var out []model.FutureContractInfo
+	err := c.callIntoListOrObject("future_continuous_contracts", req, &out)
+	return out, err
+}
+
+// GetFutureHistoryMainContract 期货主力合约历史。wire: future_main_contract
+func (c *QuoteClient) GetFutureHistoryMainContract(req model.FutureHistoryMainContractRequest) ([]model.FutureMainContractHistory, error) {
+	var out []model.FutureMainContractHistory
+	err := c.callInto("future_main_contract", req, &out)
+	return out, err
+}
+
+// GetFutureBars 期货 K 线（含索引分页）。wire: future_kline
+// begin_time / end_time 默认 -1 表示无界（服务端要求字段必须存在）。
+func (c *QuoteClient) GetFutureBars(req model.FutureBarsRequest) ([]model.FutureKline, error) {
+	if req.BeginTime == 0 {
+		req.BeginTime = -1
+	}
+	if req.EndTime == 0 {
+		req.EndTime = -1
+	}
+	var out []model.FutureKline
+	err := c.callInto("future_kline", req, &out)
+	return out, err
+}
+
+// GetFutureBarsByPage 期货 K 线分页包装。
+func (c *QuoteClient) GetFutureBarsByPage(req model.FutureBarsByPageRequest) ([]model.FutureKlineItem, error) {
+	if req.PageSize <= 0 {
+		req.PageSize = 200
+	}
+	if req.TotalSize <= 0 {
+		req.TotalSize = 1000
+	}
+	var acc []model.FutureKlineItem
+	endTime := req.EndTime
+	if endTime == 0 {
+		endTime = -1
+	}
+	beginTime := req.BeginTime
+	if beginTime == 0 {
+		beginTime = -1
+	}
+	for len(acc) < req.TotalSize {
+		sub := model.FutureBarsRequest{
+			ContractCode: req.ContractCode,
+			Period:       req.Period,
+			BeginTime:    beginTime,
+			EndTime:      endTime,
+			Limit:        req.PageSize,
+			Lang:         req.Lang,
+		}
+		var pageOut []model.FutureKline
+		if err := c.callInto("future_kline", sub, &pageOut); err != nil {
+			return acc, err
+		}
+		if len(pageOut) == 0 || len(pageOut[0].Items) == 0 {
+			break
+		}
+		items := pageOut[0].Items
+		acc = append(acc, items...)
+		if len(items) < req.PageSize {
+			break
+		}
+		oldest := items[0].Time
+		for _, it := range items {
+			if it.Time < oldest {
+				oldest = it.Time
+			}
+		}
+		endTime = oldest - 1
+	}
+	return acc, nil
+}
+
+// GetFutureTradeTicks 期货逐笔。wire: future_tick (API version 3.0)
+func (c *QuoteClient) GetFutureTradeTicks(req model.FutureTradeTicksRequest) ([]model.FutureTradeTickItem, error) {
+	var out []model.FutureTradeTickItem
+	err := c.callIntoVersioned("future_tick", req, "3.0", &out)
+	return out, err
+}
+
+// GetFutureDepth 期货盘口。wire: future_depth
+func (c *QuoteClient) GetFutureDepth(req model.FutureDepthRequest) ([]model.FutureDepth, error) {
+	var out []model.FutureDepth
+	err := c.callInto("future_depth", req, &out)
+	return out, err
+}
+
+// GetFutureTradingTimes 期货交易时段。wire: future_trading_date
+// 服务端返回单个对象（{timeSection/tradingTimes/biddingTimes}）。
+func (c *QuoteClient) GetFutureTradingTimes(req model.FutureTradingTimesRequest) (*model.FutureTradingTime, error) {
+	var out model.FutureTradingTime
+	if err := c.callInto("future_trading_date", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ============================================================================
+// Batch 5: 基金/窝轮/行业/公司行动/财务/日历
+// ============================================================================
+
+// GetFundSymbols 基金代码列表。wire: fund_all_symbols
+func (c *QuoteClient) GetFundSymbols(req model.FundSymbolsRequest) ([]string, error) {
+	var out []string
+	err := c.callInto("fund_all_symbols", req, &out)
+	return out, err
+}
+
+// GetFundContracts 基金合约信息。wire: fund_contracts
+func (c *QuoteClient) GetFundContracts(req model.FundContractsRequest) ([]model.FundContractInfo, error) {
+	var out []model.FundContractInfo
+	err := c.callInto("fund_contracts", req, &out)
+	return out, err
+}
+
+// GetFundQuote 基金实时净值。wire: fund_quote
+func (c *QuoteClient) GetFundQuote(req model.FundQuoteRequest) ([]model.FundQuote, error) {
+	var out []model.FundQuote
+	err := c.callInto("fund_quote", req, &out)
+	return out, err
+}
+
+// GetFundHistoryQuote 基金历史净值。wire: fund_history_quote
+func (c *QuoteClient) GetFundHistoryQuote(req model.FundHistoryQuoteRequest) ([]model.FundHistoryQuote, error) {
+	var out []model.FundHistoryQuote
+	err := c.callInto("fund_history_quote", req, &out)
+	return out, err
+}
+
+// GetWarrantBriefs 窝轮简要行情。wire: warrant_briefs
+func (c *QuoteClient) GetWarrantBriefs(req model.WarrantBriefsRequest) ([]model.WarrantBrief, error) {
+	var out []model.WarrantBrief
+	err := c.callInto("warrant_briefs", req, &out)
+	return out, err
+}
+
+// GetWarrantFilter 窝轮筛选。wire: warrant_filter
+func (c *QuoteClient) GetWarrantFilter(req model.WarrantFilterRequest) (*model.WarrantFilterResult, error) {
+	var out model.WarrantFilterResult
+	if err := c.callInto("warrant_filter", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetIndustryList 行业列表。wire: industry_list
+func (c *QuoteClient) GetIndustryList(req model.IndustryListRequest) ([]model.IndustryItem, error) {
+	var out []model.IndustryItem
+	err := c.callInto("industry_list", req, &out)
+	return out, err
+}
+
+// GetIndustryStocks 行业下股票列表。wire: industry_stock_list
+func (c *QuoteClient) GetIndustryStocks(req model.IndustryStocksRequest) ([]model.IndustryStock, error) {
+	var out []model.IndustryStock
+	err := c.callInto("industry_stock_list", req, &out)
+	return out, err
+}
+
+// GetCorporateSplit 公司行动 - 拆股。wire: corporate_action (action_type=split)
+// 服务端返回 {SYMBOL: [items]} 按 symbol 分组的 map。
+func (c *QuoteClient) GetCorporateSplit(req model.CorporateActionRequest) ([]model.CorporateAction, error) {
+	req.ActionType = "split"
+	var grouped map[string][]model.CorporateAction
+	if err := c.callInto("corporate_action", req, &grouped); err != nil {
+		return nil, err
+	}
+	var out []model.CorporateAction
+	for _, list := range grouped {
+		out = append(out, list...)
+	}
+	return out, nil
+}
+
+// GetCorporateDividend 公司行动 - 分红。wire: corporate_action (action_type=dividend)
+func (c *QuoteClient) GetCorporateDividend(req model.CorporateActionRequest) ([]model.CorporateAction, error) {
+	req.ActionType = "dividend"
+	var grouped map[string][]model.CorporateAction
+	if err := c.callInto("corporate_action", req, &grouped); err != nil {
+		return nil, err
+	}
+	var out []model.CorporateAction
+	for _, list := range grouped {
+		out = append(out, list...)
+	}
+	return out, nil
+}
+
+// GetCorporateEarningsCalendar 公司行动 - 财报日历。wire: corporate_action (action_type=earning)
+func (c *QuoteClient) GetCorporateEarningsCalendar(req model.CorporateActionRequest) ([]model.CorporateAction, error) {
+	req.ActionType = "earning"
+	var grouped map[string][]model.CorporateAction
+	if err := c.callInto("corporate_action", req, &grouped); err != nil {
+		return nil, err
+	}
+	var out []model.CorporateAction
+	for _, list := range grouped {
+		out = append(out, list...)
+	}
+	return out, nil
+}
+
+// GetFinancialExchangeRate 汇率数据。wire: financial_exchange_rate
+func (c *QuoteClient) GetFinancialExchangeRate(req model.FinancialExchangeRateRequest) ([]model.ExchangeRate, error) {
+	var out []model.ExchangeRate
+	err := c.callInto("financial_exchange_rate", req, &out)
+	return out, err
+}
+
+// GetFinancialCurrency 财报币种。wire: financial_currency
+func (c *QuoteClient) GetFinancialCurrency(req model.FinancialCurrencyRequest) ([]model.FinancialCurrency, error) {
+	var out []model.FinancialCurrency
+	err := c.callInto("financial_currency", req, &out)
+	return out, err
+}
+
+// GetTradingCalendar 交易日历。wire: trading_calendar
+func (c *QuoteClient) GetTradingCalendar(req model.TradingCalendarRequest) ([]model.TradingCalendarItem, error) {
+	var out []model.TradingCalendarItem
+	err := c.callInto("trading_calendar", req, &out)
+	return out, err
+}
+
+// GetMarketScannerTags 扫描器可用标签。wire: market_scanner_tags
+func (c *QuoteClient) GetMarketScannerTags(req model.MarketScannerTagsRequest) (*model.MarketScannerTags, error) {
+	var out model.MarketScannerTags
+	if err := c.callInto("market_scanner_tags", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetQuoteOvernight 隔夜行情。wire: quote_overnight
+func (c *QuoteClient) GetQuoteOvernight(req model.QuoteOvernightRequest) ([]model.QuoteOvernight, error) {
+	var out []model.QuoteOvernight
+	err := c.callInto("quote_overnight", req, &out)
+	return out, err
+}
