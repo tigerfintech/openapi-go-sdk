@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tigerfintech/openapi-go-sdk/config"
+	"github.com/tigerfintech/openapi-go-sdk/logger"
 	"github.com/tigerfintech/openapi-go-sdk/push/pb"
 	"github.com/tigerfintech/openapi-go-sdk/signer"
 	"google.golang.org/protobuf/proto"
@@ -114,11 +115,16 @@ type TCPDialer interface {
 type defaultDialer struct{}
 
 func (d *defaultDialer) Dial(address string, timeout time.Duration) (net.Conn, error) {
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-		MinVersion:         tls.VersionTLS12,
+	// Try with TLS verification first; fall back without if verification fails.
+	strictConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: timeout}, "tcp", address, strictConfig)
+	if err == nil {
+		return conn, nil
 	}
-	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: timeout}, "tcp", address, tlsConfig)
+	// Verification failed — log a warning and retry without certificate check.
+	logger.Warnf("TLS certificate verification failed for %s: %v. Connecting without verification.", address, err)
+	insecureConfig := &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12} //nolint:gosec
+	conn, err = tls.DialWithDialer(&net.Dialer{Timeout: timeout}, "tcp", address, insecureConfig)
 	if err != nil {
 		return nil, fmt.Errorf("TCP+TLS 连接失败: %w", err)
 	}
