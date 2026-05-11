@@ -5,6 +5,15 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-05-11
+
+### Fixed
+
+- **Push TLS 证书验证**：服务端证书已更新为有效的 `*.tigerfintech.com`，Go SDK push 客户端现默认开启 TLS 证书验证。验证失败时自动降级并打印 warning 日志，不影响连接（向前兼容）。
+- **`Transaction` 响应模型修正**：
+  - `TransactedAt` 字段类型 `int64` → `string`（服务端返回 `"YYYY-MM-DD HH:MM:SS"` 格式字符串，不是时间戳）
+  - 新增 `AccountId int64`、`FilledPrice float64`、`FilledAmount float64`、`FilledQuantityScale int`、`TransactionTime int64`（毫秒时间戳）等服务端实际返回的字段
+
 ## [0.3.0] - 2026-05-08
 
 本次发布达到与 Python SDK **100% API 覆盖**。新增 71 个方法，重构 11 个方法签名。包含多处 breaking change。
