@@ -5,6 +5,14 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2026-05-11
+
+### Fixed
+
+- **`GetFutureTradeTicks` 响应解包修正**：服务端实际返回 `{"contractCode":"...","items":[...]}` 包装对象，而非裸数组；修正为先解包 `items`，再回填 `contractCode` 到每个 tick。
+- **`FutureTradeTicksRequest` 字段 omitempty 移除**：`begin_index` 和 `end_index` 去掉 `omitempty`，确保零值（0）能发送到服务端；同时为 `end_index` 默认填 30（与 Python SDK 一致）。
+- **`FundingHistory` 反序列化修正**：服务端直接返回裸 list，从错误的 `callIntoItems`（期望 `{items:[...]}`）改为 `callInto`。
+
 ## [0.3.2] - 2026-05-11
 
 ### Fixed
