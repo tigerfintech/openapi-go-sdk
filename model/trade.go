@@ -168,16 +168,26 @@ type AggregateAssets struct {
 	CurrencyAssets     []CurrencyAsset `json:"currencyAssets,omitempty"`
 }
 
-// SegmentFund 子账户资金调拨（查询可用 / 执行转账 的共用响应结构）。
+// SegmentFundAvailableItem 可调拨资金条目（segment_fund_available 响应）。
+type SegmentFundAvailableItem struct {
+	FromSegment string  `json:"fromSegment,omitempty"`
+	Currency    string  `json:"currency,omitempty"`
+	Amount      float64 `json:"amount,omitempty"`
+}
+
+// SegmentFund 子账户资金调拨响应（transfer/cancel 共用）。
 type SegmentFund struct {
-	ID           string  `json:"id,omitempty"`
-	Status       string  `json:"status,omitempty"`
-	FromSegment  string  `json:"fromSegment,omitempty"`
-	ToSegment    string  `json:"toSegment,omitempty"`
-	Currency     string  `json:"currency,omitempty"`
-	Amount       float64 `json:"amount,omitempty"`
-	AvailableAmt float64 `json:"availableAmount,omitempty"`
-	SubmitTime   int64   `json:"submitTime,omitempty"`
+	ID          interface{} `json:"id,omitempty"`
+	FromSegment string      `json:"fromSegment,omitempty"`
+	ToSegment   string      `json:"toSegment,omitempty"`
+	Currency    string      `json:"currency,omitempty"`
+	Amount      float64     `json:"amount,omitempty"`
+	Status      string      `json:"status,omitempty"`
+	StatusDesc  string      `json:"statusDesc,omitempty"`
+	Message     string      `json:"message,omitempty"`
+	SettledAt   int64       `json:"settledAt,omitempty"`
+	CreatedAt   int64       `json:"createdAt,omitempty"`
+	UpdatedAt   int64       `json:"updatedAt,omitempty"`
 }
 
 // SegmentFundHistoryItem 资金调拨历史条目。
@@ -188,8 +198,10 @@ type SegmentFundHistoryItem struct {
 	Currency    string  `json:"currency,omitempty"`
 	Amount      float64 `json:"amount,omitempty"`
 	Status      string  `json:"status,omitempty"`
-	SubmitTime  int64   `json:"submitTime,omitempty"`
-	UpdateTime  int64   `json:"updateTime,omitempty"`
+	StatusDesc  string  `json:"statusDesc,omitempty"`
+	SettledAt   int64   `json:"settledAt,omitempty"`
+	CreatedAt   int64   `json:"createdAt,omitempty"`
+	UpdatedAt   int64   `json:"updatedAt,omitempty"`
 }
 
 // FundDetails 资金明细条目（/fund_details）。

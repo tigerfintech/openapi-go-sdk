@@ -315,11 +315,11 @@ func (c *TradeClient) PlaceForexOrder(req model.ForexOrderRequest) (*model.Forex
 
 // SegmentFundAvailable 查询可用于调拨的金额。
 // 服务端返回数组（按 SegmentType 分项）。
-func (c *TradeClient) SegmentFundAvailable(req model.SegmentFundRequest) ([]model.SegmentFund, error) {
+func (c *TradeClient) SegmentFundAvailable(req model.SegmentFundRequest) ([]model.SegmentFundAvailableItem, error) {
 	if req.Account == "" {
 		req.Account = c.account
 	}
-	var out []model.SegmentFund
+	var out []model.SegmentFundAvailableItem
 	err := c.callInto("segment_fund_available", req, &out)
 	return out, err
 }
