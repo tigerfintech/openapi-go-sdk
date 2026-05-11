@@ -372,12 +372,13 @@ func (c *TradeClient) FundDetails(req model.FundDetailsRequest) ([]model.FundDet
 }
 
 // FundingHistory 资金调拨记录（wire method: transfer_fund）。
+// 服务端直接返回裸 list（不带 items 包装）。
 func (c *TradeClient) FundingHistory(req model.FundingHistoryRequest) ([]model.FundingHistoryItem, error) {
 	if req.Account == "" {
 		req.Account = c.account
 	}
 	var out []model.FundingHistoryItem
-	err := c.callIntoItems("transfer_fund", req, &out)
+	err := c.callInto("transfer_fund", req, &out)
 	return out, err
 }
 

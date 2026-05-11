@@ -316,10 +316,11 @@ type FutureBarsByPageRequest struct {
 }
 
 // FutureTradeTicksRequest 期货逐笔。wire: future_tick
+// BeginIndex/EndIndex 默认值 0/30；不加 omitempty，确保零值也能发送到服务端。
 type FutureTradeTicksRequest struct {
 	ContractCode string `json:"contract_code,omitempty"`
-	BeginIndex   int    `json:"begin_index,omitempty"`
-	EndIndex     int    `json:"end_index,omitempty"`
+	BeginIndex   int    `json:"begin_index"`
+	EndIndex     int    `json:"end_index"`
 	Limit        int    `json:"limit,omitempty"`
 	Lang         string `json:"lang,omitempty"`
 }

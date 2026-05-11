@@ -704,10 +704,25 @@ func (c *QuoteClient) GetFutureBarsByPage(req model.FutureBarsByPageRequest) ([]
 }
 
 // GetFutureTradeTicks 期货逐笔。wire: future_tick (API version 3.0)
+// 服务端返回 {contractCode, items:[...]} 对象，需解包 items 并回填 contractCode。
+// end_index 服务端要求必须 >= 0；未设置时默认 30（与 Python SDK 一致）。
 func (c *QuoteClient) GetFutureTradeTicks(req model.FutureTradeTicksRequest) ([]model.FutureTradeTickItem, error) {
-	var out []model.FutureTradeTickItem
-	err := c.callIntoVersioned("future_tick", req, "3.0", &out)
-	return out, err
+	if req.EndIndex == 0 {
+		req.EndIndex = 30
+	}
+	var wrap struct {
+		ContractCode string                      `json:"contractCode"`
+		Items        []model.FutureTradeTickItem `json:"items"`
+	}
+	if err := c.callIntoVersioned("future_tick", req, "3.0", &wrap); err != nil {
+		return nil, err
+	}
+	for i := range wrap.Items {
+		if wrap.Items[i].ContractCode == "" {
+			wrap.Items[i].ContractCode = wrap.ContractCode
+		}
+	}
+	return wrap.Items, nil
 }
 
 // GetFutureDepth 期货盘口。wire: future_depth
