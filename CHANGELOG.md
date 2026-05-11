@@ -5,6 +5,14 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-05-11
+
+### Fixed
+
+- **`SegmentFundHistoryItem` 响应模型修正**：服务端实际字段名为 `createdAt` / `updatedAt` / `settledAt`，原代码错误映射为 `submitTime` / `updateTime`；补充 `StatusDesc string`（`statusDesc`）和 `SettledAt int64`（`settledAt`）字段。
+- **`SegmentFundAvailable` 返回类型修正**：由错误的 `[]SegmentFund` 改为专用的 `[]SegmentFundAvailableItem`（仅含 `fromSegment`、`currency`、`amount` 三个字段，与服务端实际响应对齐）。
+- **`SegmentFund`（transfer/cancel 响应）模型更新**：字段从旧的 `submitTime`/`availableAmount` 映射修正为 `createdAt`/`updatedAt`/`settledAt`；补充 `StatusDesc`、`Message` 字段，`ID` 类型改为 `interface{}` 以兼容服务端可能返回的数字或字符串。
+
 ## [0.3.1] - 2026-05-11
 
 ### Fixed
