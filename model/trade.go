@@ -220,13 +220,18 @@ type FundDetails struct {
 
 // FundingHistoryItem 调拨记录（/transfer_fund）。
 type FundingHistoryItem struct {
-	ID         string  `json:"id,omitempty"`
-	SegType    string  `json:"segType,omitempty"`
-	Currency   string  `json:"currency,omitempty"`
-	Amount     float64 `json:"amount,omitempty"`
-	Status     string  `json:"status,omitempty"`
-	SubmitTime int64   `json:"submitTime,omitempty"`
-	UpdateTime int64   `json:"updateTime,omitempty"`
+	ID              int64   `json:"id,omitempty"`
+	RefID           string  `json:"refId,omitempty"`
+	Type            int     `json:"type,omitempty"`
+	TypeDesc        string  `json:"typeDesc,omitempty"`
+	Currency        string  `json:"currency,omitempty"`
+	Amount          float64 `json:"amount,omitempty"`
+	BusinessDate    string  `json:"businessDate,omitempty"`
+	Status          string  `json:"status,omitempty"`
+	StatusDesc      string  `json:"statusDesc,omitempty"`
+	CompletedStatus bool    `json:"completedStatus,omitempty"`
+	CreatedAt       int64   `json:"createdAt,omitempty"`
+	UpdatedAt       int64   `json:"updatedAt,omitempty"`
 }
 
 // EstimateTradableQuantity 可交易数量估算结果。
