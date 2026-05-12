@@ -5,6 +5,17 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-05-12
+
+### Fixed
+
+- **`FundingHistoryItem` 响应模型修正**：对照 `FundDepositWithdrawDTO` 实际字段重写。字段变更：
+  - `ID` 类型 `string` → `int64`
+  - `SubmitTime` (`submitTime`) → `CreatedAt` (`createdAt`)
+  - `UpdateTime` (`updateTime`) → `UpdatedAt` (`updatedAt`)
+  - 移除不存在的 `SegType` 字段
+  - 新增 `RefID` (`refId`)、`Type` (`type`)、`TypeDesc` (`typeDesc`)、`BusinessDate` (`businessDate`)、`StatusDesc` (`statusDesc`)、`CompletedStatus` (`completedStatus`)
+
 ## [0.3.3] - 2026-05-11
 
 ### Fixed
