@@ -32,6 +32,19 @@ func (c *TradeClient) callInto(method string, bizParams interface{}, out interfa
 	return client.UnmarshalData(resp.Data, out)
 }
 
+// callIntoVersioned 带版本号的通用请求。
+func (c *TradeClient) callIntoVersioned(method string, bizParams interface{}, version string, out interface{}) error {
+	req, err := client.NewVersionedApiRequest(method, bizParams, version)
+	if err != nil {
+		return err
+	}
+	resp, err := c.httpClient.Execute(req)
+	if err != nil {
+		return err
+	}
+	return client.UnmarshalData(resp.Data, out)
+}
+
 // callIntoItems 剥掉服务端 {"items":[...]} 的外包装。
 func (c *TradeClient) callIntoItems(method string, bizParams interface{}, items interface{}) error {
 	var wrap struct {
@@ -57,6 +70,20 @@ func (c *TradeClient) Contract(symbol, secType string) ([]model.Contract, error)
 		"sec_type": secType,
 	}, &out)
 	return out, err
+}
+
+// Contract3 查询单个合约（version 3.0，服务端直接返回单个对象）。
+func (c *TradeClient) Contract3(symbol, secType string) (*model.Contract, error) {
+	var out model.Contract
+	err := c.callIntoVersioned("contract", map[string]interface{}{
+		"account":  c.account,
+		"symbol":   symbol,
+		"sec_type": secType,
+	}, "3.0", &out)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // Contracts 批量查询合约。

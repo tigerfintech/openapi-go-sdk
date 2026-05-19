@@ -60,6 +60,14 @@ func main() {
 		ok("Contract(AAPL, STK)", "(empty)")
 	}
 
+	if c, err := tc.Contract3("AAPL", "STK"); err != nil {
+		fail("Contract3(AAPL, STK)", err)
+	} else if c != nil {
+		ok("Contract3(AAPL, STK)", fmt.Sprintf("%s contractId=%d exchange=%s", c.Symbol, c.ContractId, c.PrimaryExchange))
+	} else {
+		ok("Contract3(AAPL, STK)", "(empty)")
+	}
+
 	if cs, err := tc.Contracts([]string{"AAPL", "TSLA"}, "STK"); err != nil {
 		fail("Contracts([AAPL TSLA])", err)
 	} else {

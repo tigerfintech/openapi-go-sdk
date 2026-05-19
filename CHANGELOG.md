@@ -5,6 +5,13 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] - 2026-05-19
+
+### Added
+
+- **`Contract3` 方法**：新增 `TradeClient.Contract3(symbol, secType)` 方法，使用 API version 3.0，服务端直接返回单个合约对象（`*model.Contract`），无需 `items` 数组解包。
+- **`callIntoVersioned` (TradeClient)**：TradeClient 新增带版本号的通用请求方法，支持指定 API version。
+
 ## [0.3.4] - 2026-05-12
 
 ### Fixed
