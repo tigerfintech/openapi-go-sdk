@@ -6,13 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/tigerfintech/openapi-go-sdk/client"
-	"github.com/tigerfintech/openapi-go-sdk/config"
-	"github.com/tigerfintech/openapi-go-sdk/model"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"github.com/tigerfintech/openapi-go-sdk/client"
+	"github.com/tigerfintech/openapi-go-sdk/config"
+	"github.com/tigerfintech/openapi-go-sdk/model"
 	"time"
 )
 
@@ -92,6 +92,25 @@ func TestGetContract(t *testing.T) {
 	}
 	if len(data) == 0 {
 		t.Fatal("GetContract 返回空")
+	}
+}
+
+func TestGetContract3(t *testing.T) {
+	server := mockServer(t, map[string]interface{}{
+		"symbol": "AAPL", "secType": "STK",
+	})
+	defer server.Close()
+
+	tc := newTestTradeClient(server.URL)
+	data, err := tc.Contract3("AAPL", "STK")
+	if err != nil {
+		t.Fatalf("GetContract3 失败: %v", err)
+	}
+	if data == nil {
+		t.Fatal("GetContract3 返回 nil")
+	}
+	if data.Symbol != "AAPL" {
+		t.Fatalf("GetContract3 symbol 期望 AAPL, 实际 %s", data.Symbol)
 	}
 }
 
