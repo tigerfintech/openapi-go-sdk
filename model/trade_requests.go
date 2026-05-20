@@ -101,6 +101,26 @@ type ManagedAccountsRequest struct {
 	Lang      string `json:"lang,omitempty"`
 }
 
+// ContractRequest — 查询合约（支持股票/期权/期货/窝轮等）。
+// 对应 wire method: contract (version 3.0)
+//
+// 用法：
+//   - 股票/期货: 只需 Symbol + SecType
+//   - 期权/窝轮/牛熊: 可传 OCC identifier 作为 Symbol（自动解析 expiry/strike/right），
+//     也可手动设置 Symbol + Expiry + Strike + Right
+type ContractRequest struct {
+	Account   string  `json:"account,omitempty"`
+	SecretKey string  `json:"secret_key,omitempty"`
+	Symbol    string  `json:"symbol,omitempty"`
+	SecType   string  `json:"sec_type,omitempty"`
+	Currency  string  `json:"currency,omitempty"`
+	Exchange  string  `json:"exchange,omitempty"`
+	Expiry    string  `json:"expiry,omitempty"`
+	Strike    float64 `json:"strike,omitempty"`
+	Right     string  `json:"right,omitempty"`
+	Lang      string  `json:"lang,omitempty"`
+}
+
 // DerivativeContractsRequest — 查询衍生品合约列表。
 // 对应 wire method: derivative_contracts
 type DerivativeContractsRequest struct {
@@ -139,15 +159,15 @@ type AggregateAssetsRequest struct {
 // SegmentFundRequest — 子账户资金调拨（available/history/transfer/cancel 共用）。
 // 对应 wire methods: segment_fund_available / segment_fund_history / transfer_segment_fund / cancel_segment_fund
 type SegmentFundRequest struct {
-	ID           string  `json:"id,omitempty"`
-	Account      string  `json:"account,omitempty"`
-	SecretKey    string  `json:"secret_key,omitempty"`
-	FromSegment  string  `json:"from_segment,omitempty"`
-	ToSegment    string  `json:"to_segment,omitempty"`
-	Currency     string  `json:"currency,omitempty"`
-	Amount       float64 `json:"amount,omitempty"`
-	Limit        int     `json:"limit,omitempty"`
-	Lang         string  `json:"lang,omitempty"`
+	ID          string  `json:"id,omitempty"`
+	Account     string  `json:"account,omitempty"`
+	SecretKey   string  `json:"secret_key,omitempty"`
+	FromSegment string  `json:"from_segment,omitempty"`
+	ToSegment   string  `json:"to_segment,omitempty"`
+	Currency    string  `json:"currency,omitempty"`
+	Amount      float64 `json:"amount,omitempty"`
+	Limit       int     `json:"limit,omitempty"`
+	Lang        string  `json:"lang,omitempty"`
 }
 
 // ForexOrderRequest — 外汇下单。

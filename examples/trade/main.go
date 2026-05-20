@@ -52,10 +52,10 @@ func main() {
 	tc := trade.NewTradeClient(client.NewHttpClient(cfg), cfg.Account)
 
 	fmt.Println("=== Contract 查询 ===")
-	if cs, err := tc.Contract("AAPL", "STK"); err != nil {
+	if c, err := tc.Contract(model.ContractRequest{Symbol: "AAPL", SecType: "STK"}); err != nil {
 		fail("Contract(AAPL, STK)", err)
-	} else if len(cs) > 0 {
-		ok("Contract(AAPL, STK)", fmt.Sprintf("%s contractId=%d exchange=%s", cs[0].Symbol, cs[0].ContractId, cs[0].PrimaryExchange))
+	} else if c != nil {
+		ok("Contract(AAPL, STK)", fmt.Sprintf("%s contractId=%d exchange=%s", c.Symbol, c.ContractId, c.PrimaryExchange))
 	} else {
 		ok("Contract(AAPL, STK)", "(empty)")
 	}

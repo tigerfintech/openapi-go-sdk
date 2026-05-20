@@ -61,15 +61,61 @@ func (c *TradeClient) callIntoItems(method string, bizParams interface{}, items 
 
 // === 合约查询 ===
 
-// Contract 查询单个合约。
-func (c *TradeClient) Contract(symbol, secType string) ([]model.Contract, error) {
-	var out []model.Contract
-	err := c.callIntoItems("contract", map[string]interface{}{
-		"account":  c.account,
-		"symbol":   symbol,
-		"sec_type": secType,
-	}, &out)
-	return out, err
+// Contract 查询合约（version 3.0）。
+//
+// 对于期权/窝轮/牛熊证：
+//   - 可以传 OCC identifier 作为 Symbol（如 "NVDA  260522P00340000"），自动解析 expiry/strike/right
+//   - 也可以手动设置 Symbol + Expiry + Strike + Right
+//
+// 对于股票/期货等只需 Symbol + SecType。
+func (c *TradeClient) Contract(req model.ContractRequest) (*model.Contract, error) {
+	if req.Account == "" {
+		req.Account = c.account
+	}
+
+	// 如果是衍生品类型且未显式传 strike，尝试从 OCC identifier 自动解析
+	secType := req.SecType
+	if (secType == "OPT" || secType == "WAR" || secType == "IOPT") &&
+		req.Strike == 0 && model.IsOptionIdentifier(req.Symbol) {
+		parsed, err := model.ParseOptionIdentifier(req.Symbol)
+		if err == nil {
+			req.Symbol = parsed.Symbol
+			req.Expiry = parsed.Expiry
+			req.Strike = parsed.Strike
+			req.Right = parsed.Right
+		}
+	}
+
+	params := map[string]interface{}{
+		"account":  req.Account,
+		"symbol":   req.Symbol,
+		"sec_type": req.SecType,
+	}
+	if req.Currency != "" {
+		params["currency"] = req.Currency
+	}
+	if req.Exchange != "" {
+		params["exchange"] = req.Exchange
+	}
+	if req.Expiry != "" {
+		params["expiry"] = req.Expiry
+	}
+	if req.Strike != 0 {
+		params["strike"] = req.Strike
+	}
+	if req.Right != "" {
+		params["right"] = req.Right
+	}
+	if req.SecretKey != "" {
+		params["secret_key"] = req.SecretKey
+	}
+
+	var out model.Contract
+	err := c.callIntoVersioned("contract", params, "3.0", &out)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // Contract3 查询单个合约（version 3.0，服务端直接返回单个对象）。
