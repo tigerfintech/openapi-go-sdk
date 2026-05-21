@@ -37,4 +37,7 @@ type Position struct {
 	TodayPnlPercent                   float64  `json:"todayPnlPercent,omitempty"`
 	ComboTypes                        []string `json:"comboTypes,omitempty"`
 	Categories                        []string `json:"categories,omitempty"`
+	IsLevel0Price                     bool     `json:"isLevel0Price,omitempty"`
+	YesterdayPnl                      float64  `json:"yesterdayPnl,omitempty"`
+	UnderlyingContractName            string   `json:"underlyingContractName,omitempty"`
 }
