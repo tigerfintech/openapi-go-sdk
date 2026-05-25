@@ -36,8 +36,11 @@ type ClientConfig struct {
 	DeviceID             string        `json:"device_id"`
 	Timeout              time.Duration `json:"-"`
 	Token                string        `json:"-"`
-	TokenRefreshDuration time.Duration `json:"-"`
-	ServerURL            string        `json:"-"`
+	TokenRefreshDuration time.Duration      `json:"-"`
+	TokenCheckInterval   time.Duration      `json:"-"`           // 后台检查间隔，默认 5m，仅 TokenRefreshDuration>0 时生效
+	TokenWriter         func(token string) `json:"-"`           // token 刷新写入后的可选回调
+	TokenLoader          func() (string, error) `json:"-"`       // 自定义 token 加载函数，替代默认的文件加载
+	ServerURL            string             `json:"-"`
 	QuoteServerURL       string        `json:"-"`
 	EnableDynamicDomain  bool          `json:"-"`
 	TigerPublicKey       string        `json:"-"`
@@ -86,9 +89,27 @@ func WithToken(token string) Option {
 	return func(c *ClientConfig) { c.Token = token }
 }
 
-// WithTokenRefreshDuration 设置 Token 刷新间隔
+// WithTokenRefreshDuration 设置 Token 刷新阈值。
+// Token 生成时间超过此值时触发刷新；默认 0 表示不刷新。
 func WithTokenRefreshDuration(d time.Duration) Option {
 	return func(c *ClientConfig) { c.TokenRefreshDuration = d }
+}
+
+// WithTokenCheckInterval 设置后台 token 刷新检查间隔，默认 5 分钟。
+func WithTokenCheckInterval(d time.Duration) Option {
+	return func(c *ClientConfig) { c.TokenCheckInterval = d }
+}
+
+// WithTokenWriter 设置 token 刷新写入后的回调函数。
+// 仅在 TokenRefreshDuration > 0 时生效，由 NewHttpClient 自动注册到内部 TokenManager。
+func WithTokenWriter(fn func(token string)) Option {
+	return func(c *ClientConfig) { c.TokenWriter = fn }
+}
+
+// WithTokenLoader 设置自定义 token 加载函数，替代默认的文件加载。
+// 由 NewHttpClient 自动注册到内部 TokenManager，LoadToken 时优先执行此函数。
+func WithTokenLoader(fn func() (string, error)) Option {
+	return func(c *ClientConfig) { c.TokenLoader = fn }
 }
 
 // WithDeviceID sets the device identifier (e.g. MAC address).
@@ -189,10 +210,14 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 		cfg.Account = v
 	}
 
-	// Load token from environment variable or token file
+	// Load token: env var > WithTokenLoader > token file
 	if cfg.Token == "" {
 		if v := os.Getenv(envToken); v != "" {
 			cfg.Token = v
+		} else if cfg.TokenLoader != nil {
+			if token, err := cfg.TokenLoader(); err == nil && token != "" {
+				cfg.Token = token
+			}
 		} else {
 			tokenFilePath := os.Getenv(envTokenFile)
 			if tokenFilePath == "" {
@@ -269,7 +294,7 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 // used for the default route. Falls back to the first interface with a MAC.
 func detectDeviceID() string {
 	// Try to find MAC of the interface used for default route
-	conn, err := net.Dial("udp", "8.8.8.8:80")
+	conn, err := net.DialTimeout("udp", "8.8.8.8:80", 100*time.Millisecond)
 	if err == nil {
 		defer conn.Close()
 		localAddr := conn.LocalAddr().(*net.UDPAddr)
