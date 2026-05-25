@@ -19,30 +19,44 @@ const (
 )
 
 // TokenManager Token 管理器
-// 从 properties 文件加载 Token，支持后台定期刷新。
+// 支持从文件或自定义来源加载 Token，并可在后台定期刷新。
 type TokenManager struct {
-	mu       sync.RWMutex
-	token    string
-	filePath string
-	interval time.Duration
-	stopCh   chan struct{}
-	// Token 刷新阈值（秒），0 表示不刷新
+	mu              sync.RWMutex
+	token           string
+	filePath        string
+	fileEnabled     bool // true only when WithTokenFilePath was explicitly called
+	interval        time.Duration
+	stopCh          chan struct{}
 	refreshDuration int64
-	// 可注入的刷新函数（用于测试）
-	refreshFn func() (string, error)
+	refreshFn       func() (string, error) // 由 StartAutoRefresh 注入，在 refreshLoop 中调用
+	tokenLoader     func() (string, error) // 自定义加载函数，优先于文件加载
+	tokenWriter     func(token string)     // token 写入后的回调（可选）
 }
 
 // TokenManagerOption TokenManager 配置选项
 type TokenManagerOption func(*TokenManager)
 
-// WithTokenFilePath 设置 Token 文件路径
+// WithTokenFilePath 设置 Token 文件路径，并启用文件持久化。
 func WithTokenFilePath(path string) TokenManagerOption {
-	return func(m *TokenManager) { m.filePath = path }
+	return func(m *TokenManager) {
+		m.filePath = path
+		m.fileEnabled = true
+	}
 }
 
 // WithTokenRefreshInterval 设置 Token 检查间隔
 func WithTokenRefreshInterval(d time.Duration) TokenManagerOption {
 	return func(m *TokenManager) { m.interval = d }
+}
+
+// TokenLoaderOption 返回设置自定义 token 加载函数的 TokenManagerOption。
+func TokenLoaderOption(fn func() (string, error)) TokenManagerOption {
+	return func(m *TokenManager) { m.tokenLoader = fn }
+}
+
+// TokenWriterOption 返回设置 token 写入回调的 TokenManagerOption。
+func TokenWriterOption(fn func(token string)) TokenManagerOption {
+	return func(m *TokenManager) { m.tokenWriter = fn }
 }
 
 // WithRefreshDuration 设置 Token 刷新阈值（秒），当 token 生成时间超过此值时触发刷新。
@@ -68,10 +82,23 @@ func NewTokenManager(opts ...TokenManagerOption) *TokenManager {
 	return m
 }
 
-// LoadToken 从 properties 文件加载 Token
+// LoadToken 加载 Token。
+// 若设置了 WithTokenLoader，优先调用自定义加载函数；否则从 properties 文件读取。
 func (m *TokenManager) LoadToken() (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if m.tokenLoader != nil {
+		token, err := m.tokenLoader()
+		if err != nil {
+			return "", fmt.Errorf("自定义 token 加载失败: %w", err)
+		}
+		if token == "" {
+			return "", fmt.Errorf("自定义 token 加载返回空值")
+		}
+		m.token = token
+		return token, nil
+	}
 
 	props, err := ParsePropertiesFile(m.filePath)
 	if err != nil {
@@ -94,13 +121,30 @@ func (m *TokenManager) GetToken() string {
 	return m.token
 }
 
-// SetToken 设置 Token 并更新文件
+// SetToken 设置 Token；若启用了文件持久化（WithTokenFilePath），则同步写文件。
+// 成功后触发 TokenWriter 回调（如有）。
 func (m *TokenManager) SetToken(token string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.token = token
-	return m.saveTokenToFile(token)
+	var err error
+	if m.fileEnabled {
+		err = m.saveTokenToFile(token)
+	}
+	cb := m.tokenWriter
+	m.mu.Unlock()
+
+	if err == nil && cb != nil {
+		cb(token)
+	}
+	return err
+}
+
+// SyncToken 仅更新内存中的 token，不写文件，不触发回调。
+// 用于多个组件共享 token 时的内部同步（如 RefreshToken 同步内部 TokenManager）。
+func (m *TokenManager) SyncToken(token string) {
+	m.mu.Lock()
+	m.token = token
+	m.mu.Unlock()
 }
 
 // saveTokenToFile 将 Token 保存到 properties 文件

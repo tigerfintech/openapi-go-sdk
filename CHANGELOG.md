@@ -5,6 +5,24 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.6] - 2026-05-25
+
+### Added
+
+- **`HttpClient.Close()`**：新增关闭方法，停止 `NewHttpClient` 自动启动的后台 token 刷新 goroutine，避免长期运行服务中的 goroutine 泄漏。
+- **`TokenManager.SyncToken(token)`**：新增内部同步方法，仅更新内存 token，不写文件、不触发回调，供多组件共享 token 时使用。
+- **`TokenManager` 按需文件持久化**：只有显式调用 `WithTokenFilePath` 后，`SetToken` 才写文件；未配置路径时 `SetToken` 仅更新内存，不再静默写入工作目录下的默认文件。
+- **完整 `config` 包测试覆盖**：合并 property-based tests，新增 16 个单元测试，覆盖所有 `Option` 函数、env var 优先级、`TokenLoader` 初始化时自动加载、私钥优先级（`private_key > pk8 > pk1`）等场景。
+
+### Fixed
+
+- **goroutine 泄漏**：`NewHttpClient` 自动启动 token 刷新后，内部 `TokenManager` 现在保存在 `HttpClient.tokenManager` 字段；调用 `Close()` 即可停止后台 goroutine。
+- **`RefreshToken(nil)` 与内部 TokenManager 状态分歧**：手动调用 `RefreshToken(nil)` 后，内部自动刷新的 `TokenManager` 内存 token 同步更新，避免不必要的重复刷新。
+- **`NewQuoteHttpClient` 双重 goroutine**：克隆 config 时清零 `TokenRefreshDuration`，避免同时启动两个独立的 token 刷新 goroutine。
+- **`detectDeviceID` 无超时**：`net.Dial` 改为 `net.DialTimeout(..., 100ms)`，在离线或沙箱环境下不再阻塞。
+- **token 前缀出现在日志**：`RefreshToken` 日志改为只记录 token 长度，不再打印 token 前缀。
+- **`TokenLoader` 初始化时被忽略**：`NewClientConfig` 的 token 加载优先级修正为 `TIGEROPEN_TOKEN` > `WithTokenLoader` > token 文件，之前 `WithTokenLoader` 在初始化阶段不生效。
+
 ## [0.3.5] - 2026-05-19
 
 ### Added

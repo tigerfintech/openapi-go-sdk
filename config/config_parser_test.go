@@ -1,9 +1,13 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"pgregory.net/rapid"
 )
 
 // TestParsePropertiesFile_BasicKeyValue 测试基本键值对解析
@@ -141,6 +145,46 @@ func TestParsePropertiesFile_ContinuationTrimLeadingSpaces(t *testing.T) {
 	}
 
 	assertProp(t, props, "key", "helloworld")
+}
+
+// TestPropertiesRoundTrip 属性测试：任意键值对序列化后再解析应等价
+func TestPropertiesRoundTrip(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		n := rapid.IntRange(1, 10).Draw(t, "numPairs")
+		expected := make(map[string]string, n)
+
+		for i := 0; i < n; i++ {
+			key := rapid.StringMatching(`[a-zA-Z_][a-zA-Z0-9_]{0,19}`).Draw(t, fmt.Sprintf("key_%d", i))
+			val := rapid.StringMatching(`[a-zA-Z0-9.,;@$%^&*()\[\]{}<>/?|~+\-]{1,50}`).Draw(t, fmt.Sprintf("val_%d", i))
+			expected[key] = val
+		}
+
+		var sb strings.Builder
+		for k, v := range expected {
+			fmt.Fprintf(&sb, "%s=%s\n", k, v)
+		}
+
+		dir := os.TempDir()
+		path := filepath.Join(dir, fmt.Sprintf("prop_test_%d.properties", rapid.IntRange(0, 999999).Draw(t, "fileId")))
+		if err := os.WriteFile(path, []byte(sb.String()), 0644); err != nil {
+			t.Fatalf("写入临时文件失败: %v", err)
+		}
+		defer os.Remove(path)
+
+		parsed, err := ParsePropertiesFile(path)
+		if err != nil {
+			t.Fatalf("解析失败: %v", err)
+		}
+
+		if len(parsed) != len(expected) {
+			t.Fatalf("键值对数量不匹配: 期望 %d，实际 %d", len(expected), len(parsed))
+		}
+		for k, v := range expected {
+			if parsed[k] != v {
+				t.Fatalf("键 %q: 期望 %q，实际 %q", k, v, parsed[k])
+			}
+		}
+	})
 }
 
 // --- 辅助函数 ---
