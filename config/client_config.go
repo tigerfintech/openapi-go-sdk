@@ -21,6 +21,7 @@ const (
 	envTigerID    = "TIGEROPEN_TIGER_ID"
 	envPrivateKey = "TIGEROPEN_PRIVATE_KEY"
 	envAccount    = "TIGEROPEN_ACCOUNT"
+	envSecretKey  = "TIGEROPEN_SECRET_KEY"
 	envToken      = "TIGEROPEN_TOKEN"
 	envTokenFile  = "TIGEROPEN_TOKEN_FILE"
 )
@@ -30,6 +31,7 @@ type ClientConfig struct {
 	TigerID              string        `json:"tiger_id"`
 	PrivateKey           string        `json:"private_key"`
 	Account              string        `json:"account"`
+	SecretKey            string        `json:"secret_key"`
 	License              string        `json:"license"`
 	Language             string        `json:"language"`
 	Timezone             string        `json:"timezone"`
@@ -62,6 +64,11 @@ func WithPrivateKey(key string) Option {
 // WithAccount 设置交易账户
 func WithAccount(account string) Option {
 	return func(c *ClientConfig) { c.Account = account }
+}
+
+// WithSecretKey 设置机构账户 Secret Key（机构用户交易鉴权使用）。
+func WithSecretKey(key string) Option {
+	return func(c *ClientConfig) { c.SecretKey = key }
 }
 
 // WithLicense 设置牌照类型
@@ -157,6 +164,9 @@ func applyProperties(c *ClientConfig, props map[string]string) {
 	if v, ok := props["account"]; ok && c.Account == "" {
 		c.Account = v
 	}
+	if v, ok := props["secret_key"]; ok && c.SecretKey == "" {
+		c.SecretKey = v
+	}
 	if v, ok := props["license"]; ok && c.License == "" {
 		c.License = v
 	}
@@ -208,6 +218,9 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 	}
 	if v := os.Getenv(envAccount); v != "" {
 		cfg.Account = v
+	}
+	if v := os.Getenv(envSecretKey); v != "" {
+		cfg.SecretKey = v
 	}
 
 	// Load token: env var > WithTokenLoader > token file

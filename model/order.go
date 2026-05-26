@@ -165,6 +165,8 @@ type OrderRequest struct {
 	Remark string `json:"remark,omitempty"`
 	// 用户标记
 	UserMark string `json:"user_mark,omitempty"`
+	// 机构账户鉴权 Secret Key
+	SecretKey string `json:"secret_key,omitempty"`
 }
 
 // OrderLegRequest 附加订单请求模型（止盈/止损）
