@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/tigerfintech/openapi-go-sdk/client"
+	"github.com/tigerfintech/openapi-go-sdk/config"
 	"github.com/tigerfintech/openapi-go-sdk/model"
 )
 
@@ -12,11 +13,29 @@ import (
 type TradeClient struct {
 	httpClient *client.HttpClient
 	account    string
+	secretKey  string
 }
 
-// NewTradeClient 创建交易客户端
+// NewTradeClient 创建交易客户端。
+// account 留空时使用 httpClient 对应 config 中的默认账户（推荐直接传 cfg.Account）。
+// SecretKey 通过 NewTradeClientFromConfig 自动注入，或调用 SetSecretKey 手动设置。
 func NewTradeClient(httpClient *client.HttpClient, account string) *TradeClient {
 	return &TradeClient{httpClient: httpClient, account: account}
+}
+
+// NewTradeClientFromConfig 从 ClientConfig 创建交易客户端，自动注入 Account 和 SecretKey。
+func NewTradeClientFromConfig(httpClient *client.HttpClient, cfg *config.ClientConfig) *TradeClient {
+	return &TradeClient{
+		httpClient: httpClient,
+		account:    cfg.Account,
+		secretKey:  cfg.SecretKey,
+	}
+}
+
+// SetSecretKey 设置机构账户 Secret Key（机构用户交易鉴权使用）。
+// 用于在 NewTradeClient 之后补充设置，或在运行时动态更新。
+func (c *TradeClient) SetSecretKey(key string) {
+	c.secretKey = key
 }
 
 // callInto 内部通用:构造请求、发送、把 data 解码到 out。
@@ -116,6 +135,9 @@ func (c *TradeClient) QuoteContract(symbol, secType, expiry string) ([]model.Con
 // PlaceOrder 下单。
 func (c *TradeClient) PlaceOrder(order model.OrderRequest) (*model.PlaceOrderResult, error) {
 	order.Account = c.account
+	if order.SecretKey == "" {
+		order.SecretKey = c.secretKey
+	}
 	var out model.PlaceOrderResult
 	err := c.callInto("place_order", order, &out)
 	if err != nil {
@@ -127,6 +149,9 @@ func (c *TradeClient) PlaceOrder(order model.OrderRequest) (*model.PlaceOrderRes
 // PreviewOrder 预览订单。
 func (c *TradeClient) PreviewOrder(order model.OrderRequest) (*model.PreviewResult, error) {
 	order.Account = c.account
+	if order.SecretKey == "" {
+		order.SecretKey = c.secretKey
+	}
 	var out model.PreviewResult
 	err := c.callInto("preview_order", order, &out)
 	if err != nil {
@@ -139,6 +164,9 @@ func (c *TradeClient) PreviewOrder(order model.OrderRequest) (*model.PreviewResu
 func (c *TradeClient) ModifyOrder(id int64, order model.OrderRequest) (*model.OrderIDResult, error) {
 	order.Account = c.account
 	order.ID = id
+	if order.SecretKey == "" {
+		order.SecretKey = c.secretKey
+	}
 	var out model.OrderIDResult
 	err := c.callInto("modify_order", order, &out)
 	if err != nil {
@@ -167,6 +195,9 @@ func (c *TradeClient) CancelOrder(id int64) (*model.OrderIDResult, error) {
 func (c *TradeClient) Orders(req model.OrdersRequest) ([]model.Order, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.Order
 	err := c.callIntoItems("orders", req, &out)
@@ -177,6 +208,9 @@ func (c *TradeClient) Orders(req model.OrdersRequest) ([]model.Order, error) {
 func (c *TradeClient) ActiveOrders(req model.OrdersRequest) ([]model.Order, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.Order
 	err := c.callIntoItems("active_orders", req, &out)
@@ -187,6 +221,9 @@ func (c *TradeClient) ActiveOrders(req model.OrdersRequest) ([]model.Order, erro
 func (c *TradeClient) InactiveOrders(req model.OrdersRequest) ([]model.Order, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.Order
 	err := c.callIntoItems("inactive_orders", req, &out)
@@ -197,6 +234,9 @@ func (c *TradeClient) InactiveOrders(req model.OrdersRequest) ([]model.Order, er
 func (c *TradeClient) FilledOrders(req model.OrdersRequest) ([]model.Order, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.Order
 	err := c.callIntoItems("filled_orders", req, &out)
@@ -209,6 +249,9 @@ func (c *TradeClient) FilledOrders(req model.OrdersRequest) ([]model.Order, erro
 func (c *TradeClient) GetOrder(req model.GetOrderRequest) (*model.Order, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out model.Order
 	if err := c.callInto("orders", req, &out); err != nil {
@@ -225,6 +268,9 @@ func (c *TradeClient) GetOrder(req model.GetOrderRequest) (*model.Order, error) 
 func (c *TradeClient) OrderTransactions(req model.OrderTransactionsRequest) ([]model.Transaction, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.Transaction
 	err := c.callIntoItems("order_transactions", req, &out)
@@ -237,6 +283,9 @@ func (c *TradeClient) OrderTransactions(req model.OrderTransactionsRequest) ([]m
 func (c *TradeClient) Positions(req model.PositionsRequest) ([]model.Position, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.Position
 	err := c.callIntoItems("positions", req, &out)
@@ -247,6 +296,9 @@ func (c *TradeClient) Positions(req model.PositionsRequest) ([]model.Position, e
 func (c *TradeClient) Assets(req model.AssetsRequest) ([]model.Asset, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.Asset
 	err := c.callIntoItems("assets", req, &out)
@@ -257,6 +309,9 @@ func (c *TradeClient) Assets(req model.AssetsRequest) ([]model.Asset, error) {
 func (c *TradeClient) PrimeAssets(req model.AssetsRequest) (*model.PrimeAsset, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out model.PrimeAsset
 	if err := c.callInto("prime_assets", req, &out); err != nil {
@@ -271,6 +326,9 @@ func (c *TradeClient) PrimeAssets(req model.AssetsRequest) (*model.PrimeAsset, e
 func (c *TradeClient) ManagedAccounts(req model.ManagedAccountsRequest) ([]model.ManagedAccount, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.ManagedAccount
 	err := c.callIntoItems("accounts", req, &out)
@@ -282,6 +340,9 @@ func (c *TradeClient) ManagedAccounts(req model.ManagedAccountsRequest) ([]model
 func (c *TradeClient) DerivativeContracts(req model.DerivativeContractsRequest) ([]model.Contract, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.Contract
 	err := c.callIntoItems("quote_contract", req, &out)
@@ -294,6 +355,9 @@ func (c *TradeClient) DerivativeContracts(req model.DerivativeContractsRequest) 
 func (c *TradeClient) AnalyticsAsset(req model.AnalyticsAssetRequest) ([]model.AnalyticsAsset, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.AnalyticsAsset
 	err := c.callIntoItems("analytics_asset", req, &out)
@@ -304,6 +368,9 @@ func (c *TradeClient) AnalyticsAsset(req model.AnalyticsAssetRequest) ([]model.A
 func (c *TradeClient) AggregateAssets(req model.AggregateAssetsRequest) (*model.AggregateAssets, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out model.AggregateAssets
 	if err := c.callInto("aggregate_assets", req, &out); err != nil {
@@ -318,6 +385,9 @@ func (c *TradeClient) AggregateAssets(req model.AggregateAssetsRequest) (*model.
 func (c *TradeClient) EstimateTradableQuantity(req model.EstimateTradableQuantityRequest) (*model.EstimateTradableQuantity, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out model.EstimateTradableQuantity
 	if err := c.callInto("estimate_tradable_quantity", req, &out); err != nil {
@@ -330,6 +400,9 @@ func (c *TradeClient) EstimateTradableQuantity(req model.EstimateTradableQuantit
 func (c *TradeClient) PlaceForexOrder(req model.ForexOrderRequest) (*model.ForexOrderResult, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out model.ForexOrderResult
 	if err := c.callInto("place_forex_order", req, &out); err != nil {
@@ -345,6 +418,9 @@ func (c *TradeClient) PlaceForexOrder(req model.ForexOrderRequest) (*model.Forex
 func (c *TradeClient) SegmentFundAvailable(req model.SegmentFundRequest) ([]model.SegmentFundAvailableItem, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.SegmentFundAvailableItem
 	err := c.callInto("segment_fund_available", req, &out)
@@ -356,6 +432,9 @@ func (c *TradeClient) SegmentFundAvailable(req model.SegmentFundRequest) ([]mode
 func (c *TradeClient) SegmentFundHistory(req model.SegmentFundRequest) ([]model.SegmentFundHistoryItem, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.SegmentFundHistoryItem
 	err := c.callInto("segment_fund_history", req, &out)
@@ -366,6 +445,9 @@ func (c *TradeClient) SegmentFundHistory(req model.SegmentFundRequest) ([]model.
 func (c *TradeClient) TransferSegmentFund(req model.SegmentFundRequest) (*model.SegmentFund, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out model.SegmentFund
 	if err := c.callInto("transfer_segment_fund", req, &out); err != nil {
@@ -378,6 +460,9 @@ func (c *TradeClient) TransferSegmentFund(req model.SegmentFundRequest) (*model.
 func (c *TradeClient) CancelSegmentFund(req model.SegmentFundRequest) (*model.SegmentFund, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out model.SegmentFund
 	if err := c.callInto("cancel_segment_fund", req, &out); err != nil {
@@ -392,6 +477,9 @@ func (c *TradeClient) CancelSegmentFund(req model.SegmentFundRequest) (*model.Se
 func (c *TradeClient) FundDetails(req model.FundDetailsRequest) ([]model.FundDetails, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.FundDetails
 	err := c.callIntoItems("fund_details", req, &out)
@@ -403,6 +491,9 @@ func (c *TradeClient) FundDetails(req model.FundDetailsRequest) ([]model.FundDet
 func (c *TradeClient) FundingHistory(req model.FundingHistoryRequest) ([]model.FundingHistoryItem, error) {
 	if req.Account == "" {
 		req.Account = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.FundingHistoryItem
 	err := c.callInto("transfer_fund", req, &out)
@@ -415,6 +506,9 @@ func (c *TradeClient) FundingHistory(req model.FundingHistoryRequest) ([]model.F
 func (c *TradeClient) TransferPosition(req model.PositionTransferRequest) (*model.PositionTransferRecord, error) {
 	if req.FromAccount == "" {
 		req.FromAccount = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out model.PositionTransferRecord
 	if err := c.callInto("position_transfer", req, &out); err != nil {
@@ -428,6 +522,9 @@ func (c *TradeClient) TransferPosition(req model.PositionTransferRequest) (*mode
 func (c *TradeClient) PositionTransferRecords(req model.PositionTransferRecordsRequest) ([]model.PositionTransferRecord, error) {
 	if req.AccountID == "" {
 		req.AccountID = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.PositionTransferRecord
 	err := c.callIntoItems("position_transfer_records", req, &out)
@@ -438,6 +535,9 @@ func (c *TradeClient) PositionTransferRecords(req model.PositionTransferRecordsR
 func (c *TradeClient) PositionTransferDetail(req model.PositionTransferDetailRequest) (*model.PositionTransferDetail, error) {
 	if req.AccountID == "" {
 		req.AccountID = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out model.PositionTransferDetail
 	if err := c.callInto("position_transfer_detail", req, &out); err != nil {
@@ -450,6 +550,9 @@ func (c *TradeClient) PositionTransferDetail(req model.PositionTransferDetailReq
 func (c *TradeClient) PositionTransferExternalRecords(req model.PositionTransferExternalRecordsRequest) ([]model.PositionTransferExternalRecord, error) {
 	if req.AccountID == "" {
 		req.AccountID = c.account
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
 	}
 	var out []model.PositionTransferExternalRecord
 	err := c.callIntoItems("position_transfer_external_records", req, &out)
