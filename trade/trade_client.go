@@ -179,8 +179,9 @@ func (c *TradeClient) ModifyOrder(id int64, order model.OrderRequest) (*model.Or
 func (c *TradeClient) CancelOrder(id int64) (*model.OrderIDResult, error) {
 	var out model.OrderIDResult
 	err := c.callInto("cancel_order", map[string]interface{}{
-		"account": c.account,
-		"id":      id,
+		"account":    c.account,
+		"id":         id,
+		"secret_key": c.secretKey,
 	}, &out)
 	if err != nil {
 		return nil, err
