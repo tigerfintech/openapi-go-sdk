@@ -18,7 +18,7 @@ const (
 	// UserAgentPrefix User-Agent 前缀
 	UserAgentPrefix = "openapi-go-sdk-"
 	// SDKVersion SDK 版本号
-	SDKVersion = "0.3.7"
+	SDKVersion = "0.3.6"
 	// DefaultCharset 默认字符集
 	DefaultCharset = "UTF-8"
 	// DefaultSignType 默认签名类型
