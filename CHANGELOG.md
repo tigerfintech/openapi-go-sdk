@@ -5,6 +5,16 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.7] - 2026-05-26
+
+### Added
+
+- **`WithSecretKey` 配置选项**：新增 `config.WithSecretKey(key)` 选项，支持从代码、properties 文件（`secret_key`）或环境变量（`TIGEROPEN_SECRET_KEY`）注入机构账户鉴权 Secret Key。
+- **`NewTradeClientFromConfig` 构造函数**：从 `ClientConfig` 自动注入 `Account` 和 `SecretKey` 到 `TradeClient`，无需手动设置。
+- **`TradeClient.SetSecretKey`**：运行时动态更新 `SecretKey` 的 setter 方法。
+- **SecretKey 自动注入**：所有交易接口（下单、改单、预览、订单查询、持仓、资产、账户管理、资金明细、资产分析、外汇、资金调拨、转股等）在调用时自动将 `TradeClient` 中的 `secretKey` 注入请求参数，与 Python SDK 行为对齐。
+- **`OrderRequest.SecretKey`**：`model.OrderRequest` 新增 `SecretKey` 字段（`json:"secret_key,omitempty"`），用于下单/改单/预览订单接口。
+
 ## [0.3.6] - 2026-05-25
 
 ### Added
@@ -12,11 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`HttpClient.Close()`**：新增关闭方法，停止 `NewHttpClient` 自动启动的后台 token 刷新 goroutine，避免长期运行服务中的 goroutine 泄漏。
 - **`WithTokenLoader` / `WithTokenWriter`**：新增自定义 token 加载和写入回调选项，支持将 token 存储在数据库、KV 等自定义来源；`WithTokenLoader` 在 `NewClientConfig` 初始化时自动调用，用于填充初始 token。
 - **`TokenManager` 按需文件持久化**：只有显式调用 `WithTokenFilePath` 后，`SetToken` 才写文件；未配置路径时 `SetToken` 仅更新内存。
-- **`WithSecretKey` 配置选项**：新增 `config.WithSecretKey(key)` 选项，支持从代码、properties 文件（`secret_key`）或环境变量（`TIGEROPEN_SECRET_KEY`）注入机构账户鉴权 Secret Key。
-- **`NewTradeClientFromConfig` 构造函数**：从 `ClientConfig` 自动注入 `Account` 和 `SecretKey` 到 `TradeClient`，无需手动设置。
-- **`TradeClient.SetSecretKey`**：运行时动态更新 `SecretKey` 的 setter 方法。
-- **SecretKey 自动注入**：所有交易接口（下单、改单、预览、订单查询、持仓、资产、账户管理、资金明细、资产分析、外汇、资金调拨、转股等）在调用时自动将 `TradeClient` 中的 `secretKey` 注入请求参数，与 Python SDK 行为对齐。
-- **`OrderRequest.SecretKey`**：`model.OrderRequest` 新增 `SecretKey` 字段（`json:"secret_key,omitempty"`），用于下单/改单/预览订单接口。
 
 ## [0.3.5] - 2026-05-19
 
