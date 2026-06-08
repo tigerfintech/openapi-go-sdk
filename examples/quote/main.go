@@ -262,6 +262,12 @@ func main() {
 		ok("GrabQuotePermission", fmt.Sprintf("permissions=%d", len(perms)))
 	}
 
+	if ent, err := qc.GetAddonEntitlement(); err != nil {
+		fail("GetAddonEntitlement", err)
+	} else {
+		ok("GetAddonEntitlement", fmt.Sprintf("userLevel=%s addons=%d", ent.UserLevel, len(ent.Addons)))
+	}
+
 	// ===== v0.3.0 新增 API =====
 	fmt.Println("\n=== v0.3.0: 股票基础扩展 ===")
 
