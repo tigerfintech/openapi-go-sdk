@@ -324,6 +324,16 @@ func (c *QuoteClient) GrabQuotePermission() ([]model.QuotePermission, error) {
 	return out, err
 }
 
+// GetAddonEntitlement returns the user's addon plan entitlements.
+// Wire method: addon_entitlements. 对应 Java AddonEntitlementRequest。
+func (c *QuoteClient) GetAddonEntitlement() (*model.AddonEntitlement, error) {
+	var out model.AddonEntitlement
+	if err := c.callInto("addon_entitlements", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // === Option helper functions ===
 
 // optionContract holds parsed fields from an OCC option identifier.
