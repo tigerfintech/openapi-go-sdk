@@ -71,24 +71,24 @@ type Order struct {
 	// 用户标记
 	UserMark string `json:"userMark,omitempty"`
 	// 服务端额外返回字段
-	ExternalId         string  `json:"externalId,omitempty"`
-	TotalQuantityScale int     `json:"totalQuantityScale,omitempty"`
-	FilledQuantityScale int    `json:"filledQuantityScale,omitempty"`
-	FilledCashAmount   float64 `json:"filledCashAmount,omitempty"`
-	Gst                float64 `json:"gst,omitempty"`
-	Liquidation        bool    `json:"liquidation,omitempty"`
-	AttrDesc           string  `json:"attrDesc,omitempty"`
-	AttrList           []string `json:"attrList,omitempty"`
-	AlgoStrategy       string  `json:"algoStrategy,omitempty"`
-	Discount           float64 `json:"discount,omitempty"`
-	ReplaceStatus      string  `json:"replaceStatus,omitempty"`
-	CancelStatus       string  `json:"cancelStatus,omitempty"`
-	CanModify          bool    `json:"canModify,omitempty"`
-	CanCancel          bool    `json:"canCancel,omitempty"`
-	IsOpen             bool    `json:"isOpen,omitempty"`
-	OrderDiscount      float64 `json:"orderDiscount,omitempty"`
-	TradingSessionType string  `json:"tradingSessionType,omitempty"`
-	LatestPrice        float64 `json:"latestPrice,omitempty"`
+	ExternalId          string   `json:"externalId,omitempty"`
+	TotalQuantityScale  int      `json:"totalQuantityScale,omitempty"`
+	FilledQuantityScale int      `json:"filledQuantityScale,omitempty"`
+	FilledCashAmount    float64  `json:"filledCashAmount,omitempty"`
+	Gst                 float64  `json:"gst,omitempty"`
+	Liquidation         bool     `json:"liquidation,omitempty"`
+	AttrDesc            string   `json:"attrDesc,omitempty"`
+	AttrList            []string `json:"attrList,omitempty"`
+	AlgoStrategy        string   `json:"algoStrategy,omitempty"`
+	Discount            float64  `json:"discount,omitempty"`
+	ReplaceStatus       string   `json:"replaceStatus,omitempty"`
+	CancelStatus        string   `json:"cancelStatus,omitempty"`
+	CanModify           bool     `json:"canModify,omitempty"`
+	CanCancel           bool     `json:"canCancel,omitempty"`
+	IsOpen              bool     `json:"isOpen,omitempty"`
+	OrderDiscount       float64  `json:"orderDiscount,omitempty"`
+	TradingSessionType  string   `json:"tradingSessionType,omitempty"`
+	LatestPrice         float64  `json:"latestPrice,omitempty"`
 }
 
 // OrderLeg 附加订单（止盈/止损）- 响应模型

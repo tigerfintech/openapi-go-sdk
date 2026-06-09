@@ -168,9 +168,9 @@ const (
 type CorporateActionType string
 
 const (
-	CorporateActionTypeSplit     CorporateActionType = "split"
-	CorporateActionTypeDividend  CorporateActionType = "dividend"
-	CorporateActionTypeEarning   CorporateActionType = "earning"
+	CorporateActionTypeSplit    CorporateActionType = "split"
+	CorporateActionTypeDividend CorporateActionType = "dividend"
+	CorporateActionTypeEarning  CorporateActionType = "earning"
 )
 
 // IndustryLevel 行业级别（1~4 级）
@@ -187,8 +187,8 @@ const (
 type SortDirection string
 
 const (
-	SortDirectionNo     SortDirection = "SortDir_No"
-	SortDirectionAscend SortDirection = "SortDir_Ascend"
+	SortDirectionNo      SortDirection = "SortDir_No"
+	SortDirectionAscend  SortDirection = "SortDir_Ascend"
 	SortDirectionDescend SortDirection = "SortDir_Descend"
 )
 

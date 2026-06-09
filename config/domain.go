@@ -22,7 +22,7 @@ const (
 
 // domainResponse 域名查询响应
 type domainResponse struct {
-	Ret   int              `json:"ret"`
+	Ret   int                          `json:"ret"`
 	Items []map[string]json.RawMessage `json:"items"`
 }
 

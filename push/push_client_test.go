@@ -122,7 +122,6 @@ func drainConn(conn net.Conn) {
 	}
 }
 
-
 // ===== 连接和认证测试 =====
 
 func TestPushClient_NewPushClient(t *testing.T) {
@@ -319,7 +318,6 @@ func TestPushClient_ConnectWhenAlreadyConnected(t *testing.T) {
 		t.Fatal("重复连接应返回错误")
 	}
 }
-
 
 // ===== 心跳测试 =====
 
@@ -543,7 +541,6 @@ func TestPushClient_UnsubscribeAll(t *testing.T) {
 		t.Error("退订全部后不应有 quote 订阅记录")
 	}
 }
-
 
 // ===== 账户推送测试 =====
 

@@ -49,7 +49,7 @@ func main() {
 	}
 	fmt.Printf("tiger_id=%s account=%s\n\n", cfg.TigerID, cfg.Account)
 
-	tc := trade.NewTradeClient(client.NewHttpClient(cfg), cfg.Account)
+	tc := trade.NewTradeClientFromConfig(client.NewHttpClient(cfg), cfg)
 
 	fmt.Println("=== Contract 查询 ===")
 	if cs, err := tc.Contract("AAPL", "STK"); err != nil {
@@ -277,6 +277,56 @@ func main() {
 		fail("PositionTransferExternalRecords", err)
 	} else {
 		ok("PositionTransferExternalRecords", fmt.Sprintf("rows=%d", len(ext)))
+	}
+
+	fmt.Println("\n=== v0.3.8: 期权行权（只读） ===")
+
+	if res, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{
+		Type: "Exercise",
+	}); err != nil {
+		fail("OptionExercisePositions(Exercise)", err)
+	} else if res != nil {
+		ok("OptionExercisePositions(Exercise)", fmt.Sprintf("rows=%d pageCount=%d", len(res.Items), res.PageCount))
+	} else {
+		ok("OptionExercisePositions(Exercise)", "(nil result)")
+	}
+
+	if res, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{
+		Type: "Expire",
+	}); err != nil {
+		fail("OptionExercisePositions(Expire)", err)
+	} else if res != nil {
+		ok("OptionExercisePositions(Expire)", fmt.Sprintf("rows=%d pageCount=%d", len(res.Items), res.PageCount))
+	} else {
+		ok("OptionExercisePositions(Expire)", "(nil result)")
+	}
+
+	if res, err := tc.OptionExerciseRecords(model.OptionExercisePageRequest{
+		Page: 1, Size: 10,
+	}); err != nil {
+		fail("OptionExerciseRecords", err)
+	} else if res != nil {
+		ok("OptionExerciseRecords", fmt.Sprintf("rows=%d itemCount=%d", len(res.Items), res.ItemCount))
+	} else {
+		ok("OptionExerciseRecords", "(nil result)")
+	}
+
+	// OptionExerciseCheck 需要持仓，仅在有持仓时执行
+	if exercisePositions, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{Type: "Exercise"}); err == nil &&
+		exercisePositions != nil && len(exercisePositions.Items) > 0 {
+		p := exercisePositions.Items[0]
+		if checkRes, err := tc.OptionExerciseCheck(model.OptionExerciseCheckRequest{
+			ContractId:    p.ContractId,
+			Type:          "Exercise",
+			Quantity:      p.AvailableQuantity,
+			ExecutingDate: p.ExpireDate,
+		}); err != nil {
+			fail("OptionExerciseCheck", err)
+		} else if checkRes != nil {
+			ok("OptionExerciseCheck", fmt.Sprintf("symbol=%s availableQty=%.0f stkBefore=%.0f stkAfter=%.0f", checkRes.Symbol, checkRes.AvailableQuantity, checkRes.StkPositionBefore, checkRes.StkPositionAfter))
+		}
+	} else {
+		skip("OptionExerciseCheck", "no exercisable positions")
 	}
 
 	printSummary()

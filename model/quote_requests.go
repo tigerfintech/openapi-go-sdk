@@ -207,16 +207,16 @@ type QuotePermissionRequest struct {
 
 // OptionQueryItem 期权查询嵌套条目（option_query / option_basic 用）。
 type OptionQueryItem struct {
-	Symbol  string  `json:"symbol,omitempty"`
-	Expiry  int64   `json:"expiry,omitempty"`
-	Strike  string  `json:"strike,omitempty"`
-	Right   string  `json:"right,omitempty"`
-	Period  string  `json:"period,omitempty"`
-	BeginTime int64 `json:"begin_time,omitempty"`
-	EndTime   int64 `json:"end_time,omitempty"`
-	Limit     int   `json:"limit,omitempty"`
-	BeginIndex int  `json:"begin_index,omitempty"`
-	EndIndex   int  `json:"end_index,omitempty"`
+	Symbol     string `json:"symbol,omitempty"`
+	Expiry     int64  `json:"expiry,omitempty"`
+	Strike     string `json:"strike,omitempty"`
+	Right      string `json:"right,omitempty"`
+	Period     string `json:"period,omitempty"`
+	BeginTime  int64  `json:"begin_time,omitempty"`
+	EndTime    int64  `json:"end_time,omitempty"`
+	Limit      int    `json:"limit,omitempty"`
+	BeginIndex int    `json:"begin_index,omitempty"`
+	EndIndex   int    `json:"end_index,omitempty"`
 	PageToken  string `json:"page_token,omitempty"`
 }
 
@@ -255,11 +255,11 @@ type OptionSymbolsRequest struct {
 
 // OptionAnalysisRequest 期权分析。wire: option_analysis
 type OptionAnalysisRequest struct {
-	Symbols              []string `json:"symbols,omitempty"`
-	Market               string   `json:"market,omitempty"`
-	Period               string   `json:"period,omitempty"` // OptionAnalysisPeriod
-	RequireVolatilityList bool    `json:"require_volatility_list,omitempty"`
-	Lang                 string   `json:"lang,omitempty"`
+	Symbols               []string `json:"symbols,omitempty"`
+	Market                string   `json:"market,omitempty"`
+	Period                string   `json:"period,omitempty"` // OptionAnalysisPeriod
+	RequireVolatilityList bool     `json:"require_volatility_list,omitempty"`
+	Lang                  string   `json:"lang,omitempty"`
 }
 
 // FutureContractSingleRequest 按 contract_code/identifier 查询期货合约。wire: future_contract_by_contract_code / future_current_contract 等
