@@ -28,24 +28,24 @@ const (
 
 // ClientConfig holds authentication credentials and runtime parameters.
 type ClientConfig struct {
-	TigerID              string        `json:"tiger_id"`
-	PrivateKey           string        `json:"private_key"`
-	Account              string        `json:"account"`
-	SecretKey            string        `json:"secret_key"`
-	License              string        `json:"license"`
-	Language             string        `json:"language"`
-	Timezone             string        `json:"timezone"`
-	DeviceID             string        `json:"device_id"`
-	Timeout              time.Duration `json:"-"`
-	Token                string        `json:"-"`
-	TokenRefreshDuration time.Duration      `json:"-"`
-	TokenCheckInterval   time.Duration      `json:"-"`           // 后台检查间隔，默认 5m，仅 TokenRefreshDuration>0 时生效
-	TokenWriter         func(token string) `json:"-"`           // token 刷新写入后的可选回调
-	TokenLoader          func() (string, error) `json:"-"`       // 自定义 token 加载函数，替代默认的文件加载
-	ServerURL            string             `json:"-"`
-	QuoteServerURL       string        `json:"-"`
-	EnableDynamicDomain  bool          `json:"-"`
-	TigerPublicKey       string        `json:"-"`
+	TigerID              string                 `json:"tiger_id"`
+	PrivateKey           string                 `json:"private_key"`
+	Account              string                 `json:"account"`
+	SecretKey            string                 `json:"secret_key"`
+	License              string                 `json:"license"`
+	Language             string                 `json:"language"`
+	Timezone             string                 `json:"timezone"`
+	DeviceID             string                 `json:"device_id"`
+	Timeout              time.Duration          `json:"-"`
+	Token                string                 `json:"-"`
+	TokenRefreshDuration time.Duration          `json:"-"`
+	TokenCheckInterval   time.Duration          `json:"-"` // 后台检查间隔，默认 5m，仅 TokenRefreshDuration>0 时生效
+	TokenWriter          func(token string)     `json:"-"` // token 刷新写入后的可选回调
+	TokenLoader          func() (string, error) `json:"-"` // 自定义 token 加载函数，替代默认的文件加载
+	ServerURL            string                 `json:"-"`
+	QuoteServerURL       string                 `json:"-"`
+	EnableDynamicDomain  bool                   `json:"-"`
+	TigerPublicKey       string                 `json:"-"`
 }
 
 // Option 配置选项函数类型

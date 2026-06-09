@@ -45,10 +45,10 @@ func TestGetSignContent_EmptyMap(t *testing.T) {
 // TestGetSignContent_AlphabeticalOrder 测试参数严格按字母序排列
 func TestGetSignContent_AlphabeticalOrder(t *testing.T) {
 	params := map[string]string{
-		"zebra":    "z",
-		"apple":    "a",
-		"mango":    "m",
-		"banana":   "b",
+		"zebra":  "z",
+		"apple":  "a",
+		"mango":  "m",
+		"banana": "b",
 	}
 
 	result := GetSignContent(params)

@@ -1,9 +1,10 @@
 // Push example - 覆盖 PushClient 全部推送类型,用真实配置验证长连接推送
 //
 // 运行方式:
-//   go run ./examples/push               # 默认 30 秒后自动退出
-//   go run ./examples/push -duration=60  # 自定义运行时长(秒)
-//   go run ./examples/push -trade=false  # 不触发下单,仅接收行情推送
+//
+//	go run ./examples/push               # 默认 30 秒后自动退出
+//	go run ./examples/push -duration=60  # 自定义运行时长(秒)
+//	go run ./examples/push -trade=false  # 不触发下单,仅接收行情推送
 //
 // 为了产生账户类推送事件(OnOrder / OnAsset / OnPosition / OnTransaction),
 // 默认会发一笔深度 OTM 的限价单 AAPL @ $1.00 并立即撤销。

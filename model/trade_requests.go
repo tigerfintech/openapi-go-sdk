@@ -139,15 +139,15 @@ type AggregateAssetsRequest struct {
 // SegmentFundRequest — 子账户资金调拨（available/history/transfer/cancel 共用）。
 // 对应 wire methods: segment_fund_available / segment_fund_history / transfer_segment_fund / cancel_segment_fund
 type SegmentFundRequest struct {
-	ID           string  `json:"id,omitempty"`
-	Account      string  `json:"account,omitempty"`
-	SecretKey    string  `json:"secret_key,omitempty"`
-	FromSegment  string  `json:"from_segment,omitempty"`
-	ToSegment    string  `json:"to_segment,omitempty"`
-	Currency     string  `json:"currency,omitempty"`
-	Amount       float64 `json:"amount,omitempty"`
-	Limit        int     `json:"limit,omitempty"`
-	Lang         string  `json:"lang,omitempty"`
+	ID          string  `json:"id,omitempty"`
+	Account     string  `json:"account,omitempty"`
+	SecretKey   string  `json:"secret_key,omitempty"`
+	FromSegment string  `json:"from_segment,omitempty"`
+	ToSegment   string  `json:"to_segment,omitempty"`
+	Currency    string  `json:"currency,omitempty"`
+	Amount      float64 `json:"amount,omitempty"`
+	Limit       int     `json:"limit,omitempty"`
+	Lang        string  `json:"lang,omitempty"`
 }
 
 // ForexOrderRequest — 外汇下单。
@@ -244,3 +244,63 @@ type PositionTransferDetailRequest struct {
 // 对应 wire method: position_transfer_external_records
 // 参数字段与 PositionTransferRecordsRequest 相同。
 type PositionTransferExternalRecordsRequest = PositionTransferRecordsRequest
+
+// OptionExerciseCheckRequest — 行权检验请求。
+// 对应 wire method: option_exercise_check
+type OptionExerciseCheckRequest struct {
+	Account       string  `json:"account,omitempty"`
+	SecretKey     string  `json:"secret_key,omitempty"`
+	ContractId    int64   `json:"contract_id,omitempty"`
+	Type          string  `json:"type,omitempty"` // Exercise | Expire
+	Quantity      float64 `json:"quantity,omitempty"`
+	ExecutingDate string  `json:"executing_date,omitempty"` // yyyy-MM-dd，Exercise 类型建议填
+	IsForce       *bool   `json:"is_force,omitempty"`       // Exercise 类型建议填
+	ItmRate       *int    `json:"itm_rate,omitempty"`       // 0–10，Expire 类型专用
+	Lang          string  `json:"lang,omitempty"`
+}
+
+// OptionExercisePositionRequest — 查询可行权持仓请求。
+// 对应 wire method: option_exercise_position
+type OptionExercisePositionRequest struct {
+	Account   string `json:"account,omitempty"`
+	SecretKey string `json:"secret_key,omitempty"`
+	Type      string `json:"type,omitempty"` // Exercise | Expire
+	Lang      string `json:"lang,omitempty"`
+}
+
+// OptionExerciseSubmitRequest — 提交行权申请请求。
+// 对应 wire method: option_exercise_submit
+type OptionExerciseSubmitRequest struct {
+	Account       string  `json:"account,omitempty"`
+	SecretKey     string  `json:"secret_key,omitempty"`
+	ContractId    int64   `json:"contract_id,omitempty"`
+	Type          string  `json:"type,omitempty"` // Exercise | Expire
+	Quantity      float64 `json:"quantity,omitempty"`
+	ExecutingDate string  `json:"executing_date,omitempty"` // Exercise 必填，yyyy-MM-dd
+	IsForce       *bool   `json:"is_force,omitempty"`       // Exercise 必填
+	ItmRate       *int    `json:"itm_rate,omitempty"`       // 0–10，Expire 专用
+	Lang          string  `json:"lang,omitempty"`
+}
+
+// OptionExercisePageRequest — 分页查询行权记录请求。
+// 对应 wire method: option_exercise_record
+type OptionExercisePageRequest struct {
+	Account   string `json:"account,omitempty"`
+	SecretKey string `json:"secret_key,omitempty"`
+	Page      int    `json:"page,omitempty"`   // 从 1 开始，默认 1
+	Size      int    `json:"size,omitempty"`   // 1–100，默认 20
+	Status    string `json:"status,omitempty"` // New | Cancel | Success | Fail
+	Type      string `json:"type,omitempty"`   // Exercise | Expire
+	Symbol    string `json:"symbol,omitempty"`
+	OrderBy   string `json:"order_by,omitempty"` // symbol | expire_date | strike | is_call
+	Lang      string `json:"lang,omitempty"`
+}
+
+// OptionExerciseCancelRequest — 撤销行权申请请求。
+// 对应 wire method: option_exercise_cancel
+type OptionExerciseCancelRequest struct {
+	Account   string `json:"account,omitempty"`
+	SecretKey string `json:"secret_key,omitempty"`
+	Id        int64  `json:"id,omitempty"`
+	Lang      string `json:"lang,omitempty"`
+}
