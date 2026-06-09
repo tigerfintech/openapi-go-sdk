@@ -301,14 +301,14 @@ func main() {
 		ok("OptionExercisePositions(Expire)", "(nil result)")
 	}
 
-	if res, err := tc.OptionExercisePage(model.OptionExercisePageRequest{
+	if res, err := tc.OptionExerciseRecords(model.OptionExercisePageRequest{
 		Page: 1, Size: 10,
 	}); err != nil {
-		fail("OptionExercisePage", err)
+		fail("OptionExerciseRecords", err)
 	} else if res != nil {
-		ok("OptionExercisePage", fmt.Sprintf("rows=%d itemCount=%d", len(res.Items), res.ItemCount))
+		ok("OptionExerciseRecords", fmt.Sprintf("rows=%d itemCount=%d", len(res.Items), res.ItemCount))
 	} else {
-		ok("OptionExercisePage", "(nil result)")
+		ok("OptionExerciseRecords", "(nil result)")
 	}
 
 	// OptionExerciseCheck 需要持仓，仅在有持仓时执行

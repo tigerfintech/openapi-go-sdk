@@ -559,3 +559,85 @@ func (c *TradeClient) PositionTransferExternalRecords(req model.PositionTransfer
 	err := c.callIntoItems("position_transfer_external_records", req, &out)
 	return out, err
 }
+
+// OptionExerciseCheck 行权检验（预估行权/作废后正股持仓变化）。
+// 对应 wire method: option_exercise_check
+func (c *TradeClient) OptionExerciseCheck(req model.OptionExerciseCheckRequest) (*model.OptionExerciseCheckResult, error) {
+	if req.Account == "" {
+		req.Account = c.account
+	}
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
+	var out model.OptionExerciseCheckResult
+	if err := c.callInto("option_exercise_check", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// OptionExercisePositions 查询可行权持仓列表。
+// 对应 wire method: option_exercise_position
+func (c *TradeClient) OptionExercisePositions(req model.OptionExercisePositionRequest) (*model.OptionExercisePositionPageResult, error) {
+	if req.Account == "" {
+		req.Account = c.account
+	}
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
+	var out model.OptionExercisePositionPageResult
+	if err := c.callInto("option_exercise_position", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// OptionExerciseSubmit 提交行权或作废申请。
+// 对应 wire method: option_exercise_submit
+// Exercise 类型：ExecutingDate 和 IsForce 为必填。
+// Expire 类型：ItmRate 可选（0–10）。
+func (c *TradeClient) OptionExerciseSubmit(req model.OptionExerciseSubmitRequest) (bool, error) {
+	if req.Account == "" {
+		req.Account = c.account
+	}
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
+	var result bool
+	if err := c.callInto("option_exercise_submit", req, &result); err != nil {
+		return false, err
+	}
+	return result, nil
+}
+
+// OptionExerciseRecords 分页查询已提交的行权记录。
+// 对应 wire method: option_exercise_record
+func (c *TradeClient) OptionExerciseRecords(req model.OptionExercisePageRequest) (*model.OptionExerciseRecordPageResult, error) {
+	if req.Account == "" {
+		req.Account = c.account
+	}
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
+	var out model.OptionExerciseRecordPageResult
+	if err := c.callInto("option_exercise_record", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// OptionExerciseCancel 撤销行权申请。
+// 对应 wire method: option_exercise_cancel
+func (c *TradeClient) OptionExerciseCancel(req model.OptionExerciseCancelRequest) (bool, error) {
+	if req.Account == "" {
+		req.Account = c.account
+	}
+	if req.SecretKey == "" {
+		req.SecretKey = c.secretKey
+	}
+	var result bool
+	if err := c.callInto("option_exercise_cancel", req, &result); err != nil {
+		return false, err
+	}
+	return result, nil
+}
