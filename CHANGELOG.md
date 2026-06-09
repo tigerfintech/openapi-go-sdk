@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **期权行权 5 个接口**：新增 `OptionExerciseCheck`、`OptionExercisePositions`、`OptionExerciseSubmit`、`OptionExercisePage`、`OptionExerciseCancel`，对应 wire method `option_exercise_check / option_exercise_position / option_exercise_submit / option_exercise_record / option_exercise_cancel`。
+- **期权行权 5 个接口**：新增 `OptionExerciseCheck`、`OptionExercisePositions`、`OptionExerciseSubmit`、`OptionExerciseRecords`、`OptionExerciseCancel`，对应 wire method `option_exercise_check / option_exercise_position / option_exercise_submit / option_exercise_record / option_exercise_cancel`。全部接口自动注入 `Account` 与 `SecretKey`。
+- **请求/响应模型**：新增 `OptionExerciseCheckRequest`、`OptionExercisePositionRequest`、`OptionExerciseSubmitRequest`、`OptionExercisePageRequest`、`OptionExerciseCancelRequest` 及对应结果类型。
 
 
 ## [0.3.7] - 2026-05-26
