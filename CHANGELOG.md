@@ -5,6 +5,13 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.8] - 2026-06-09
+
+### Added
+
+- **期权行权 5 个接口**：新增 `OptionExerciseCheck`、`OptionExercisePositions`、`OptionExerciseSubmit`、`OptionExercisePage`、`OptionExerciseCancel`，对应 wire method `option_exercise_check / option_exercise_position / option_exercise_submit / option_exercise_record / option_exercise_cancel`。
+
+
 ## [0.3.7] - 2026-05-26
 
 ### Added
