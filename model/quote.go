@@ -324,6 +324,46 @@ type QuotePermission struct {
 	ExpireAt int64  `json:"expireAt"`
 }
 
+// AddonEntitlement 附加套餐权益（wire 方法 addon_entitlements 返回）。
+type AddonEntitlement struct {
+	UserLevel            string                  `json:"userLevel,omitempty"`
+	ActivePlan           *AddonActivePlan        `json:"activePlan,omitempty"`
+	Addons               []AddonInfo             `json:"addons,omitempty"`
+	EffectiveEntitlement *AddonEntitlementDetail `json:"effectiveEntitlement,omitempty"`
+}
+
+// AddonActivePlan 当前生效的套餐。
+type AddonActivePlan struct {
+	PlanType   string `json:"planType,omitempty"`
+	ExpireTime int64  `json:"expireTime,omitempty"`
+}
+
+// AddonInfo 单个附加套餐信息。
+type AddonInfo struct {
+	PlanType   string `json:"planType,omitempty"`
+	Active     bool   `json:"active,omitempty"`
+	StartTime  int64  `json:"startTime,omitempty"`
+	ExpireTime int64  `json:"expireTime,omitempty"`
+}
+
+// AddonEntitlementDetail 生效后的权益额度明细。
+type AddonEntitlementDetail struct {
+	HistoryStockLimit       int `json:"historyStockLimit,omitempty"`
+	HistoryStockRemaining   int `json:"historyStockRemaining,omitempty"`
+	HistoryFutureLimit      int `json:"historyFutureLimit,omitempty"`
+	HistoryFutureRemaining  int `json:"historyFutureRemaining,omitempty"`
+	HistoryOptionLimit      int `json:"historyOptionLimit,omitempty"`
+	HistoryOptionRemaining  int `json:"historyOptionRemaining,omitempty"`
+	SubscribeLimit          int `json:"subscribeLimit,omitempty"`
+	SubscribeRemaining      int `json:"subscribeRemaining,omitempty"`
+	SubscribeDepthLimit     int `json:"subscribeDepthLimit,omitempty"`
+	SubscribeDepthRemaining int `json:"subscribeDepthRemaining,omitempty"`
+	HighFreqLimit           int `json:"highFreqLimit,omitempty"`
+	MidFreqLimit            int `json:"midFreqLimit,omitempty"`
+	LowFreqLimit            int `json:"lowFreqLimit,omitempty"`
+	RateMultiple            int `json:"rateMultiple,omitempty"`
+}
+
 // ============================================================================
 // Batch 3-5: 扩展响应模型
 // ============================================================================

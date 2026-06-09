@@ -449,6 +449,46 @@ func TestGrabQuotePermission(t *testing.T) {
 	}
 }
 
+func TestGetAddonEntitlement(t *testing.T) {
+	server := mockServer(t, "addon_entitlements", map[string]interface{}{
+		"userLevel": "PRO",
+		"activePlan": map[string]interface{}{
+			"planType":   "QUOTE_PRO",
+			"expireTime": 1700000000,
+		},
+		"addons": []map[string]interface{}{
+			{"planType": "DEPTH", "active": true, "startTime": 1690000000, "expireTime": 1700000000},
+		},
+		"effectiveEntitlement": map[string]interface{}{
+			"subscribeLimit":     100,
+			"subscribeRemaining": 80,
+			"rateMultiple":       2,
+		},
+	})
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	data, err := qc.GetAddonEntitlement()
+	if err != nil {
+		t.Fatalf("GetAddonEntitlement 失败: %v", err)
+	}
+	if data == nil {
+		t.Fatal("GetAddonEntitlement 返回 nil data")
+	}
+	if data.UserLevel != "PRO" {
+		t.Errorf("UserLevel = %q, 期望 PRO", data.UserLevel)
+	}
+	if data.ActivePlan == nil || data.ActivePlan.PlanType != "QUOTE_PRO" {
+		t.Errorf("ActivePlan 解析错误: %+v", data.ActivePlan)
+	}
+	if len(data.Addons) != 1 || !data.Addons[0].Active {
+		t.Errorf("Addons 解析错误: %+v", data.Addons)
+	}
+	if data.EffectiveEntitlement == nil || data.EffectiveEntitlement.SubscribeLimit != 100 {
+		t.Errorf("EffectiveEntitlement 解析错误: %+v", data.EffectiveEntitlement)
+	}
+}
+
 // === 错误处理测试 ===
 
 func TestQuoteClientApiError(t *testing.T) {

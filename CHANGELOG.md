@@ -5,13 +5,19 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.8] - 2026-06-09
+## [0.3.9] - 2026-06-09
 
 ### Added
 
 - **期权行权 5 个接口**：新增 `OptionExerciseCheck`、`OptionExercisePositions`、`OptionExerciseSubmit`、`OptionExerciseRecords`、`OptionExerciseCancel`，对应 wire method `option_exercise_check / option_exercise_position / option_exercise_submit / option_exercise_record / option_exercise_cancel`。全部接口自动注入 `Account` 与 `SecretKey`。
 - **请求/响应模型**：新增 `OptionExerciseCheckRequest`、`OptionExercisePositionRequest`、`OptionExerciseSubmitRequest`、`OptionExercisePageRequest`、`OptionExerciseCancelRequest` 及对应结果类型。
 
+## [0.3.8] - 2026-06-08
+
+### Added
+
+- **`QuoteClient.GetAddonEntitlement`**：新增附加套餐权益查询接口（wire 方法 `addon_entitlements`），对齐 Java SDK `AddonEntitlementRequest`，无入参，返回 `*model.AddonEntitlement`。
+- **`model.AddonEntitlement` 响应模型**：包含 `UserLevel`、当前生效套餐 `ActivePlan`、附加套餐列表 `Addons`（`AddonInfo`）及生效权益额度明细 `EffectiveEntitlement`（`AddonEntitlementDetail`，含历史行情/订阅/深度/频率等各项 limit 与 remaining 字段）。
 
 ## [0.3.7] - 2026-05-26
 
