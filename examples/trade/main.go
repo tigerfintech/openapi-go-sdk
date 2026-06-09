@@ -49,7 +49,7 @@ func main() {
 	}
 	fmt.Printf("tiger_id=%s account=%s\n\n", cfg.TigerID, cfg.Account)
 
-	tc := trade.NewTradeClient(client.NewHttpClient(cfg), cfg.Account)
+	tc := trade.NewTradeClientFromConfig(client.NewHttpClient(cfg), cfg)
 
 	fmt.Println("=== Contract 查询 ===")
 	if cs, err := tc.Contract("AAPL", "STK"); err != nil {

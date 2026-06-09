@@ -46,16 +46,16 @@ type Contract struct {
 	// 每手数量
 	LotSize float64 `json:"lotSize,omitempty"`
 	// 服务端额外字段
-	PrimaryExchange         string  `json:"primaryExchange,omitempty"`
-	LocalSymbol             string  `json:"localSymbol,omitempty"`
-	TradingClass            string  `json:"tradingClass,omitempty"`
-	Status                  int     `json:"status,omitempty"`
-	Marginable              bool    `json:"marginable,omitempty"`
-	Shortable               bool    `json:"shortable,omitempty"`
-	CloseOnly               bool    `json:"closeOnly,omitempty"`
-	IsEtf                   bool    `json:"isEtf,omitempty"`
-	SupportOvernightTrading bool    `json:"supportOvernightTrading,omitempty"`
-	SupportFractionalShare  bool    `json:"supportFractionalShare,omitempty"`
+	PrimaryExchange         string `json:"primaryExchange,omitempty"`
+	LocalSymbol             string `json:"localSymbol,omitempty"`
+	TradingClass            string `json:"tradingClass,omitempty"`
+	Status                  int    `json:"status,omitempty"`
+	Marginable              bool   `json:"marginable,omitempty"`
+	Shortable               bool   `json:"shortable,omitempty"`
+	CloseOnly               bool   `json:"closeOnly,omitempty"`
+	IsEtf                   bool   `json:"isEtf,omitempty"`
+	SupportOvernightTrading bool   `json:"supportOvernightTrading,omitempty"`
+	SupportFractionalShare  bool   `json:"supportFractionalShare,omitempty"`
 }
 
 // TickSize 最小报价单位价格区间

@@ -6,13 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/tigerfintech/openapi-go-sdk/client"
-	"github.com/tigerfintech/openapi-go-sdk/config"
-	"github.com/tigerfintech/openapi-go-sdk/model"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"github.com/tigerfintech/openapi-go-sdk/client"
+	"github.com/tigerfintech/openapi-go-sdk/config"
+	"github.com/tigerfintech/openapi-go-sdk/model"
 	"time"
 )
 

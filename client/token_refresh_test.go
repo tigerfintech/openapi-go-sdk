@@ -16,7 +16,7 @@ import (
 
 // makeExpiredToken 构造一个 gen_ts 在 secondsAgo 秒前的合法 base64 token
 func makeExpiredToken(secondsAgo int64) string {
-	genTsMs := (time.Now().Unix()-secondsAgo) * 1000
+	genTsMs := (time.Now().Unix() - secondsAgo) * 1000
 	expireTsMs := genTsMs + 3600000
 	payload := fmt.Sprintf("%013d,%013dsome_extra_payload_data", genTsMs, expireTsMs)
 	return base64.StdEncoding.EncodeToString([]byte(payload))
@@ -297,7 +297,7 @@ func TestHttpClient_StartTokenAutoRefresh(t *testing.T) {
 
 	tm := config.NewTokenManager(
 		config.WithTokenFilePath(tmpFile),
-		config.WithRefreshDuration(30),          // 30s 阈值
+		config.WithRefreshDuration(30),                       // 30s 阈值
 		config.WithTokenRefreshInterval(50*time.Millisecond), // 50ms 快速检查
 	)
 	_, _ = tm.LoadToken()

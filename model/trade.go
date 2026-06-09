@@ -108,34 +108,34 @@ type OrderIDResult struct {
 
 // Transaction 成交记录。
 type Transaction struct {
-	ID                  int64   `json:"id,omitempty"`
-	OrderID             int64   `json:"orderId,omitempty"`
-	AccountId           int64   `json:"accountId,omitempty"`
-	Account             string  `json:"account,omitempty"`
-	Symbol              string  `json:"symbol,omitempty"`
-	SecType             string  `json:"secType,omitempty"`
-	Market              string  `json:"market,omitempty"`
-	Currency            string  `json:"currency,omitempty"`
-	Identifier          string  `json:"identifier,omitempty"`
-	Action              string  `json:"action,omitempty"`
+	ID         int64  `json:"id,omitempty"`
+	OrderID    int64  `json:"orderId,omitempty"`
+	AccountId  int64  `json:"accountId,omitempty"`
+	Account    string `json:"account,omitempty"`
+	Symbol     string `json:"symbol,omitempty"`
+	SecType    string `json:"secType,omitempty"`
+	Market     string `json:"market,omitempty"`
+	Currency   string `json:"currency,omitempty"`
+	Identifier string `json:"identifier,omitempty"`
+	Action     string `json:"action,omitempty"`
 	// Price 委托价
-	Price               float64 `json:"price,omitempty"`
+	Price float64 `json:"price,omitempty"`
 	// FilledPrice 成交价（服务端字段名 filledPrice）
 	FilledPrice         float64 `json:"filledPrice,omitempty"`
 	Quantity            int64   `json:"quantity,omitempty"`
 	FilledQuantity      int64   `json:"filledQuantity,omitempty"`
 	FilledQuantityScale int     `json:"filledQuantityScale,omitempty"`
 	// Amount 委托金额
-	Amount              float64 `json:"amount,omitempty"`
+	Amount float64 `json:"amount,omitempty"`
 	// FilledAmount 成交金额（服务端字段名 filledAmount）
-	FilledAmount        float64 `json:"filledAmount,omitempty"`
-	Commission          float64 `json:"commission,omitempty"`
+	FilledAmount float64 `json:"filledAmount,omitempty"`
+	Commission   float64 `json:"commission,omitempty"`
 	// TransactedAt 成交时间字符串，格式 "YYYY-MM-DD HH:MM:SS"（服务端返回字符串非时间戳）
-	TransactedAt        string  `json:"transactedAt,omitempty"`
+	TransactedAt string `json:"transactedAt,omitempty"`
 	// TransactionTime 成交时间毫秒时间戳
-	TransactionTime     int64   `json:"transactionTime,omitempty"`
+	TransactionTime int64 `json:"transactionTime,omitempty"`
 	// Time 兼容旧字段
-	Time                int64   `json:"time,omitempty"`
+	Time int64 `json:"time,omitempty"`
 }
 
 // ManagedAccount 机构子账户信息（来自 /accounts）。
@@ -236,13 +236,13 @@ type FundingHistoryItem struct {
 
 // EstimateTradableQuantity 可交易数量估算结果。
 type EstimateTradableQuantity struct {
-	TradableQuantity      float64 `json:"tradableQuantity,omitempty"`
-	MaxCashBuyQuantity    float64 `json:"maxCashBuyQuantity,omitempty"`
-	MaxMarginBuyQuantity  float64 `json:"maxMarginBuyQuantity,omitempty"`
-	MaxShortSellQuantity  float64 `json:"maxShortSellQuantity,omitempty"`
-	MaxPositionSellQty    float64 `json:"maxPositionSellQuantity,omitempty"`
-	CashBuyingPower       float64 `json:"cashBuyingPower,omitempty"`
-	Currency              string  `json:"currency,omitempty"`
+	TradableQuantity        float64 `json:"tradableQuantity,omitempty"`
+	MaxCashBuyQuantity      float64 `json:"maxCashBuyQuantity,omitempty"`
+	MaxMarginBuyQuantity    float64 `json:"maxMarginBuyQuantity,omitempty"`
+	MaxShortSellQuantity    float64 `json:"maxShortSellQuantity,omitempty"`
+	MaxPositionSellQuantity float64 `json:"maxPositionSellQuantity,omitempty"`
+	CashBuyingPower         float64 `json:"cashBuyingPower,omitempty"`
+	Currency                string  `json:"currency,omitempty"`
 }
 
 // ForexOrderResult 外汇下单返回结果。
@@ -305,13 +305,13 @@ type PositionTransferExternalRecord struct {
 
 // OptionExerciseCheckResult 行权检验结果。
 type OptionExerciseCheckResult struct {
-	AvailableQuantity  float64 `json:"availableQuantity"`
-	Position           float64 `json:"position"`
-	StkPosition        float64 `json:"stkPosition"`
-	StkPositionChange  float64 `json:"stkPositionChange"`
-	StkPositionBefore  float64 `json:"stkPositionBefore"`
-	StkPositionAfter   float64 `json:"stkPositionAfter"`
-	Symbol             string  `json:"symbol,omitempty"`
+	AvailableQuantity float64 `json:"availableQuantity"`
+	Position          float64 `json:"position"`
+	StkPosition       float64 `json:"stkPosition"`
+	StkPositionChange float64 `json:"stkPositionChange"`
+	StkPositionBefore float64 `json:"stkPositionBefore"`
+	StkPositionAfter  float64 `json:"stkPositionAfter"`
+	Symbol            string  `json:"symbol,omitempty"`
 }
 
 // OptionExercisePosition 可行权期权持仓条目。
@@ -346,7 +346,7 @@ type OptionExerciseRecord struct {
 	ExpireDate      string  `json:"expireDate,omitempty"`
 	Strike          string  `json:"strike,omitempty"`
 	CallPut         string  `json:"callPut,omitempty"`
-	Type            string  `json:"type,omitempty"`    // Exercise | Expire
+	Type            string  `json:"type,omitempty"` // Exercise | Expire
 	RequestQuantity float64 `json:"requestQuantity"`
 	Quantity        float64 `json:"quantity"`
 	Status          string  `json:"status,omitempty"` // New | Cancel | Success | Fail

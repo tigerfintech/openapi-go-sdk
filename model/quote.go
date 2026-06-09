@@ -57,11 +57,11 @@ type KlineItem struct {
 
 // Timeline 分时
 type Timeline struct {
-	Symbol   string          `json:"symbol"`
-	Period   string          `json:"period"`
-	PreClose float64         `json:"preClose"`
-	Intraday *TimelineBucket `json:"intraday,omitempty"`
-	PreHours *TimelineBucket `json:"preHours,omitempty"`
+	Symbol     string          `json:"symbol"`
+	Period     string          `json:"period"`
+	PreClose   float64         `json:"preClose"`
+	Intraday   *TimelineBucket `json:"intraday,omitempty"`
+	PreHours   *TimelineBucket `json:"preHours,omitempty"`
 	AfterHours *TimelineBucket `json:"afterHours,omitempty"`
 }
 
@@ -302,12 +302,12 @@ type ScannerResult struct {
 
 // ScannerResultItem 扫描结果行
 type ScannerResultItem struct {
-	Symbol              string           `json:"symbol"`
-	Market              string           `json:"market"`
-	BaseDataList        []ScannerDataRow `json:"baseDataList,omitempty"`
-	AccumulateDataList  []ScannerDataRow `json:"accumulateDataList,omitempty"`
-	FinancialDataList   []ScannerDataRow `json:"financialDataList,omitempty"`
-	MultiTagDataList    []ScannerDataRow `json:"multiTagDataList,omitempty"`
+	Symbol             string           `json:"symbol"`
+	Market             string           `json:"market"`
+	BaseDataList       []ScannerDataRow `json:"baseDataList,omitempty"`
+	AccumulateDataList []ScannerDataRow `json:"accumulateDataList,omitempty"`
+	FinancialDataList  []ScannerDataRow `json:"financialDataList,omitempty"`
+	MultiTagDataList   []ScannerDataRow `json:"multiTagDataList,omitempty"`
 }
 
 // ScannerDataRow 扫描结果字段
@@ -410,12 +410,12 @@ type StockFundamental struct {
 
 // StockIndustry 股票行业归属。
 type StockIndustry struct {
-	Symbol   string `json:"symbol,omitempty"`
-	GSector  string `json:"gsector,omitempty"`
-	GGroup   string `json:"ggroup,omitempty"`
-	GInd     string `json:"gind,omitempty"`
-	GSubInd  string `json:"gsubind,omitempty"`
-	Level    string `json:"level,omitempty"`
+	Symbol  string `json:"symbol,omitempty"`
+	GSector string `json:"gsector,omitempty"`
+	GGroup  string `json:"ggroup,omitempty"`
+	GInd    string `json:"gind,omitempty"`
+	GSubInd string `json:"gsubind,omitempty"`
+	Level   string `json:"level,omitempty"`
 }
 
 // TradeRankItem 成交榜单条目。
@@ -431,9 +431,9 @@ type TradeRankItem struct {
 
 // KlineQuota K 线配额。
 type KlineQuota struct {
-	Method string  `json:"method,omitempty"`
-	Used   int     `json:"used,omitempty"`
-	Quota  int     `json:"quota,omitempty"`
+	Method string             `json:"method,omitempty"`
+	Used   int                `json:"used,omitempty"`
+	Quota  int                `json:"quota,omitempty"`
 	Detail []KlineQuotaDetail `json:"detail,omitempty"`
 }
 
@@ -448,11 +448,11 @@ type KlineQuotaDetail struct {
 
 // OptionAnalysis 期权分析（波动率等）。
 type OptionAnalysis struct {
-	Symbol           string  `json:"symbol,omitempty"`
-	HistoricalVol30D float64 `json:"historicalVolatility30Day,omitempty"`
-	HistoricalVol60D float64 `json:"historicalVolatility60Day,omitempty"`
-	HistoricalVol90D float64 `json:"historicalVolatility90Day,omitempty"`
-	ImpliedVol       float64 `json:"impliedVolatility,omitempty"`
+	Symbol           string                  `json:"symbol,omitempty"`
+	HistoricalVol30D float64                 `json:"historicalVolatility30Day,omitempty"`
+	HistoricalVol60D float64                 `json:"historicalVolatility60Day,omitempty"`
+	HistoricalVol90D float64                 `json:"historicalVolatility90Day,omitempty"`
+	ImpliedVol       float64                 `json:"impliedVolatility,omitempty"`
 	VolatilityList   []OptionVolatilityPoint `json:"volatilityList,omitempty"`
 }
 
@@ -464,27 +464,27 @@ type OptionVolatilityPoint struct {
 
 // OptionSymbol 期权代码（get_option_symbols 返回）。
 type OptionSymbol struct {
-	Symbol   string `json:"symbol,omitempty"`
-	Market   string `json:"market,omitempty"`
-	NameCN   string `json:"nameCN,omitempty"`
-	NameEN   string `json:"nameEN,omitempty"`
+	Symbol string `json:"symbol,omitempty"`
+	Market string `json:"market,omitempty"`
+	NameCN string `json:"nameCN,omitempty"`
+	NameEN string `json:"nameEN,omitempty"`
 }
 
 // (FutureContract 使用已有的 FutureContractInfo 类型，见文件上方)
 
 // FutureMainContractHistory 期货主力合约历史。
 type FutureMainContractHistory struct {
-	ContractCode  string `json:"contractCode,omitempty"`
-	Symbol        string `json:"symbol,omitempty"`
-	BeginDate     string `json:"beginDate,omitempty"`
-	EndDate       string `json:"endDate,omitempty"`
+	ContractCode string `json:"contractCode,omitempty"`
+	Symbol       string `json:"symbol,omitempty"`
+	BeginDate    string `json:"beginDate,omitempty"`
+	EndDate      string `json:"endDate,omitempty"`
 }
 
 // FutureTradingTime 期货交易时段。
 type FutureTradingTime struct {
-	ContractCode string `json:"contractCode,omitempty"`
-	BizDate      string `json:"bizDate,omitempty"`
-	Zone         string `json:"zone,omitempty"`
+	ContractCode string                 `json:"contractCode,omitempty"`
+	BizDate      string                 `json:"bizDate,omitempty"`
+	Zone         string                 `json:"zone,omitempty"`
 	TradingTimes []FutureTradingSegment `json:"tradingTimes,omitempty"`
 }
 
@@ -515,18 +515,18 @@ type FutureDepth struct {
 
 // WarrantBrief 窝轮简要信息。
 type WarrantBrief struct {
-	Symbol        string  `json:"symbol,omitempty"`
-	Name          string  `json:"name,omitempty"`
-	LatestPrice   float64 `json:"latestPrice,omitempty"`
-	Change        float64 `json:"change,omitempty"`
-	ChangeRate    float64 `json:"changeRate,omitempty"`
-	Volume        int64   `json:"volume,omitempty"`
-	Amount        float64 `json:"amount,omitempty"`
-	Underlying    string  `json:"underlying,omitempty"`
-	Issuer        string  `json:"issuer,omitempty"`
-	ExpiryDate    string  `json:"expiryDate,omitempty"`
-	StrikePrice   float64 `json:"strikePrice,omitempty"`
-	WarrantType   string  `json:"warrantType,omitempty"`
+	Symbol      string  `json:"symbol,omitempty"`
+	Name        string  `json:"name,omitempty"`
+	LatestPrice float64 `json:"latestPrice,omitempty"`
+	Change      float64 `json:"change,omitempty"`
+	ChangeRate  float64 `json:"changeRate,omitempty"`
+	Volume      int64   `json:"volume,omitempty"`
+	Amount      float64 `json:"amount,omitempty"`
+	Underlying  string  `json:"underlying,omitempty"`
+	Issuer      string  `json:"issuer,omitempty"`
+	ExpiryDate  string  `json:"expiryDate,omitempty"`
+	StrikePrice float64 `json:"strikePrice,omitempty"`
+	WarrantType string  `json:"warrantType,omitempty"`
 }
 
 // WarrantFilterResult 窝轮筛选结果。
@@ -563,10 +563,10 @@ type TradingCalendarItem struct {
 
 // ExchangeRate 汇率数据。
 type ExchangeRate struct {
-	Currency   string  `json:"currency,omitempty"`
-	Date       string  `json:"date,omitempty"`
-	Rate       float64 `json:"rate,omitempty"`
-	BaseCurrency string `json:"baseCurrency,omitempty"`
+	Currency     string  `json:"currency,omitempty"`
+	Date         string  `json:"date,omitempty"`
+	Rate         float64 `json:"rate,omitempty"`
+	BaseCurrency string  `json:"baseCurrency,omitempty"`
 }
 
 // FinancialCurrency 财报货币。
@@ -578,24 +578,24 @@ type FinancialCurrency struct {
 
 // QuoteOvernight 隔夜行情。
 type QuoteOvernight struct {
-	Symbol      string  `json:"symbol,omitempty"`
-	PreClose    float64 `json:"preClose,omitempty"`
-	Open        float64 `json:"open,omitempty"`
-	Close       float64 `json:"close,omitempty"`
-	High        float64 `json:"high,omitempty"`
-	Low         float64 `json:"low,omitempty"`
-	Volume      int64   `json:"volume,omitempty"`
-	Amount      float64 `json:"amount,omitempty"`
-	Change      float64 `json:"change,omitempty"`
-	ChangeRate  float64 `json:"changeRate,omitempty"`
-	BeginTime   int64   `json:"beginTime,omitempty"`
-	EndTime     int64   `json:"endTime,omitempty"`
+	Symbol     string  `json:"symbol,omitempty"`
+	PreClose   float64 `json:"preClose,omitempty"`
+	Open       float64 `json:"open,omitempty"`
+	Close      float64 `json:"close,omitempty"`
+	High       float64 `json:"high,omitempty"`
+	Low        float64 `json:"low,omitempty"`
+	Volume     int64   `json:"volume,omitempty"`
+	Amount     float64 `json:"amount,omitempty"`
+	Change     float64 `json:"change,omitempty"`
+	ChangeRate float64 `json:"changeRate,omitempty"`
+	BeginTime  int64   `json:"beginTime,omitempty"`
+	EndTime    int64   `json:"endTime,omitempty"`
 }
 
 // MarketScannerTags 扫描器可用标签集合。
 type MarketScannerTags struct {
-	TagFields []string            `json:"tagFields,omitempty"`
-	Tags      []MarketScannerTag  `json:"tags,omitempty"`
+	TagFields []string           `json:"tagFields,omitempty"`
+	Tags      []MarketScannerTag `json:"tags,omitempty"`
 }
 
 // MarketScannerTag 单个标签。
@@ -618,11 +618,11 @@ type FundContractInfo struct {
 
 // FundQuote 基金净值报价。
 type FundQuote struct {
-	Symbol      string  `json:"symbol,omitempty"`
-	LatestNav   float64 `json:"latestNav,omitempty"`
-	Change      float64 `json:"change,omitempty"`
-	ChangeRate  float64 `json:"changeRate,omitempty"`
-	Date        string  `json:"date,omitempty"`
+	Symbol     string  `json:"symbol,omitempty"`
+	LatestNav  float64 `json:"latestNav,omitempty"`
+	Change     float64 `json:"change,omitempty"`
+	ChangeRate float64 `json:"changeRate,omitempty"`
+	Date       string  `json:"date,omitempty"`
 }
 
 // FundHistoryQuote 基金历史净值。
