@@ -320,7 +320,7 @@ openapi-go-sdk/
 
 ## API Reference
 
-- [Tiger OpenAPI Documentation](https://quant.itigerup.com/openapi/zh/python/overview/introduction.html)
+- [Tiger OpenAPI Documentation](https://docs-en.itigerup.com/docs/)
 - [Go SDK pkg.go.dev](https://pkg.go.dev/github.com/tigerfintech/openapi-go-sdk)
 
 ## License
@@ -651,7 +651,7 @@ openapi-go-sdk/
 
 ## API 参考
 
-- [Tiger OpenAPI 文档](https://quant.itigerup.com/openapi/zh/python/overview/introduction.html)
+- [Tiger OpenAPI 文档](https://docs.itigerup.com/docs/)
 - [Go SDK pkg.go.dev](https://pkg.go.dev/github.com/tigerfintech/openapi-go-sdk)
 
 ## 许可证
