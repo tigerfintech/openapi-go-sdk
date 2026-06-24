@@ -50,9 +50,20 @@ const (
 	OrderTypeTRAIL  OrderType = "TRAIL"
 	OrderTypeAM     OrderType = "AM"
 	OrderTypeAL     OrderType = "AL"
-	OrderTypeTWAP   OrderType = "TWAP"
-	OrderTypeVWAP   OrderType = "VWAP"
-	OrderTypeOCA    OrderType = "OCA"
+	OrderTypeTWAP    OrderType = "TWAP"
+	OrderTypeVWAP    OrderType = "VWAP"
+	OrderTypeOCA     OrderType = "OCA"
+	OrderTypeICEBERG OrderType = "ICEBERG"
+)
+
+// IcebergPriceType 冰山单价格类型
+type IcebergPriceType string
+
+const (
+	// IcebergPriceTypeLimit 固定限价
+	IcebergPriceTypeLimit IcebergPriceType = "LIMIT_PRICE"
+	// IcebergPriceTypeOpponent 对手价
+	IcebergPriceTypeOpponent IcebergPriceType = "OPPONENT_PRICE"
 )
 
 // OrderStatus 订单状态枚举。对齐 Java SDK `OrderStatus` 定义。

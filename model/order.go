@@ -87,8 +87,20 @@ type Order struct {
 	CanCancel           bool     `json:"canCancel,omitempty"`
 	IsOpen              bool     `json:"isOpen,omitempty"`
 	OrderDiscount       float64  `json:"orderDiscount,omitempty"`
-	TradingSessionType  string   `json:"tradingSessionType,omitempty"`
-	LatestPrice         float64  `json:"latestPrice,omitempty"`
+	TradingSessionType string  `json:"tradingSessionType,omitempty"`
+	LatestPrice        float64 `json:"latestPrice,omitempty"`
+	// 冰山单：展示数量
+	DisplaySize int64 `json:"displaySize,omitempty"`
+	// 冰山单：最小展示数量
+	MinDisplaySize int64 `json:"minDisplaySize,omitempty"`
+	// 冰山单：价检间隔（秒）
+	CheckIntervals int64 `json:"checkIntervals,omitempty"`
+	// 冰山单：价格类型（LIMIT_PRICE / OPPONENT_PRICE）
+	PriceType string `json:"priceType,omitempty"`
+	// 冰山单：生效开始时间（epoch ms）
+	StartTime int64 `json:"startTime,omitempty"`
+	// 冰山单：生效结束时间（epoch ms）
+	EndTime int64 `json:"endTime,omitempty"`
 }
 
 // OrderLeg 附加订单（止盈/止损）- 响应模型
@@ -167,6 +179,18 @@ type OrderRequest struct {
 	UserMark string `json:"user_mark,omitempty"`
 	// 机构账户鉴权 Secret Key
 	SecretKey string `json:"secret_key,omitempty"`
+	// 冰山单：展示数量
+	DisplaySize int64 `json:"display_size,omitempty"`
+	// 冰山单：最小展示数量（缺省等于 display_size）
+	MinDisplaySize int64 `json:"min_display_size,omitempty"`
+	// 冰山单：价检间隔（秒，默认 30）
+	CheckIntervals int64 `json:"check_intervals,omitempty"`
+	// 冰山单：价格类型（LIMIT_PRICE / OPPONENT_PRICE，默认 LIMIT_PRICE）
+	PriceType string `json:"price_type,omitempty"`
+	// 冰山单：生效开始时间（epoch ms，可选）
+	StartTime int64 `json:"start_time,omitempty"`
+	// 冰山单：生效结束时间（epoch ms，可选）
+	EndTime int64 `json:"end_time,omitempty"`
 }
 
 // OrderLegRequest 附加订单请求模型（止盈/止损）
