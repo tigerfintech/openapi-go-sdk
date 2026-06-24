@@ -520,6 +520,7 @@ func (c *TradeClient) TransferPosition(req model.PositionTransferRequest) (*mode
 
 // PositionTransferRecords 查询内部转股记录列表。
 // 注意：账户参数使用 AccountID（对应 wire account_id）。
+// 服务端直接返回裸数组，不包在 {"items":[...]} 里。
 func (c *TradeClient) PositionTransferRecords(req model.PositionTransferRecordsRequest) ([]model.PositionTransferRecord, error) {
 	if req.AccountID == "" {
 		req.AccountID = c.account
@@ -528,7 +529,7 @@ func (c *TradeClient) PositionTransferRecords(req model.PositionTransferRecordsR
 		}
 	}
 	var out []model.PositionTransferRecord
-	err := c.callIntoItems("position_transfer_records", req, &out)
+	err := c.callInto("position_transfer_records", req, &out)
 	return out, err
 }
 
@@ -548,6 +549,7 @@ func (c *TradeClient) PositionTransferDetail(req model.PositionTransferDetailReq
 }
 
 // PositionTransferExternalRecords 查询外部转股记录列表。
+// 服务端直接返回裸数组，不包在 {"items":[...]} 里。
 func (c *TradeClient) PositionTransferExternalRecords(req model.PositionTransferExternalRecordsRequest) ([]model.PositionTransferExternalRecord, error) {
 	if req.AccountID == "" {
 		req.AccountID = c.account
@@ -556,7 +558,7 @@ func (c *TradeClient) PositionTransferExternalRecords(req model.PositionTransfer
 		}
 	}
 	var out []model.PositionTransferExternalRecord
-	err := c.callIntoItems("position_transfer_external_records", req, &out)
+	err := c.callInto("position_transfer_external_records", req, &out)
 	return out, err
 }
 
