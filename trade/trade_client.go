@@ -177,12 +177,15 @@ func (c *TradeClient) ModifyOrder(id int64, order model.OrderRequest) (*model.Or
 
 // CancelOrder 取消订单。
 func (c *TradeClient) CancelOrder(id int64) (*model.OrderIDResult, error) {
+	params := map[string]interface{}{
+		"account": c.account,
+		"id":      id,
+	}
+	if c.secretKey != "" {
+		params["secret_key"] = c.secretKey
+	}
 	var out model.OrderIDResult
-	err := c.callInto("cancel_order", map[string]interface{}{
-		"account":    c.account,
-		"id":         id,
-		"secret_key": c.secretKey,
-	}, &out)
+	err := c.callInto("cancel_order", params, &out)
 	if err != nil {
 		return nil, err
 	}
