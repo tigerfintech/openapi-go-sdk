@@ -5,6 +5,19 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-24
+
+### Added
+
+- **冰山单辅助函数**：新增 `IcebergOrder(account, symbol, secType, action, quantity, price, displaySize)` 及完整参数版本 `IcebergOrderFull`，支持 `MinDisplaySize`、`CheckIntervals`、`PriceType`（`IcebergPriceTypeLimit`/`IcebergPriceTypeOpponent`）、`StartTime`/`EndTime`（epoch ms）
+- **`IcebergPriceType` 枚举**：新增 `IcebergPriceTypeLimit`（固定限价）和 `IcebergPriceTypeOpponent`（对手价）
+- **`Order` 结构体新增冰山单字段**：`DisplaySize`、`MinDisplaySize`、`CheckIntervals`、`PriceType`、`StartTime`、`EndTime`
+- **单元测试**：`TestIcebergOrder`、`TestIcebergOrderFull`、`TestIcebergOrderFullZeroTimes`，覆盖基础构造、完整参数、零值省略行为
+
+### Fixed
+
+- **`CancelOrder` 未注入 `SecretKey`**：`TradeClient.CancelOrder` 之前无条件将空字符串 `secret_key` 发送至服务端，现改为仅在 `c.secretKey != ""` 时才附带该字段，与 `PlaceOrder`/`ModifyOrder` 行为对齐。
+
 ## [0.3.9] - 2026-06-09
 
 ### Added

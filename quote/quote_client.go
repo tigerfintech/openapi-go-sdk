@@ -683,12 +683,12 @@ func (c *QuoteClient) GetFutureBarsByPage(req model.FutureBarsByPageRequest) ([]
 	}
 	for len(acc) < req.TotalSize {
 		sub := model.FutureBarsRequest{
-			ContractCode: req.ContractCode,
-			Period:       req.Period,
-			BeginTime:    beginTime,
-			EndTime:      endTime,
-			Limit:        req.PageSize,
-			Lang:         req.Lang,
+			ContractCodes: []string{req.ContractCode},
+			Period:        req.Period,
+			BeginTime:     beginTime,
+			EndTime:       endTime,
+			Limit:         req.PageSize,
+			Lang:          req.Lang,
 		}
 		var pageOut []model.FutureKline
 		if err := c.callInto("future_kline", sub, &pageOut); err != nil {

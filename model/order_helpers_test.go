@@ -138,3 +138,77 @@ func TestNewOrderLeg(t *testing.T) {
 		t.Errorf("TimeInForce = %q, want GTC", leg.TimeInForce)
 	}
 }
+
+// 测试 IcebergOrder 构造函数（最简参数）
+func TestIcebergOrder(t *testing.T) {
+	o := IcebergOrder("U123456", "AAPL", "STK", "BUY", 1000, 180.0, 100)
+	if o.OrderType != string(OrderTypeICEBERG) {
+		t.Errorf("OrderType = %q, want ICEBERG", o.OrderType)
+	}
+	if o.TotalQuantity != 1000 {
+		t.Errorf("TotalQuantity = %d, want 1000", o.TotalQuantity)
+	}
+	if o.LimitPrice != 180.0 {
+		t.Errorf("LimitPrice = %f, want 180.0", o.LimitPrice)
+	}
+	if o.DisplaySize != 100 {
+		t.Errorf("DisplaySize = %d, want 100", o.DisplaySize)
+	}
+	if o.TimeInForce != string(TimeInForceDAY) {
+		t.Errorf("TimeInForce = %q, want DAY", o.TimeInForce)
+	}
+	// 未填的可选字段应为零值
+	if o.MinDisplaySize != 0 {
+		t.Errorf("MinDisplaySize = %d, want 0 (not set)", o.MinDisplaySize)
+	}
+	if o.StartTime != 0 {
+		t.Errorf("StartTime = %d, want 0 (not set)", o.StartTime)
+	}
+}
+
+// 测试 IcebergOrderFull 构造函数（完整参数）
+func TestIcebergOrderFull(t *testing.T) {
+	var startTime int64 = 1782293585902
+	var endTime int64 = 1782297185902
+
+	o := IcebergOrderFull("U123456", "AAPL", "STK", "BUY", 1000, 180.0,
+		100, 50, 30, IcebergPriceTypeLimit, startTime, endTime)
+
+	if o.OrderType != string(OrderTypeICEBERG) {
+		t.Errorf("OrderType = %q, want ICEBERG", o.OrderType)
+	}
+	if o.DisplaySize != 100 {
+		t.Errorf("DisplaySize = %d, want 100", o.DisplaySize)
+	}
+	if o.MinDisplaySize != 50 {
+		t.Errorf("MinDisplaySize = %d, want 50", o.MinDisplaySize)
+	}
+	if o.CheckIntervals != 30 {
+		t.Errorf("CheckIntervals = %d, want 30", o.CheckIntervals)
+	}
+	if o.PriceType != string(IcebergPriceTypeLimit) {
+		t.Errorf("PriceType = %q, want LIMIT_PRICE", o.PriceType)
+	}
+	if o.StartTime != startTime {
+		t.Errorf("StartTime = %d, want %d", o.StartTime, startTime)
+	}
+	if o.EndTime != endTime {
+		t.Errorf("EndTime = %d, want %d", o.EndTime, endTime)
+	}
+}
+
+// 测试 IcebergOrderFull 在 startTime/endTime 为 0 时不设置
+func TestIcebergOrderFull_NoTimeWindow(t *testing.T) {
+	o := IcebergOrderFull("U123456", "AAPL", "STK", "BUY", 1000, 180.0,
+		100, 50, 30, IcebergPriceTypeOpponent, 0, 0)
+
+	if o.PriceType != string(IcebergPriceTypeOpponent) {
+		t.Errorf("PriceType = %q, want OPPONENT_PRICE", o.PriceType)
+	}
+	if o.StartTime != 0 {
+		t.Errorf("StartTime = %d, want 0 (should not be set)", o.StartTime)
+	}
+	if o.EndTime != 0 {
+		t.Errorf("EndTime = %d, want 0 (should not be set)", o.EndTime)
+	}
+}

@@ -264,7 +264,7 @@ func main() {
 	fmt.Println("\n=== v0.3.0: 内部/外部转股（只读） ===")
 
 	if recs, err := tc.PositionTransferRecords(model.PositionTransferRecordsRequest{
-		SinceDate: "2025-01-01", ToDate: "2025-05-07",
+		SinceDate: "2025-04-01", ToDate: "2025-05-31", // keep within 60 days
 	}); err != nil {
 		fail("PositionTransferRecords", err)
 	} else {
@@ -272,7 +272,7 @@ func main() {
 	}
 
 	if ext, err := tc.PositionTransferExternalRecords(model.PositionTransferExternalRecordsRequest{
-		SinceDate: "2025-01-01", ToDate: "2025-05-07",
+		SinceDate: "2025-04-01", ToDate: "2025-05-31", // keep within 60 days
 	}); err != nil {
 		fail("PositionTransferExternalRecords", err)
 	} else {

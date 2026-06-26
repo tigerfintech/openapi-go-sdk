@@ -177,12 +177,15 @@ func (c *TradeClient) ModifyOrder(id int64, order model.OrderRequest) (*model.Or
 
 // CancelOrder 取消订单。
 func (c *TradeClient) CancelOrder(id int64) (*model.OrderIDResult, error) {
+	params := map[string]interface{}{
+		"account": c.account,
+		"id":      id,
+	}
+	if c.secretKey != "" {
+		params["secret_key"] = c.secretKey
+	}
 	var out model.OrderIDResult
-	err := c.callInto("cancel_order", map[string]interface{}{
-		"account":    c.account,
-		"id":         id,
-		"secret_key": c.secretKey,
-	}, &out)
+	err := c.callInto("cancel_order", params, &out)
 	if err != nil {
 		return nil, err
 	}
@@ -520,6 +523,7 @@ func (c *TradeClient) TransferPosition(req model.PositionTransferRequest) (*mode
 
 // PositionTransferRecords 查询内部转股记录列表。
 // 注意：账户参数使用 AccountID（对应 wire account_id）。
+// 服务端直接返回裸数组，不包在 {"items":[...]} 里。
 func (c *TradeClient) PositionTransferRecords(req model.PositionTransferRecordsRequest) ([]model.PositionTransferRecord, error) {
 	if req.AccountID == "" {
 		req.AccountID = c.account
@@ -528,7 +532,7 @@ func (c *TradeClient) PositionTransferRecords(req model.PositionTransferRecordsR
 		}
 	}
 	var out []model.PositionTransferRecord
-	err := c.callIntoItems("position_transfer_records", req, &out)
+	err := c.callInto("position_transfer_records", req, &out)
 	return out, err
 }
 
@@ -548,6 +552,7 @@ func (c *TradeClient) PositionTransferDetail(req model.PositionTransferDetailReq
 }
 
 // PositionTransferExternalRecords 查询外部转股记录列表。
+// 服务端直接返回裸数组，不包在 {"items":[...]} 里。
 func (c *TradeClient) PositionTransferExternalRecords(req model.PositionTransferExternalRecordsRequest) ([]model.PositionTransferExternalRecord, error) {
 	if req.AccountID == "" {
 		req.AccountID = c.account
@@ -556,7 +561,7 @@ func (c *TradeClient) PositionTransferExternalRecords(req model.PositionTransfer
 		}
 	}
 	var out []model.PositionTransferExternalRecord
-	err := c.callIntoItems("position_transfer_external_records", req, &out)
+	err := c.callInto("position_transfer_external_records", req, &out)
 	return out, err
 }
 
