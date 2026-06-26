@@ -134,6 +134,7 @@ func IcebergOrder(account, symbol, secType, action string, quantity int64, limit
 		LimitPrice:    limitPrice,
 		TimeInForce:   string(TimeInForceDAY),
 		DisplaySize:   displaySize,
+		PriceType:     string(IcebergPriceTypeLimit),
 	}
 }
 
