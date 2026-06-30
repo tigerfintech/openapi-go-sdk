@@ -5,6 +5,20 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-06-30
+
+### Added
+
+- **`config.WithServerURL` 选项**：新增 `config.WithServerURL(url)`，用于覆盖默认生产 gateway（此前仅有 `WithQuoteServerURL`）。
+- **从 properties 加载 `server_url` / `quote_server_url`**：`NewClientConfig` 现在读取 properties 文件中的 `server_url` 和 `quote_server_url`（字段名与 Python SDK 对齐）；此前这两个字段被忽略，导致配置文件中的非生产地址被默认生产 gateway 覆盖。
+- **`HttpClient.SecretKey()`**：暴露底层 config 的机构 Secret Key（未设置时返回空字符串）。
+
+### Fixed
+
+- **`NewTradeClient` 未注入 `SecretKey`**：`NewTradeClient(httpClient, account)` 之前不注入 `secretKey`，机构账户若用该构造函数（且未额外调用 `SetSecretKey`）会在 `CancelOrder` 等接口缺失 `secret_key`；现改为自动从 `httpClient` 的 config 注入，与 `NewTradeClientFromConfig` 行为一致。
+- **凭据 JSON 序列化泄露**：`ClientConfig.PrivateKey` / `SecretKey` 的 json tag 改为 `"-"`，避免 `json.Marshal(cfg)`（日志、调试 dump、错误上报）时明文输出私钥与密钥。
+- **`Version` 常量未同步**：修正 `tigeropen.go` 中的 `Version` 常量（此前停留在 `0.3.7`，未随发布更新）。
+
 ## [0.4.0] - 2026-06-24
 
 ### Added
