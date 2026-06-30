@@ -29,9 +29,9 @@ const (
 // ClientConfig holds authentication credentials and runtime parameters.
 type ClientConfig struct {
 	TigerID              string                 `json:"tiger_id"`
-	PrivateKey           string                 `json:"private_key"`
+	PrivateKey           string                 `json:"-"`
 	Account              string                 `json:"account"`
-	SecretKey            string                 `json:"secret_key"`
+	SecretKey            string                 `json:"-"`
 	License              string                 `json:"license"`
 	Language             string                 `json:"language"`
 	Timezone             string                 `json:"timezone"`
@@ -124,6 +124,11 @@ func WithDeviceID(id string) Option {
 	return func(c *ClientConfig) { c.DeviceID = id }
 }
 
+// WithServerURL sets a dedicated trade/common server URL (overrides the default production gateway).
+func WithServerURL(url string) Option {
+	return func(c *ClientConfig) { c.ServerURL = url }
+}
+
 // WithQuoteServerURL sets a dedicated quote server URL.
 func WithQuoteServerURL(url string) Option {
 	return func(c *ClientConfig) { c.QuoteServerURL = url }
@@ -166,6 +171,12 @@ func applyProperties(c *ClientConfig, props map[string]string) {
 	}
 	if v, ok := props["secret_key"]; ok && c.SecretKey == "" {
 		c.SecretKey = v
+	}
+	if v, ok := props["server_url"]; ok && c.ServerURL == "" {
+		c.ServerURL = v
+	}
+	if v, ok := props["quote_server_url"]; ok && c.QuoteServerURL == "" {
+		c.QuoteServerURL = v
 	}
 	if v, ok := props["license"]; ok && c.License == "" {
 		c.License = v
