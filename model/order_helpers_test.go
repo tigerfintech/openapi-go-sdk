@@ -165,4 +165,3 @@ func TestIcebergOrder(t *testing.T) {
 		t.Errorf("StartTime = %d, want 0 (not set)", o.StartTime)
 	}
 }
-
