@@ -123,6 +123,8 @@ func NewOrderLeg(legType string, price float64, timeInForce string) OrderLegRequ
 
 // IcebergOrder 构造冰山单（最简参数）。
 // displaySize 为每次展示数量；其余冰山参数使用服务端默认值。
+// 需要设置更多参数（minDisplaySize/checkIntervals/priceType/startTime/endTime）时，
+// 直接在返回的 OrderRequest struct 上赋值即可。
 func IcebergOrder(account, symbol, secType, action string, quantity int64, limitPrice float64, displaySize int64) OrderRequest {
 	return OrderRequest{
 		Account:       account,
@@ -134,37 +136,6 @@ func IcebergOrder(account, symbol, secType, action string, quantity int64, limit
 		LimitPrice:    limitPrice,
 		TimeInForce:   string(TimeInForceDAY),
 		DisplaySize:   displaySize,
-		PriceType:     string(IcebergPriceTypeLimit),
+		PriceType:     string(PriceTypeLimitPrice),
 	}
-}
-
-// IcebergOrderFull 构造冰山单（完整参数）。
-// priceType 传空字符串时使用服务端默认值（LIMIT_PRICE）。
-// startTime / endTime 传 0 时不发送（服务端不限制生效时间范围）。
-func IcebergOrderFull(account, symbol, secType, action string, quantity int64, limitPrice float64,
-	displaySize, minDisplaySize, checkIntervals int64, priceType IcebergPriceType,
-	startTime, endTime int64) OrderRequest {
-	req := OrderRequest{
-		Account:        account,
-		Symbol:         symbol,
-		SecType:        secType,
-		Action:         action,
-		OrderType:      string(OrderTypeICEBERG),
-		TotalQuantity:  quantity,
-		LimitPrice:     limitPrice,
-		TimeInForce:    string(TimeInForceDAY),
-		DisplaySize:    displaySize,
-		MinDisplaySize: minDisplaySize,
-		CheckIntervals: checkIntervals,
-	}
-	if priceType != "" {
-		req.PriceType = string(priceType)
-	}
-	if startTime > 0 {
-		req.StartTime = startTime
-	}
-	if endTime > 0 {
-		req.EndTime = endTime
-	}
-	return req
 }

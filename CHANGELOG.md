@@ -5,6 +5,8 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+<<<<<<< HEAD
+=======
 ## [0.4.1] - 2026-06-30
 
 ### Added
@@ -19,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **凭据 JSON 序列化泄露**：`ClientConfig.PrivateKey` / `SecretKey` 的 json tag 改为 `"-"`，避免 `json.Marshal(cfg)`（日志、调试 dump、错误上报）时明文输出私钥与密钥。
 - **`Version` 常量未同步**：修正 `tigeropen.go` 中的 `Version` 常量（此前停留在 `0.3.7`，未随发布更新）。
 
+>>>>>>> main
 ## [0.4.0] - 2026-06-24
 
 ### Added

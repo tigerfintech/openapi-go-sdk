@@ -95,7 +95,7 @@ type Order struct {
 	MinDisplaySize int64 `json:"minDisplaySize,omitempty"`
 	// 冰山单：价检间隔（秒）
 	CheckIntervals int64 `json:"checkIntervals,omitempty"`
-	// 冰山单：价格类型（LIMIT_PRICE / OPPONENT_PRICE）
+	// 冰山单：价格类型（LIMIT_PRICE / ASK_PRICE / BID_PRICE / LATEST_PRICE）
 	PriceType string `json:"priceType,omitempty"`
 	// 冰山单：生效开始时间（epoch ms）
 	StartTime int64 `json:"startTime,omitempty"`
@@ -185,7 +185,7 @@ type OrderRequest struct {
 	MinDisplaySize int64 `json:"min_display_size,omitempty"`
 	// 冰山单：价检间隔（秒，默认 30）
 	CheckIntervals int64 `json:"check_intervals,omitempty"`
-	// 冰山单：价格类型（LIMIT_PRICE / OPPONENT_PRICE，默认 LIMIT_PRICE）
+	// 冰山单：价格类型（LIMIT_PRICE / ASK_PRICE / BID_PRICE / LATEST_PRICE，默认 LIMIT_PRICE）
 	PriceType string `json:"price_type,omitempty"`
 	// 冰山单：生效开始时间（epoch ms，可选）
 	StartTime int64 `json:"start_time,omitempty"`
