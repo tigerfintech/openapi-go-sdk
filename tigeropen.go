@@ -13,4 +13,4 @@
 package tigeropen
 
 // Version 是 SDK 的版本号
-const Version = "0.4.1"
+const Version = "0.4.2"
