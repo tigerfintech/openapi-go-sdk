@@ -56,14 +56,18 @@ const (
 	OrderTypeICEBERG OrderType = "ICEBERG"
 )
 
-// IcebergPriceType 冰山单价格类型
-type IcebergPriceType string
+// PriceType 冰山单价格类型
+type PriceType string
 
 const (
-	// IcebergPriceTypeLimit 固定限价
-	IcebergPriceTypeLimit IcebergPriceType = "LIMIT_PRICE"
-	// IcebergPriceTypeOpponent 对手价
-	IcebergPriceTypeOpponent IcebergPriceType = "OPPONENT_PRICE"
+	// PriceTypeLimitPrice 限价
+	PriceTypeLimitPrice PriceType = "LIMIT_PRICE"
+	// PriceTypeAskPrice 卖一价
+	PriceTypeAskPrice PriceType = "ASK_PRICE"
+	// PriceTypeBidPrice 买一价
+	PriceTypeBidPrice PriceType = "BID_PRICE"
+	// PriceTypeLatestPrice 最新价
+	PriceTypeLatestPrice PriceType = "LATEST_PRICE"
 )
 
 // OrderStatus 订单状态枚举。对齐 Java SDK `OrderStatus` 定义。
