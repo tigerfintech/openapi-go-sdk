@@ -18,9 +18,9 @@ type TradeClient struct {
 
 // NewTradeClient 创建交易客户端。
 // account 留空时使用 httpClient 对应 config 中的默认账户（推荐直接传 cfg.Account）。
-// SecretKey 通过 NewTradeClientFromConfig 自动注入，或调用 SetSecretKey 手动设置。
+// SecretKey 自动从 httpClient 的 config 注入（机构账户）；也可调用 SetSecretKey 手动覆盖。
 func NewTradeClient(httpClient *client.HttpClient, account string) *TradeClient {
-	return &TradeClient{httpClient: httpClient, account: account}
+	return &TradeClient{httpClient: httpClient, account: account, secretKey: httpClient.SecretKey()}
 }
 
 // NewTradeClientFromConfig 从 ClientConfig 创建交易客户端，自动注入 Account 和 SecretKey。

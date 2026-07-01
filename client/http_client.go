@@ -89,6 +89,14 @@ func (c *HttpClient) Close() {
 	}
 }
 
+// SecretKey returns the institution secret key from the underlying config (empty if unset).
+func (c *HttpClient) SecretKey() string {
+	if c.config == nil {
+		return ""
+	}
+	return c.config.SecretKey
+}
+
 // buildCommonParams constructs common request parameters.
 // If version is non-empty, it overrides the default API version.
 func (c *HttpClient) buildCommonParams(apiMethod string, bizContent string, version string) map[string]string {
