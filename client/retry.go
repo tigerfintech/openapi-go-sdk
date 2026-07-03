@@ -1,7 +1,11 @@
 package client
 
 import (
+	"errors"
+	"io"
 	"math"
+	"net"
+	"strings"
 	"time"
 )
 
@@ -56,4 +60,32 @@ func (p *RetryPolicy) CalculateBackoff(retryCount int) time.Duration {
 		delay = p.MaxDelay
 	}
 	return delay
+}
+
+// IsStaleConnectionError reports whether err is a stale keep-alive connection error
+// (EOF / connection reset by peer / broken pipe) that occurred before any response
+// bytes were received — i.e. the request never reached the server's application layer
+// and it is therefore safe to retry even for non-idempotent operations.
+func IsStaleConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "EOF") ||
+		strings.Contains(msg, "connection reset by peer") ||
+		strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "use of closed network connection") {
+		return true
+	}
+	var netErr *net.OpError
+	if errors.As(err, &netErr) {
+		s := netErr.Error()
+		return strings.Contains(s, "EOF") ||
+			strings.Contains(s, "reset") ||
+			strings.Contains(s, "broken pipe")
+	}
+	return false
 }
