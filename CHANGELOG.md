@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **HTTP 非 2xx 响应**：之前状态码 500 且 body 为空时报 "unexpected end of JSON"；现在非 2xx 先尝试解析 `TigerError`，失败时将 HTTP 状态码附加到错误信息
 - **`AddonEntitlement.UserLevel` 类型不匹配**：服务端偶发返回数字而非字符串，新增 `model.FlexString` 类型兼容两种格式，不再报 `cannot unmarshal number into string`
+- **`FundDetails.ID` 类型不匹配**：服务端返回字符串而非数字，新增 `model.FlexInt64` 类型兼容两种格式，不再报 `cannot unmarshal string into int64`
 
 ### Changed
 
