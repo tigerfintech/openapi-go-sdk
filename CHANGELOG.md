@@ -5,9 +5,33 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<<<<<<< HEAD
-=======
-## [0.4.1] - 2026-06-30
+## [0.4.3] - 2026-07-03
+
+### Added
+
+- **统一请求日志**：`HttpClient.Execute()` 和 `ExecuteRaw()` 在公共层统一记录请求日志，无需在各业务接口中单独处理：
+  - `DEBUG` — 请求成功
+  - `WARN` — 业务错误（`code != 0`），含 `code` 和 `msg` 字段
+  - `WARN` — 重试中，含 `attempt` 编号
+  - `ERROR` — transport 失败、响应解析失败或重试耗尽
+  - 下单/改单/撤单出现 EOF 时额外提示"订单可能已提交，请查询确认"
+- **`WithLogger(l logger.Logger) ClientOption`**：支持注入自定义 Logger（zap、logrus 等）；传入 `&logger.NopLogger{}` 可完全静默 SDK 日志；未传时默认使用 `logger.Default()`
+- **`NewQuoteHttpClient` 支持 `ClientOption`**：透传 `opts ...ClientOption` 到 `NewHttpClient`，与后者保持一致
+- **`IsStaleConnectionError(err)`**：新增辅助函数，用于判断 EOF / connection-reset / broken-pipe 等 stale keep-alive 连接错误
+
+### Fixed
+
+- **HTTP 非 2xx 响应静默丢失**：`doHTTPPost` 之前不检查 HTTP 状态码，服务端返回 500 且 body 为空时，上层只收到 "unexpected end of JSON input" 而看不到状态码。现在非 2xx 时返回 `(body, httpErr)`，调用层先尝试 `ParseApiResponse` 提取结构化 `TigerError`，失败时将 HTTP 状态附加到错误信息中
+
+### Changed
+
+- **连接池配置显式化**：`HttpClient` 内置 `http.Transport` 显式配置，不再依赖 Go 默认值：
+  - `IdleConnTimeout`：90s → **60s**（低于常见 LB idle timeout，减少 stale connection EOF）
+  - `MaxIdleConnsPerHost`：2 → **10**（与 Python SDK urllib3 连接池对齐）
+  - 新增 `DialContext`（TCP 建连超时 10s，keep-alive 探针 30s）
+  - 显式设置 `TLSHandshakeTimeout: 10s`
+
+## [0.4.2] - 2026-07-01
 
 ### Added
 
@@ -20,8 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`NewTradeClient` 未注入 `SecretKey`**：`NewTradeClient(httpClient, account)` 之前不注入 `secretKey`，机构账户若用该构造函数（且未额外调用 `SetSecretKey`）会在 `CancelOrder` 等接口缺失 `secret_key`；现改为自动从 `httpClient` 的 config 注入，与 `NewTradeClientFromConfig` 行为一致。
 - **凭据 JSON 序列化泄露**：`ClientConfig.PrivateKey` / `SecretKey` 的 json tag 改为 `"-"`，避免 `json.Marshal(cfg)`（日志、调试 dump、错误上报）时明文输出私钥与密钥。
 - **`Version` 常量未同步**：修正 `tigeropen.go` 中的 `Version` 常量（此前停留在 `0.3.7`，未随发布更新）。
-
->>>>>>> main
 ## [0.4.0] - 2026-06-24
 
 ### Added
