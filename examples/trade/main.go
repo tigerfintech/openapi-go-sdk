@@ -223,7 +223,7 @@ func main() {
 		ok("AnalyticsAsset", fmt.Sprintf("rows=%d", len(aa)))
 	}
 
-	if ag, err := tc.AggregateAssets(model.AggregateAssetsRequest{BaseCurrency: "USD"}); err != nil {
+	if ag, err := tc.AggregateAssets(model.AggregateAssetsRequest{BaseCurrency: "USD", SegType: "SEC"}); err != nil {
 		fail("AggregateAssets", err)
 	} else if ag != nil {
 		ok("AggregateAssets", fmt.Sprintf("netLiquidation=%.2f currencies=%d", ag.NetLiquidation, len(ag.CurrencyAssets)))
