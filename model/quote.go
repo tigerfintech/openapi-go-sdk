@@ -326,7 +326,8 @@ type QuotePermission struct {
 
 // AddonEntitlement 附加套餐权益（wire 方法 addon_entitlements 返回）。
 type AddonEntitlement struct {
-	UserLevel            string                  `json:"userLevel,omitempty"`
+	// UserLevel 用户套餐等级，服务端偶发返回数字而非字符串，用 FlexString 兼容两种格式。
+	UserLevel            FlexString              `json:"userLevel,omitempty"`
 	ActivePlan           *AddonActivePlan        `json:"activePlan,omitempty"`
 	Addons               []AddonInfo             `json:"addons,omitempty"`
 	EffectiveEntitlement *AddonEntitlementDetail `json:"effectiveEntitlement,omitempty"`
