@@ -5,9 +5,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -47,14 +44,4 @@ func newTestConfigWithURL(serverURL string) *config.ClientConfig {
 func newTestConfig(t *testing.T, serverURL string) *config.ClientConfig {
 	t.Helper()
 	return newTestConfigWithURL(serverURL)
-}
-
-// newHTTP500Server 创建一个返回指定 HTTP 状态码和 body 的测试服务器
-func newHTTP500Server(t *testing.T, statusCode int, body string) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(statusCode)
-		fmt.Fprint(w, body)
-	}))
 }

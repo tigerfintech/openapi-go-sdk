@@ -3,10 +3,12 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tigerfintech/openapi-go-sdk/logger"
 )
@@ -296,3 +298,79 @@ func (n *nopLogger) SetLevel(_ logger.Level)               {}
 func contains(s, sub string) bool {
 	return strings.Contains(s, sub)
 }
+
+// TestHttpClient_Execute_StaleConnectionEOF 验证服务端建立连接后立即关闭（stale keep-alive）时的行为：
+//  1. 非交易接口触发重试
+//  2. 下单接口不重试，日志提示"可能已提交，请查询确认"
+func TestHttpClient_Execute_StaleConnectionEOF(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+
+	cfg := newTestConfig(t, "http://"+ln.Addr().String())
+	cl := &capturingLogger{}
+	hc := NewHttpClient(cfg, WithLogger(cl))
+	hc.retryPolicy = &RetryPolicy{
+		MaxRetries: 2,
+		BaseDelay:  10 * time.Millisecond,
+		MaxDelay:   20 * time.Millisecond,
+	}
+
+	t.Run("非交易接口_触发重试", func(t *testing.T) {
+		cl.entries = nil
+		_, err := hc.Execute(&ApiRequest{Method: "market_state", BizContent: `{}`})
+		if err == nil {
+			t.Fatal("期望 EOF 错误，但没有")
+		}
+		var warnCount, errCount int
+		for _, e := range cl.entries {
+			if e.level == "WARN" && strings.Contains(e.msg, "retry") {
+				warnCount++
+			}
+			if e.level == "ERROR" && strings.Contains(e.msg, "exhausted") {
+				errCount++
+			}
+		}
+		if warnCount == 0 {
+			t.Errorf("期望至少 1 条 WARN retry 日志，实际: %v", cl.entries)
+		}
+		if errCount != 1 {
+			t.Errorf("期望 1 条 ERROR exhausted 日志，实际: %v", cl.entries)
+		}
+	})
+
+	t.Run("下单接口_不重试_日志含订单确认提示", func(t *testing.T) {
+		cl.entries = nil
+		_, err := hc.Execute(&ApiRequest{Method: "place_order", BizContent: `{}`})
+		if err == nil {
+			t.Fatal("期望 EOF 错误，但没有")
+		}
+		for _, e := range cl.entries {
+			if e.level == "WARN" && strings.Contains(e.msg, "retry") {
+				t.Errorf("下单不应有 retry 日志: %s", e.msg)
+			}
+		}
+		var found bool
+		for _, e := range cl.entries {
+			if e.level == "ERROR" && strings.Contains(e.msg, "query order status") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("下单 EOF 时应提示 'query order status'，实际: %v", cl.entries)
+		}
+	})
+}
+
