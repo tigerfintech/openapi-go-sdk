@@ -5,9 +5,25 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<<<<<<< HEAD
-=======
-## [0.4.1] - 2026-06-30
+## [0.4.3] - 2026-07-03
+
+### Added
+
+- **请求日志**：`Execute` / `ExecuteRaw` 在公共层统一输出日志；成功 DEBUG，业务错误 WARN（含 code/msg），重试 WARN，失败 ERROR；下单遇 EOF 额外提示"可能已提交，请查询确认"
+- **`WithLogger(l)` ClientOption**：注入自定义 Logger；传 `&logger.NopLogger{}` 可静默所有 SDK 日志
+- **`IsStaleConnectionError(err)`**：判断 EOF / connection-reset / broken-pipe 类错误的辅助函数
+
+### Fixed
+
+- **HTTP 非 2xx 响应**：之前状态码 500 且 body 为空时报 "unexpected end of JSON"；现在非 2xx 先尝试解析 `TigerError`，失败时将 HTTP 状态码附加到错误信息
+- **`AddonEntitlement.UserLevel` 类型不匹配**：服务端偶发返回数字而非字符串，新增 `model.FlexString` 类型兼容两种格式，不再报 `cannot unmarshal number into string`
+- **`FundDetails.ID` 类型不匹配**：服务端返回字符串而非数字，新增 `model.FlexInt64` 类型兼容两种格式，不再报 `cannot unmarshal string into int64`
+
+### Changed
+
+- **连接池**：显式配置 `http.Transport`：`IdleConnTimeout` 90s→60s、`MaxIdleConnsPerHost` 2→10、新增 `DialContext`（TCP 超时 10s）和 `TLSHandshakeTimeout: 10s`
+
+## [0.4.2] - 2026-07-01
 
 ### Added
 
@@ -20,8 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`NewTradeClient` 未注入 `SecretKey`**：`NewTradeClient(httpClient, account)` 之前不注入 `secretKey`，机构账户若用该构造函数（且未额外调用 `SetSecretKey`）会在 `CancelOrder` 等接口缺失 `secret_key`；现改为自动从 `httpClient` 的 config 注入，与 `NewTradeClientFromConfig` 行为一致。
 - **凭据 JSON 序列化泄露**：`ClientConfig.PrivateKey` / `SecretKey` 的 json tag 改为 `"-"`，避免 `json.Marshal(cfg)`（日志、调试 dump、错误上报）时明文输出私钥与密钥。
 - **`Version` 常量未同步**：修正 `tigeropen.go` 中的 `Version` 常量（此前停留在 `0.3.7`，未随发布更新）。
-
->>>>>>> main
 ## [0.4.0] - 2026-06-24
 
 ### Added

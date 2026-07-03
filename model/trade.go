@@ -206,16 +206,17 @@ type SegmentFundHistoryItem struct {
 
 // FundDetails 资金明细条目（/fund_details）。
 type FundDetails struct {
-	ID         int64   `json:"id,omitempty"`
-	Account    string  `json:"account,omitempty"`
-	SegType    string  `json:"segType,omitempty"`
-	FundType   string  `json:"fundType,omitempty"`
-	Currency   string  `json:"currency,omitempty"`
-	Amount     float64 `json:"amount,omitempty"`
-	Balance    float64 `json:"balance,omitempty"`
-	OccurTime  int64   `json:"occurTime,omitempty"`
-	Remark     string  `json:"remark,omitempty"`
-	ExternalID string  `json:"externalId,omitempty"`
+	// ID 服务端偶发返回字符串，用 FlexInt64 兼容。
+	ID         FlexInt64 `json:"id,omitempty"`
+	Account    string    `json:"account,omitempty"`
+	SegType    string    `json:"segType,omitempty"`
+	FundType   string    `json:"fundType,omitempty"`
+	Currency   string    `json:"currency,omitempty"`
+	Amount     float64   `json:"amount,omitempty"`
+	Balance    float64   `json:"balance,omitempty"`
+	OccurTime  int64     `json:"occurTime,omitempty"`
+	Remark     string    `json:"remark,omitempty"`
+	ExternalID string    `json:"externalId,omitempty"`
 }
 
 // FundingHistoryItem 调拨记录（/transfer_fund）。

@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/tigerfintech/openapi-go-sdk/config"
+	"github.com/tigerfintech/openapi-go-sdk/logger"
 	"github.com/tigerfintech/openapi-go-sdk/signer"
 )
 
@@ -30,6 +32,19 @@ const (
 	methodTokenRefresh = "user_token_refresh"
 )
 
+// ClientOption 是 NewHttpClient 的可选配置项类型。
+type ClientOption func(*HttpClient)
+
+// WithLogger 注入自定义 Logger。
+// 传入 &logger.NopLogger{} 可完全静默 SDK 日志。
+func WithLogger(l logger.Logger) ClientOption {
+	return func(c *HttpClient) {
+		if l != nil {
+			c.logger = l
+		}
+	}
+}
+
 // HttpClient wraps HTTP requests with signing, retry, and timeout support.
 type HttpClient struct {
 	config       *config.ClientConfig
@@ -37,18 +52,37 @@ type HttpClient struct {
 	retryPolicy  *RetryPolicy
 	publicKey    *rsa.PublicKey
 	tokenManager *config.TokenManager // non-nil when auto-refresh is active
+	logger       logger.Logger        // request/response logger, defaults to logger.Default()
 }
 
 // NewHttpClient creates an HttpClient instance.
 // It loads the tiger public key for response signature verification if configured.
 // If cfg.TokenRefreshDuration > 0, background token auto-refresh is started automatically.
-func NewHttpClient(cfg *config.ClientConfig) *HttpClient {
+// Optional ClientOption values (e.g. WithLogger) can be passed to customise behaviour;
+// existing call sites that omit opts are completely unaffected.
+func NewHttpClient(cfg *config.ClientConfig, opts ...ClientOption) *HttpClient {
 	hc := &HttpClient{
 		config: cfg,
 		httpClient: &http.Client{
 			Timeout: cfg.Timeout,
+			Transport: &http.Transport{
+				DialContext: (&net.Dialer{
+					Timeout:   10 * time.Second, // TCP connection establishment timeout
+					KeepAlive: 30 * time.Second, // TCP keep-alive probe interval
+				}).DialContext,
+				// Keep idle connections alive for up to 60 s.
+				// Intentionally shorter than Go's default (90 s) to reduce stale-connection
+				// EOF errors when the server-side or LB idle timeout is ≤ 75 s.
+				IdleConnTimeout:     60 * time.Second,
+				TLSHandshakeTimeout: 10 * time.Second,
+				MaxIdleConnsPerHost: 10,
+			},
 		},
 		retryPolicy: DefaultRetryPolicy(),
+		logger:      logger.Default(),
+	}
+	for _, opt := range opts {
+		opt(hc)
 	}
 
 	// Load tiger public key for response signature verification
@@ -146,6 +180,8 @@ func (c *HttpClient) verifyResponseSign(resp *ApiResponse, requestTimestamp stri
 
 // Execute 执行结构化 API 请求，返回解析后的 ApiResponse
 func (c *HttpClient) Execute(request *ApiRequest) (*ApiResponse, error) {
+	method := request.Method
+
 	params := c.buildCommonParams(request.Method, request.BizContent, request.Version)
 	requestTimestamp := params["timestamp"]
 	sign, err := c.signParams(params)
@@ -166,28 +202,61 @@ func (c *HttpClient) Execute(request *ApiRequest) (*ApiResponse, error) {
 			time.Sleep(backoff)
 		}
 
-		resp, err := c.doHTTPPost(params)
-		if err != nil {
-			lastErr = err
+		resp, httpErr := c.doHTTPPost(params)
+		if httpErr != nil && resp == nil {
+			// Pure transport error (EOF, timeout, connection refused, etc.) — no body received.
+			lastErr = httpErr
 			if !c.retryPolicy.ShouldRetry(request.Method) {
-				return nil, err
+				if IsStaleConnectionError(httpErr) {
+					c.logger.Error("api response lost method=%s err=%v — "+
+						"request may have reached the server; query order status to confirm",
+						method, httpErr)
+				} else {
+					c.logger.Error("api request failed method=%s err=%v", method, httpErr)
+				}
+				return nil, httpErr
 			}
+			c.logger.Warn("api request retry method=%s attempt=%d err=%v",
+				method, attempt+1, httpErr)
 			continue
 		}
 
 		apiResp, parseErr := ParseApiResponse(resp)
+
 		if parseErr != nil {
+			if te, ok := parseErr.(*TigerError); ok {
+				c.logger.Warn("api business error method=%s code=%d msg=%s",
+					method, te.Code, te.Message)
+			} else {
+				// Attach HTTP status context when the body couldn't be parsed as a
+				// structured response (e.g. empty 500 body from the gateway/LB).
+				if httpErr != nil {
+					parseErr = fmt.Errorf("%w (body: %s)", httpErr,
+						strings.TrimSpace(string(resp)))
+				}
+				c.logger.Error("api parse error method=%s err=%v", method, parseErr)
+			}
 			return apiResp, parseErr
 		}
 
 		// Verify response signature
 		if err := c.verifyResponseSign(apiResp, requestTimestamp); err != nil {
+			c.logger.Error("response sign verify failed method=%s err=%v", method, err)
 			return apiResp, err
 		}
 
+		if attempt > 0 {
+			c.logger.Info("api request ok after retry method=%s attempt=%d",
+				method, attempt+1)
+		} else {
+			c.logger.Debug("api request ok method=%s", method)
+		}
 		return apiResp, nil
 	}
 
+	// All retries exhausted
+	c.logger.Error("api request exhausted method=%s totalAttempts=%d err=%v",
+		method, maxAttempts, lastErr)
 	return nil, lastErr
 }
 
@@ -223,18 +292,42 @@ func (c *HttpClient) ExecuteRaw(apiMethod string, requestJSON string) (string, e
 			time.Sleep(backoff)
 		}
 
-		body, err := c.doHTTPPost(params)
-		if err != nil {
-			lastErr = err
+		body, httpErr := c.doHTTPPost(params)
+		if httpErr != nil && body == nil {
+			lastErr = httpErr
 			if !c.retryPolicy.ShouldRetry(apiMethod) {
-				return "", err
+				if IsStaleConnectionError(httpErr) {
+					c.logger.Error("api response lost method=%s err=%v — "+
+						"request may have reached the server; query order status to confirm",
+						apiMethod, httpErr)
+				} else {
+					c.logger.Error("api request failed method=%s err=%v", apiMethod, httpErr)
+				}
+				return "", httpErr
 			}
+			c.logger.Warn("api request retry method=%s attempt=%d err=%v",
+				apiMethod, attempt+1, httpErr)
 			continue
 		}
 
+		// Non-2xx: body was returned but httpErr is set. Surface the status in the error.
+		if httpErr != nil {
+			c.logger.Error("api request failed method=%s err=%v body=%s",
+				apiMethod, httpErr, strings.TrimSpace(string(body)))
+			return "", httpErr
+		}
+
+		if attempt > 0 {
+			c.logger.Info("api request ok after retry method=%s attempt=%d",
+				apiMethod, attempt+1)
+		} else {
+			c.logger.Debug("api request ok method=%s", apiMethod)
+		}
 		return string(body), nil
 	}
 
+	c.logger.Error("api request exhausted method=%s totalAttempts=%d err=%v",
+		apiMethod, maxAttempts, lastErr)
 	return "", lastErr
 }
 
@@ -265,6 +358,13 @@ func (c *HttpClient) doHTTPPost(params map[string]string) ([]byte, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("读取响应体失败: %w", err)
+	}
+
+	// Non-2xx status codes indicate a server-level error (e.g. HTTP 500 from gateway/LB).
+	// Return the body as-is so the caller can attempt to parse a structured error from it.
+	// The caller is responsible for wrapping any parse failure with the HTTP status context.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return body, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
 	return body, nil
@@ -354,7 +454,8 @@ func safePrefix(s string, n int) string {
 // It shares the token auto-refresh goroutine with the original config rather than
 // starting a second one — the caller is responsible for managing the lifecycle via
 // the primary HttpClient's Close().
-func NewQuoteHttpClient(cfg *config.ClientConfig) *HttpClient {
+// Optional ClientOption values are forwarded to the underlying NewHttpClient.
+func NewQuoteHttpClient(cfg *config.ClientConfig, opts ...ClientOption) *HttpClient {
 	cloned := *cfg
 	if cloned.QuoteServerURL != "" {
 		cloned.ServerURL = cloned.QuoteServerURL
@@ -363,5 +464,5 @@ func NewQuoteHttpClient(cfg *config.ClientConfig) *HttpClient {
 	// refresh goroutine (if any). Token updates via config.Token pointer are shared
 	// because both clients hold a pointer to the same underlying config.
 	cloned.TokenRefreshDuration = 0
-	return NewHttpClient(&cloned)
+	return NewHttpClient(&cloned, opts...)
 }
