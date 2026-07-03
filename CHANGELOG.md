@@ -9,27 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **统一请求日志**：`HttpClient.Execute()` 和 `ExecuteRaw()` 在公共层统一记录请求日志，无需在各业务接口中单独处理：
-  - `DEBUG` — 请求成功
-  - `WARN` — 业务错误（`code != 0`），含 `code` 和 `msg` 字段
-  - `WARN` — 重试中，含 `attempt` 编号
-  - `ERROR` — transport 失败、响应解析失败或重试耗尽
-  - 下单/改单/撤单出现 EOF 时额外提示"订单可能已提交，请查询确认"
-- **`WithLogger(l logger.Logger) ClientOption`**：支持注入自定义 Logger（zap、logrus 等）；传入 `&logger.NopLogger{}` 可完全静默 SDK 日志；未传时默认使用 `logger.Default()`
-- **`NewQuoteHttpClient` 支持 `ClientOption`**：透传 `opts ...ClientOption` 到 `NewHttpClient`，与后者保持一致
-- **`IsStaleConnectionError(err)`**：新增辅助函数，用于判断 EOF / connection-reset / broken-pipe 等 stale keep-alive 连接错误
+- **请求日志**：`Execute` / `ExecuteRaw` 在公共层统一输出日志；成功 DEBUG，业务错误 WARN（含 code/msg），重试 WARN，失败 ERROR；下单遇 EOF 额外提示"可能已提交，请查询确认"
+- **`WithLogger(l)` ClientOption**：注入自定义 Logger；传 `&logger.NopLogger{}` 可静默所有 SDK 日志
+- **`IsStaleConnectionError(err)`**：判断 EOF / connection-reset / broken-pipe 类错误的辅助函数
 
 ### Fixed
 
-- **HTTP 非 2xx 响应静默丢失**：`doHTTPPost` 之前不检查 HTTP 状态码，服务端返回 500 且 body 为空时，上层只收到 "unexpected end of JSON input" 而看不到状态码。现在非 2xx 时返回 `(body, httpErr)`，调用层先尝试 `ParseApiResponse` 提取结构化 `TigerError`，失败时将 HTTP 状态附加到错误信息中
+- **HTTP 非 2xx 响应**：之前状态码 500 且 body 为空时报 "unexpected end of JSON"；现在非 2xx 先尝试解析 `TigerError`，失败时将 HTTP 状态码附加到错误信息
 
 ### Changed
 
-- **连接池配置显式化**：`HttpClient` 内置 `http.Transport` 显式配置，不再依赖 Go 默认值：
-  - `IdleConnTimeout`：90s → **60s**（低于常见 LB idle timeout，减少 stale connection EOF）
-  - `MaxIdleConnsPerHost`：2 → **10**（与 Python SDK urllib3 连接池对齐）
-  - 新增 `DialContext`（TCP 建连超时 10s，keep-alive 探针 30s）
-  - 显式设置 `TLSHandshakeTimeout: 10s`
+- **连接池**：显式配置 `http.Transport`：`IdleConnTimeout` 90s→60s、`MaxIdleConnsPerHost` 2→10、新增 `DialContext`（TCP 超时 10s）和 `TLSHandshakeTimeout: 10s`
 
 ## [0.4.2] - 2026-07-01
 
