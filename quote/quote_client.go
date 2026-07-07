@@ -112,13 +112,10 @@ func (c *QuoteClient) GetBrief(req model.BriefRequest) ([]model.Brief, error) {
 	return out, err
 }
 
-// GetKline returns K-line (candlestick) data for multiple symbols.
-func (c *QuoteClient) GetKline(symbols []string, period string) ([]model.Kline, error) {
+// GetKline returns K-line data. Supports time range (BeginTime/EndTime) or index paging (BeginIndex/EndIndex).
+func (c *QuoteClient) GetKline(req model.KlineRequest) ([]model.Kline, error) {
 	var out []model.Kline
-	err := c.callInto("kline", map[string]interface{}{
-		"symbols": symbols,
-		"period":  period,
-	}, &out)
+	err := c.callInto("kline", req, &out)
 	return out, err
 }
 
@@ -452,17 +449,9 @@ func (c *QuoteClient) GetStockDelayBriefs(req model.StockDelayBriefsRequest) ([]
 	return out, err
 }
 
-// GetBars K 线（完整参数版）。wire: kline
-// 推荐使用 BarsRequest 以访问时间范围、分页、交易时段、复权选项。
-func (c *QuoteClient) GetBars(req model.BarsRequest) ([]model.Kline, error) {
-	var out []model.Kline
-	err := c.callInto("kline", req, &out)
-	return out, err
-}
-
-// GetBarsByPage 客户端分页封装：循环调用 GetBars 直到获得 TotalSize 条 K 线。
-// 返回时按时间升序合并（与 Python get_bars_by_page 行为一致）。
-func (c *QuoteClient) GetBarsByPage(req model.BarsByPageRequest) ([]model.KlineItem, error) {
+// GetKlineByPage client-side paginated K-line: loops until TotalSize bars are collected.
+// Returns merged slice in ascending time order.
+func (c *QuoteClient) GetKlineByPage(req model.KlineByPageRequest) ([]model.KlineItem, error) {
 	if req.PageSize <= 0 {
 		req.PageSize = 200
 	}
@@ -479,7 +468,7 @@ func (c *QuoteClient) GetBarsByPage(req model.BarsByPageRequest) ([]model.KlineI
 		beginTime = -1
 	}
 	for len(acc) < req.TotalSize {
-		sub := model.BarsRequest{
+		sub := model.KlineRequest{
 			Symbols:      []string{req.Symbol},
 			Period:       req.Period,
 			Right:        req.Right,
@@ -501,7 +490,6 @@ func (c *QuoteClient) GetBarsByPage(req model.BarsByPageRequest) ([]model.KlineI
 		if len(items) < req.PageSize {
 			break
 		}
-		// 以最早一根 bar 的时间作为下一页的 endTime
 		oldest := items[0].Time
 		for _, it := range items {
 			if it.Time < oldest {
@@ -650,22 +638,8 @@ func (c *QuoteClient) GetFutureHistoryMainContract(req model.FutureHistoryMainCo
 	return out, err
 }
 
-// GetFutureBars 期货 K 线（含索引分页）。wire: future_kline
-// begin_time / end_time 默认 -1 表示无界（服务端要求字段必须存在）。
-func (c *QuoteClient) GetFutureBars(req model.FutureBarsRequest) ([]model.FutureKline, error) {
-	if req.BeginTime == 0 {
-		req.BeginTime = -1
-	}
-	if req.EndTime == 0 {
-		req.EndTime = -1
-	}
-	var out []model.FutureKline
-	err := c.callInto("future_kline", req, &out)
-	return out, err
-}
-
-// GetFutureBarsByPage 期货 K 线分页包装。
-func (c *QuoteClient) GetFutureBarsByPage(req model.FutureBarsByPageRequest) ([]model.FutureKlineItem, error) {
+// GetFutureKlineByPage client-side paginated futures K-line: loops until TotalSize bars are collected.
+func (c *QuoteClient) GetFutureKlineByPage(req model.FutureKlineByPageRequest) ([]model.FutureKlineItem, error) {
 	if req.PageSize <= 0 {
 		req.PageSize = 200
 	}
@@ -682,7 +656,7 @@ func (c *QuoteClient) GetFutureBarsByPage(req model.FutureBarsByPageRequest) ([]
 		beginTime = -1
 	}
 	for len(acc) < req.TotalSize {
-		sub := model.FutureBarsRequest{
+		sub := model.FutureKlineRequest{
 			ContractCodes: []string{req.ContractCode},
 			Period:        req.Period,
 			BeginTime:     beginTime,
