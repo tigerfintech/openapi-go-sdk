@@ -5,6 +5,15 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2026-07-07
+
+### Deprecated
+
+- **`GetBrief` → `GetRealTimeQuote`**：方法名与 wire method `quote_real_time` 不一致，现以 `GetRealTimeQuote` 为主，旧名保留并标记为 Deprecated。
+- **`GetOptionBrief` → `GetOptionQuote`**：wire method 为 `option_brief`，更名为 `GetOptionQuote`。
+- **`GetStockDelayBriefs` → `GetDelayedQuote`**：wire method 为 `quote_delay`，更名与之对齐。
+- **`GetWarrantBriefs` → `GetWarrantQuote`**：wire method 为 `warrant_briefs`，更名以保持接口层风格一致。
+
 ## [0.4.4] - 2026-07-07
 
 ### Breaking Changes
