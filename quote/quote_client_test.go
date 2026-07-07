@@ -116,7 +116,7 @@ func TestGetKline(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetKline("AAPL", "day")
+	data, err := qc.GetKline(model.KlineRequest{Symbols: []string{"AAPL"}, Period: "day"})
 	if err != nil {
 		t.Fatalf("GetKline 失败: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestGetOptionExpiration(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetOptionExpiration("AAPL")
+	data, err := qc.GetOptionExpiration([]string{"AAPL"})
 	if err != nil {
 		t.Fatalf("GetOptionExpiration 失败: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestGetOptionChain(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetOptionChain("AAPL", "2024-01-19")
+	data, err := qc.GetOptionChain([][2]string{{"AAPL", "2024-01-19"}})
 	if err != nil {
 		t.Fatalf("GetOptionChain 失败: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestGetOptionKline(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetOptionKline("AAPL 240119C00150000", "day")
+	data, err := qc.GetOptionKline([]string{"AAPL 240119C00150000"}, "day")
 	if err != nil {
 		t.Fatalf("GetOptionKline 失败: %v", err)
 	}
@@ -499,5 +499,108 @@ func TestQuoteClientApiError(t *testing.T) {
 	_, err := qc.GetMarketState("US")
 	if err == nil {
 		t.Fatal("期望返回错误，但返回了 nil")
+	}
+}
+
+// === 多 symbol 请求 payload 验证 ===
+
+// captureServer 捕获请求 body 用于验证 wire payload
+func captureServer(t *testing.T, captured *map[string]interface{}) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err == nil {
+			if bizStr, ok := body["biz_content"].(string); ok {
+				var biz map[string]interface{}
+				if err := json.Unmarshal([]byte(bizStr), &biz); err == nil {
+					*captured = biz
+				}
+			}
+		}
+		resp := map[string]interface{}{"code": 0, "message": "success", "data": json.RawMessage("[]"), "timestamp": 1700000000}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+}
+
+func TestGetKlineMultiSymbol(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	qc.GetKline(model.KlineRequest{Symbols: []string{"AAPL", "TSLA"}, Period: "day"})
+
+	syms, ok := captured["symbols"].([]interface{})
+	if !ok || len(syms) != 2 {
+		t.Fatalf("期望 symbols=[AAPL,TSLA]，得到: %v", captured["symbols"])
+	}
+}
+
+func TestGetOptionExpirationMultiSymbol(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	qc.GetOptionExpiration([]string{"AAPL", "TSLA"})
+
+	syms, ok := captured["symbols"].([]interface{})
+	if !ok || len(syms) != 2 {
+		t.Fatalf("期望 symbols=[AAPL,TSLA]，得到: %v", captured["symbols"])
+	}
+}
+
+func TestGetOptionChainMultiItem(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	qc.GetOptionChain([][2]string{{"AAPL", "2024-01-19"}, {"TSLA", "2024-02-16"}})
+
+	basics, ok := captured["option_basic"].([]interface{})
+	if !ok || len(basics) != 2 {
+		t.Fatalf("期望 option_basic 有 2 项，得到: %v", captured["option_basic"])
+	}
+}
+
+func TestGetOptionKlineMultiIdentifier(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	qc.GetOptionKline([]string{"AAPL 240119C00150000", "AAPL 240119P00140000"}, "day")
+
+	queries, ok := captured["option_query"].([]interface{})
+	if !ok || len(queries) != 2 {
+		t.Fatalf("期望 option_query 有 2 项，得到: %v", captured["option_query"])
+	}
+}
+
+func TestNewQuoteClientFromConfig(t *testing.T) {
+	server := mockServer(t, "market_state", []map[string]interface{}{{"market": "US"}})
+	defer server.Close()
+
+	cfg := &config.ClientConfig{
+		TigerID:        "test_tiger_id",
+		PrivateKey:     cachedTestPrivateKey,
+		Account:        "test_account",
+		Language:       "zh_CN",
+		Timeout:        5 * time.Second,
+		QuoteServerURL: server.URL,
+	}
+	qc := NewQuoteClientFromConfig(cfg)
+	if qc == nil {
+		t.Fatal("NewQuoteClientFromConfig 返回 nil")
+	}
+	// 验证能正常发请求（走 QuoteServerURL）
+	data, err := qc.GetMarketState("US")
+	if err != nil {
+		t.Fatalf("NewQuoteClientFromConfig 创建的客户端调用失败: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("期望有数据，但返回空")
 	}
 }

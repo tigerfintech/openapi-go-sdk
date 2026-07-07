@@ -30,12 +30,16 @@ type CorporateActionRequest struct {
 
 // FutureKlineRequest 期货 K 线请求
 type FutureKlineRequest struct {
-	ContractCodes []string `json:"contract_codes"`
-	Period        string   `json:"period"`
-	BeginTime     int64    `json:"begin_time"`
-	EndTime       int64    `json:"end_time"`
+	ContractCodes []string `json:"contract_codes,omitempty"`
+	ContractCode  string   `json:"contract_code,omitempty"`
+	Period        string   `json:"period,omitempty"`
+	BeginTime     int64    `json:"begin_time,omitempty"`
+	EndTime       int64    `json:"end_time,omitempty"`
+	BeginIndex    int      `json:"begin_index,omitempty"`
+	EndIndex      int      `json:"end_index,omitempty"`
 	Limit         int      `json:"limit,omitempty"`
 	PageToken     string   `json:"page_token,omitempty"`
+	Lang          string   `json:"lang,omitempty"`
 }
 
 // MarketScannerRequest 选股扫描请求
@@ -102,9 +106,9 @@ type DepthQuoteRequest struct {
 	Lang         string   `json:"lang,omitempty"`
 }
 
-// BarsRequest — K 线查询。wire: kline
+// KlineRequest — K 线查询。wire: kline
 // 支持时间范围 (BeginTime/EndTime 毫秒) 或分页 (BeginIndex/EndIndex)，两者只能二选一。
-type BarsRequest struct {
+type KlineRequest struct {
 	Symbols         []string `json:"symbols,omitempty"`
 	Period          string   `json:"period,omitempty"`
 	Right           string   `json:"right,omitempty"`
@@ -121,8 +125,8 @@ type BarsRequest struct {
 	Lang            string   `json:"lang,omitempty"`
 }
 
-// BarsByPageRequest — K 线分页查询（客户端分页包装）。
-type BarsByPageRequest struct {
+// KlineByPageRequest — K 线分页查询（客户端分页包装）。
+type KlineByPageRequest struct {
 	Symbol       string `json:"symbol,omitempty"`
 	Period       string `json:"period,omitempty"`
 	BeginTime    int64  `json:"begin_time,omitempty"`
@@ -220,13 +224,6 @@ type OptionQueryItem struct {
 	PageToken  string `json:"page_token,omitempty"`
 }
 
-// OptionBarsRequest 期权 K 线。wire: option_kline
-type OptionBarsRequest struct {
-	OptionQuery []OptionQueryItem `json:"option_query,omitempty"`
-	Market      string            `json:"market,omitempty"`
-	Lang        string            `json:"lang,omitempty"`
-}
-
 // OptionTradeTicksRequest 期权逐笔。wire: option_trade_tick
 type OptionTradeTicksRequest struct {
 	Contracts []OptionQueryItem `json:"contracts,omitempty"`
@@ -290,22 +287,8 @@ type FutureHistoryMainContractRequest struct {
 	Lang          string   `json:"lang,omitempty"`
 }
 
-// FutureBarsRequest 期货 K 线（索引分页版）。wire: future_kline
-type FutureBarsRequest struct {
-	ContractCodes []string `json:"contract_codes,omitempty"`
-	ContractCode  string   `json:"contract_code,omitempty"`
-	Period        string   `json:"period,omitempty"`
-	BeginTime     int64    `json:"begin_time,omitempty"`
-	EndTime       int64    `json:"end_time,omitempty"`
-	BeginIndex    int      `json:"begin_index,omitempty"`
-	EndIndex      int      `json:"end_index,omitempty"`
-	Limit         int      `json:"limit,omitempty"`
-	PageToken     string   `json:"page_token,omitempty"`
-	Lang          string   `json:"lang,omitempty"`
-}
-
-// FutureBarsByPageRequest 期货 K 线（客户端分页包装）。
-type FutureBarsByPageRequest struct {
+// FutureKlineByPageRequest 期货 K 线（客户端分页包装）。
+type FutureKlineByPageRequest struct {
 	ContractCode string `json:"contract_code,omitempty"`
 	Period       string `json:"period,omitempty"`
 	BeginTime    int64  `json:"begin_time,omitempty"`
@@ -441,3 +424,9 @@ type QuoteOvernightRequest struct {
 	Symbols []string `json:"symbols,omitempty"`
 	Lang    string   `json:"lang,omitempty"`
 }
+
+// Deprecated: Use KlineRequest instead.
+type BarsRequest = KlineRequest
+
+// Deprecated: Use KlineByPageRequest instead.
+type BarsByPageRequest = KlineByPageRequest
