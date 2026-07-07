@@ -424,3 +424,9 @@ type QuoteOvernightRequest struct {
 	Symbols []string `json:"symbols,omitempty"`
 	Lang    string   `json:"lang,omitempty"`
 }
+
+// Deprecated: Use KlineRequest instead.
+type BarsRequest = KlineRequest
+
+// Deprecated: Use KlineByPageRequest instead.
+type BarsByPageRequest = KlineByPageRequest
