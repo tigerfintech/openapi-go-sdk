@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GetOptionKline(identifier, period string)` → `GetOptionKline(identifiers []string, period string)`
 - **删除重复方法 `GetOptionBars`**：该方法与 `GetOptionKline` 均对应 `option_kline` API，已删除，请统一使用 `GetOptionKline`。
 - **`NewTradeClientFromConfig` 签名变更**：原 `NewTradeClientFromConfig(httpClient, cfg)` 改为 `NewTradeClientFromConfig(cfg)`，内部自动创建 `HttpClient`，无需调用方手动传入。
+- **`GetKline` 签名变更（Request 结构体）**：`GetKline(symbols []string, period string)` → `GetKline(req model.KlineRequest)`；删除同名 `GetBars` 方法。
+- **`GetKlineByPage` 重命名**：`GetBarsByPage(req BarsByPageRequest)` → `GetKlineByPage(req KlineByPageRequest)`。
+- **`GetFutureBars` 删除**：改用 `GetFutureKline(req FutureKlineRequest)`，`FutureKlineRequest` 合并了原 `FutureBarsRequest` 的全部字段（均带 `omitempty`）；删除 `FutureBarsRequest` 类型。
+- **`GetFutureBarsByPage` 重命名**：`GetFutureBarsByPage(req FutureBarsByPageRequest)` → `GetFutureKlineByPage(req FutureKlineByPageRequest)`。
+- **请求类型重命名**：`BarsRequest` → `KlineRequest`，`BarsByPageRequest` → `KlineByPageRequest`，`FutureBarsRequest`（已删除，字段合并入 `FutureKlineRequest`），`FutureBarsByPageRequest` → `FutureKlineByPageRequest`。
 
 ### Added
 

@@ -69,7 +69,7 @@ func main() {
 		ok("GetBrief", strings.Join(summary, " "))
 	}
 
-	if klines, err := qc.GetKline([]string{"AAPL"}, "day"); err != nil {
+	if klines, err := qc.GetKline(model.KlineRequest{Symbols: []string{"AAPL"}, Period: "day"}); err != nil {
 		fail("GetKline(AAPL day)", err)
 	} else if len(klines) > 0 {
 		ok("GetKline(AAPL day)", fmt.Sprintf("symbol=%s bars=%d", klines[0].Symbol, len(klines[0].Items)))
@@ -301,12 +301,12 @@ func main() {
 		ok("GetStockDelayBriefs(AAPL)", fmt.Sprintf("count=%d", len(items)))
 	}
 
-	if items, err := qc.GetBars(model.BarsRequest{
+	if items, err := qc.GetKline(model.KlineRequest{
 		Symbols: []string{"AAPL"}, Period: "day", Limit: 10,
 	}); err != nil {
-		fail("GetBars(AAPL day)", err)
+		fail("GetKline(AAPL day)", err)
 	} else if len(items) > 0 {
-		ok("GetBars(AAPL day)", fmt.Sprintf("bars=%d", len(items[0].Items)))
+		ok("GetKline(AAPL day)", fmt.Sprintf("bars=%d", len(items[0].Items)))
 	} else {
 		ok("GetBars(AAPL day)", "(empty)")
 	}
@@ -392,12 +392,12 @@ func main() {
 		ok("GetFutureContinuousContracts(MEUR)", fmt.Sprintf("count=%d", len(items)))
 	}
 
-	if items, err := qc.GetFutureBars(model.FutureBarsRequest{
+	if items, err := qc.GetFutureKline(model.FutureKlineRequest{
 		ContractCodes: []string{futureContract}, Period: "day", Limit: 10,
 	}); err != nil {
-		fail("GetFutureBars", err)
+		fail("GetFutureKline", err)
 	} else if len(items) > 0 {
-		ok("GetFutureBars", fmt.Sprintf("bars=%d", len(items[0].Items)))
+		ok("GetFutureKline", fmt.Sprintf("bars=%d", len(items[0].Items)))
 	} else {
 		ok("GetFutureBars", "(empty)")
 	}
