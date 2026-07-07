@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tigerfintech/openapi-go-sdk/client"
 	"github.com/tigerfintech/openapi-go-sdk/config"
 	"github.com/tigerfintech/openapi-go-sdk/model"
 	"github.com/tigerfintech/openapi-go-sdk/trade"
@@ -49,7 +48,7 @@ func main() {
 	}
 	fmt.Printf("tiger_id=%s account=%s\n\n", cfg.TigerID, cfg.Account)
 
-	tc := trade.NewTradeClientFromConfig(client.NewHttpClient(cfg), cfg)
+	tc := trade.NewTradeClientFromConfig(cfg)
 
 	fmt.Println("=== Contract 查询 ===")
 	if cs, err := tc.Contract("AAPL", "STK"); err != nil {
