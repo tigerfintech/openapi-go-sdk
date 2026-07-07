@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GetOptionExpiration(symbol string)` → `GetOptionExpiration(symbols []string)`
   - `GetOptionChain(symbol, expiry string)` → `GetOptionChain(items [][2]string)`（每项为 `[symbol, "YYYY-MM-DD"]` 对）
   - `GetOptionKline(identifier, period string)` → `GetOptionKline(identifiers []string, period string)`
+- **删除重复方法 `GetOptionBars`**：该方法与 `GetOptionKline` 均对应 `option_kline` API，已删除，请统一使用 `GetOptionKline`。
 - **`NewTradeClientFromConfig` 签名变更**：原 `NewTradeClientFromConfig(httpClient, cfg)` 改为 `NewTradeClientFromConfig(cfg)`，内部自动创建 `HttpClient`，无需调用方手动传入。
 
 ### Added
