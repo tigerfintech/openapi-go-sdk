@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/tigerfintech/openapi-go-sdk/client"
@@ -42,7 +43,11 @@ func skip(name, reason string) {
 }
 
 func main() {
-	cfg, err := config.NewClientConfig()
+	var cfgOpts []config.Option
+	if p := os.Getenv("TIGER_CONFIG_PATH"); p != "" {
+		cfgOpts = append(cfgOpts, config.WithPropertiesFile(p))
+	}
+	cfg, err := config.NewClientConfig(cfgOpts...)
 	if err != nil {
 		log.Fatal("load config failed: ", err)
 	}
