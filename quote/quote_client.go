@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tigerfintech/openapi-go-sdk/client"
+	"github.com/tigerfintech/openapi-go-sdk/config"
 	"github.com/tigerfintech/openapi-go-sdk/model"
 )
 
@@ -19,6 +20,12 @@ type QuoteClient struct {
 // NewQuoteClient creates a quote query client.
 func NewQuoteClient(httpClient *client.HttpClient) *QuoteClient {
 	return &QuoteClient{httpClient: httpClient}
+}
+
+// NewQuoteClientFromConfig creates a QuoteClient directly from a ClientConfig —
+// no need to construct HttpClient manually.
+func NewQuoteClientFromConfig(cfg *config.ClientConfig) *QuoteClient {
+	return &QuoteClient{httpClient: client.NewQuoteHttpClient(cfg)}
 }
 
 // callInto sends a request and unmarshals data into out.
@@ -105,11 +112,11 @@ func (c *QuoteClient) GetBrief(req model.BriefRequest) ([]model.Brief, error) {
 	return out, err
 }
 
-// GetKline returns K-line (candlestick) data.
-func (c *QuoteClient) GetKline(symbol, period string) ([]model.Kline, error) {
+// GetKline returns K-line (candlestick) data for multiple symbols.
+func (c *QuoteClient) GetKline(symbols []string, period string) ([]model.Kline, error) {
 	var out []model.Kline
 	err := c.callInto("kline", map[string]interface{}{
-		"symbols": []string{symbol},
+		"symbols": symbols,
 		"period":  period,
 	}, &out)
 	return out, err
@@ -140,30 +147,30 @@ func (c *QuoteClient) GetQuoteDepth(req model.DepthQuoteRequest) ([]model.Depth,
 
 // === Option market data methods ===
 
-// GetOptionExpiration returns option expiration dates.
-func (c *QuoteClient) GetOptionExpiration(symbol string) ([]model.OptionExpiration, error) {
+// GetOptionExpiration returns option expiration dates for multiple symbols.
+func (c *QuoteClient) GetOptionExpiration(symbols []string) ([]model.OptionExpiration, error) {
 	var out []model.OptionExpiration
-	err := c.callInto("option_expiration", map[string]interface{}{"symbols": []string{symbol}}, &out)
+	err := c.callInto("option_expiration", map[string]interface{}{"symbols": symbols}, &out)
 	return out, err
 }
 
-// GetOptionChain returns the option chain for a symbol and expiry date.
-// expiry: "YYYY-MM-DD" string.
-func (c *QuoteClient) GetOptionChain(symbol, expiry string) ([]model.OptionChain, error) {
-	expiryTs, err := parseOptionExpiry(expiry)
-	if err != nil {
-		return nil, fmt.Errorf("invalid expiry date: %w", err)
+// GetOptionChain returns option chains for multiple (symbol, expiry) pairs.
+// Each item is [2]string{symbol, "YYYY-MM-DD"}.
+func (c *QuoteClient) GetOptionChain(items [][2]string) ([]model.OptionChain, error) {
+	optionBasic := make([]map[string]interface{}, 0, len(items))
+	for _, it := range items {
+		expiryTs, err := parseOptionExpiry(it[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid expiry date for %q: %w", it[0], err)
+		}
+		optionBasic = append(optionBasic, map[string]interface{}{
+			"symbol": it[0],
+			"expiry": expiryTs,
+		})
 	}
-	params := map[string]interface{}{
-		"option_basic": []map[string]interface{}{
-			{
-				"symbol": symbol,
-				"expiry": expiryTs,
-			},
-		},
-	}
+	params := map[string]interface{}{"option_basic": optionBasic}
 	var out []model.OptionChain
-	err = c.callIntoVersioned("option_chain", params, "3.0", &out)
+	err := c.callIntoVersioned("option_chain", params, "3.0", &out)
 	return out, err
 }
 
@@ -187,25 +194,25 @@ func (c *QuoteClient) GetOptionBrief(identifiers []string) ([]model.Brief, error
 	return out, err
 }
 
-// GetOptionKline returns option K-line data.
-func (c *QuoteClient) GetOptionKline(identifier, period string) ([]model.Kline, error) {
-	contract, err := optionContractFromIdentifier(identifier)
-	if err != nil {
-		return nil, fmt.Errorf("invalid option identifier %q: %w", identifier, err)
+// GetOptionKline returns option K-line data for multiple identifiers.
+func (c *QuoteClient) GetOptionKline(identifiers []string, period string) ([]model.Kline, error) {
+	optionQuery := make([]map[string]interface{}, 0, len(identifiers))
+	for _, id := range identifiers {
+		contract, err := optionContractFromIdentifier(id)
+		if err != nil {
+			return nil, fmt.Errorf("invalid option identifier %q: %w", id, err)
+		}
+		optionQuery = append(optionQuery, map[string]interface{}{
+			"symbol": contract.Symbol,
+			"expiry": contract.Expiry,
+			"right":  contract.Right,
+			"strike": contract.Strike,
+			"period": period,
+		})
 	}
-	params := map[string]interface{}{
-		"option_query": []map[string]interface{}{
-			{
-				"symbol": contract.Symbol,
-				"expiry": contract.Expiry,
-				"right":  contract.Right,
-				"strike": contract.Strike,
-				"period": period,
-			},
-		},
-	}
+	params := map[string]interface{}{"option_query": optionQuery}
 	var out []model.Kline
-	err = c.callIntoVersioned("option_kline", params, "2.0", &out)
+	err := c.callIntoVersioned("option_kline", params, "2.0", &out)
 	return out, err
 }
 
@@ -784,7 +791,7 @@ func (c *QuoteClient) GetFundHistoryQuote(req model.FundHistoryQuoteRequest) ([]
 	return out, err
 }
 
-// GetWarrantBriefs 窝轮简要行情。wire: warrant_briefs
+// GetWarrantBriefs 窝轮实时行情。wire: warrant_briefs
 func (c *QuoteClient) GetWarrantBriefs(req model.WarrantBriefsRequest) ([]model.WarrantBrief, error) {
 	var out []model.WarrantBrief
 	err := c.callInto("warrant_briefs", req, &out)

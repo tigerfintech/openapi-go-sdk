@@ -23,8 +23,10 @@ func NewTradeClient(httpClient *client.HttpClient, account string) *TradeClient 
 	return &TradeClient{httpClient: httpClient, account: account, secretKey: httpClient.SecretKey()}
 }
 
-// NewTradeClientFromConfig 从 ClientConfig 创建交易客户端，自动注入 Account 和 SecretKey。
-func NewTradeClientFromConfig(httpClient *client.HttpClient, cfg *config.ClientConfig) *TradeClient {
+// NewTradeClientFromConfig 从 ClientConfig 直接创建交易客户端，无需手动构造 HttpClient。
+// Account 和 SecretKey 自动从 cfg 读取。
+func NewTradeClientFromConfig(cfg *config.ClientConfig) *TradeClient {
+	httpClient := client.NewHttpClient(cfg)
 	return &TradeClient{
 		httpClient: httpClient,
 		account:    cfg.Account,
