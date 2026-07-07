@@ -577,13 +577,6 @@ func (c *QuoteClient) GetKlineQuota(req model.KlineQuotaRequest) ([]model.KlineQ
 // Batch 4: 期权/期货扩展
 // ============================================================================
 
-// GetOptionBars 期权 K 线。wire: option_kline
-func (c *QuoteClient) GetOptionBars(req model.OptionBarsRequest) ([]model.Kline, error) {
-	var out []model.Kline
-	err := c.callIntoVersioned("option_kline", req, "2.0", &out)
-	return out, err
-}
-
 // GetOptionTradeTicks 期权逐笔成交。wire: option_trade_tick
 func (c *QuoteClient) GetOptionTradeTicks(req model.OptionTradeTicksRequest) ([]model.TradeTick, error) {
 	var out []model.TradeTick

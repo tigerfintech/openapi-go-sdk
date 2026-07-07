@@ -220,13 +220,6 @@ type OptionQueryItem struct {
 	PageToken  string `json:"page_token,omitempty"`
 }
 
-// OptionBarsRequest 期权 K 线。wire: option_kline
-type OptionBarsRequest struct {
-	OptionQuery []OptionQueryItem `json:"option_query,omitempty"`
-	Market      string            `json:"market,omitempty"`
-	Lang        string            `json:"lang,omitempty"`
-}
-
 // OptionTradeTicksRequest 期权逐笔。wire: option_trade_tick
 type OptionTradeTicksRequest struct {
 	Contracts []OptionQueryItem `json:"contracts,omitempty"`
