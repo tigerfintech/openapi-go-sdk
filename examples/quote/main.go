@@ -64,14 +64,14 @@ func main() {
 		ok("GetMarketState(US)", "(empty)")
 	}
 
-	if briefs, err := qc.GetBrief(model.BriefRequest{Symbols: []string{"AAPL", "TSLA"}}); err != nil {
-		fail("GetBrief", err)
+	if briefs, err := qc.GetRealTimeQuote(model.BriefRequest{Symbols: []string{"AAPL", "TSLA"}}); err != nil {
+		fail("GetRealTimeQuote", err)
 	} else {
 		summary := make([]string, 0, len(briefs))
 		for _, b := range briefs {
 			summary = append(summary, fmt.Sprintf("%s=%.2f", b.Symbol, b.LatestPrice))
 		}
-		ok("GetBrief", strings.Join(summary, " "))
+		ok("GetRealTimeQuote", strings.Join(summary, " "))
 	}
 
 	if klines, err := qc.GetKline(model.KlineRequest{Symbols: []string{"AAPL"}, Period: "day"}); err != nil {
@@ -125,7 +125,7 @@ func main() {
 
 	if expiryDate == "" {
 		skip("GetOptionChain", "no expiry available")
-		skip("GetOptionBrief", "no expiry available")
+		skip("GetOptionQuote", "no expiry available")
 		skip("GetOptionKline", "no expiry available")
 	} else {
 		if chain, err := qc.GetOptionChain([][2]string{{"AAPL", expiryDate}}); err != nil {
@@ -143,15 +143,15 @@ func main() {
 		}
 
 		if optIdentifier == "" {
-			skip("GetOptionBrief", "no identifier from chain")
+			skip("GetOptionQuote", "no identifier from chain")
 			skip("GetOptionKline", "no identifier from chain")
 		} else {
-			if briefs, err := qc.GetOptionBrief([]string{optIdentifier}); err != nil {
-				fail("GetOptionBrief", err)
+			if briefs, err := qc.GetOptionQuote([]string{optIdentifier}); err != nil {
+				fail("GetOptionQuote", err)
 			} else if len(briefs) > 0 {
-				ok("GetOptionBrief", fmt.Sprintf("%s latestPrice=%.4f", briefs[0].Symbol, briefs[0].LatestPrice))
+				ok("GetOptionQuote", fmt.Sprintf("%s latestPrice=%.4f", briefs[0].Symbol, briefs[0].LatestPrice))
 			} else {
-				ok("GetOptionBrief", "(empty)")
+				ok("GetOptionQuote", "(empty)")
 			}
 			if ks, err := qc.GetOptionKline([]string{optIdentifier}, "day"); err != nil {
 				fail("GetOptionKline", err)
@@ -300,10 +300,10 @@ func main() {
 		ok("GetStockDetails(AAPL)", fmt.Sprintf("count=%d", len(items)))
 	}
 
-	if items, err := qc.GetStockDelayBriefs(model.StockDelayBriefsRequest{Symbols: []string{"AAPL"}}); err != nil {
-		fail("GetStockDelayBriefs(AAPL)", err)
+	if items, err := qc.GetDelayedQuote(model.StockDelayBriefsRequest{Symbols: []string{"AAPL"}}); err != nil {
+		fail("GetDelayedQuote(AAPL)", err)
 	} else {
-		ok("GetStockDelayBriefs(AAPL)", fmt.Sprintf("count=%d", len(items)))
+		ok("GetDelayedQuote(AAPL)", fmt.Sprintf("count=%d", len(items)))
 	}
 
 	if items, err := qc.GetKline(model.KlineRequest{
