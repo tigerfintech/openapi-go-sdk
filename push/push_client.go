@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tigerfintech/openapi-go-sdk/client"
 	"github.com/tigerfintech/openapi-go-sdk/config"
 	"github.com/tigerfintech/openapi-go-sdk/logger"
 	"github.com/tigerfintech/openapi-go-sdk/push/pb"
@@ -26,8 +27,7 @@ const (
 	maxReconnectInterval = 60 * time.Second
 	// 默认连接超时
 	defaultConnectTimeout = 30 * time.Second
-	// SDK 版本
-	sdkVersion = "go/1.0.0"
+	// SDK 版本（由 client.SDKVersion 动态拼接，见 authenticate()）
 	// 协议版本
 	acceptVersion = "2"
 	// 默认心跳发送间隔（毫秒）
@@ -240,7 +240,7 @@ func (c *PushClient) authenticate() error {
 	req := BuildConnectMessage(
 		c.config.TigerID,
 		sign,
-		sdkVersion,
+		"go/"+client.SDKVersion,
 		acceptVersion,
 		defaultSendInterval,
 		defaultReceiveInterval,
