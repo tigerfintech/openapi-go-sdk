@@ -94,7 +94,7 @@ func TestGetMarketState(t *testing.T) {
 }
 
 func TestGetRealTimeQuote(t *testing.T) {
-	server := mockServer(t, "brief", []map[string]interface{}{
+	server := mockServer(t, "quote_real_time", []map[string]interface{}{
 		{"symbol": "AAPL", "latestPrice": 150.0},
 	})
 	defer server.Close()
@@ -236,6 +236,38 @@ func TestGetOptionKline(t *testing.T) {
 	}
 	if data == nil {
 		t.Fatal("GetOptionKline 返回 nil data")
+	}
+}
+
+func TestGetDelayedQuote(t *testing.T) {
+	server := mockServer(t, "quote_delay", []map[string]interface{}{
+		{"symbol": "AAPL", "latestPrice": 148.0},
+	})
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	data, err := qc.GetDelayedQuote(model.StockDelayBriefsRequest{Symbols: []string{"AAPL"}})
+	if err != nil {
+		t.Fatalf("GetDelayedQuote 失败: %v", err)
+	}
+	if data == nil {
+		t.Fatal("GetDelayedQuote 返回 nil data")
+	}
+}
+
+func TestGetWarrantQuote(t *testing.T) {
+	server := mockServer(t, "warrant_briefs", []map[string]interface{}{
+		{"symbol": "28888.HK"},
+	})
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	data, err := qc.GetWarrantQuote(model.WarrantBriefsRequest{Symbols: []string{"28888.HK"}})
+	if err != nil {
+		t.Fatalf("GetWarrantQuote 失败: %v", err)
+	}
+	if data == nil {
+		t.Fatal("GetWarrantQuote 返回 nil data")
 	}
 }
 
