@@ -119,6 +119,11 @@ func (c *QuoteClient) GetKline(req model.KlineRequest) ([]model.Kline, error) {
 	return out, err
 }
 
+// Deprecated: Use GetKline with KlineRequest instead.
+func (c *QuoteClient) GetBars(req model.KlineRequest) ([]model.Kline, error) {
+	return c.GetKline(req)
+}
+
 // GetTimeline returns intraday timeline data.
 func (c *QuoteClient) GetTimeline(symbols []string) ([]model.Timeline, error) {
 	var out []model.Timeline
@@ -499,6 +504,11 @@ func (c *QuoteClient) GetKlineByPage(req model.KlineByPageRequest) ([]model.Klin
 		endTime = oldest - 1
 	}
 	return acc, nil
+}
+
+// Deprecated: Use GetKlineByPage with KlineByPageRequest instead.
+func (c *QuoteClient) GetBarsByPage(req model.KlineByPageRequest) ([]model.KlineItem, error) {
+	return c.GetKlineByPage(req)
 }
 
 // GetTimelineHistory 历史分时。wire: history_timeline
