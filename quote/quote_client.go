@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tigerfintech/openapi-go-sdk/client"
+	"github.com/tigerfintech/openapi-go-sdk/config"
 	"github.com/tigerfintech/openapi-go-sdk/model"
 )
 
@@ -19,6 +20,12 @@ type QuoteClient struct {
 // NewQuoteClient creates a quote query client.
 func NewQuoteClient(httpClient *client.HttpClient) *QuoteClient {
 	return &QuoteClient{httpClient: httpClient}
+}
+
+// NewQuoteClientFromConfig creates a QuoteClient directly from a ClientConfig —
+// no need to construct HttpClient manually.
+func NewQuoteClientFromConfig(cfg *config.ClientConfig) *QuoteClient {
+	return &QuoteClient{httpClient: client.NewQuoteHttpClient(cfg)}
 }
 
 // callInto sends a request and unmarshals data into out.
@@ -105,14 +112,16 @@ func (c *QuoteClient) GetBrief(req model.BriefRequest) ([]model.Brief, error) {
 	return out, err
 }
 
-// GetKline returns K-line (candlestick) data.
-func (c *QuoteClient) GetKline(symbol, period string) ([]model.Kline, error) {
+// GetKline returns K-line data. Supports time range (BeginTime/EndTime) or index paging (BeginIndex/EndIndex).
+func (c *QuoteClient) GetKline(req model.KlineRequest) ([]model.Kline, error) {
 	var out []model.Kline
-	err := c.callInto("kline", map[string]interface{}{
-		"symbols": []string{symbol},
-		"period":  period,
-	}, &out)
+	err := c.callInto("kline", req, &out)
 	return out, err
+}
+
+// Deprecated: Use GetKline with KlineRequest instead.
+func (c *QuoteClient) GetBars(req model.KlineRequest) ([]model.Kline, error) {
+	return c.GetKline(req)
 }
 
 // GetTimeline returns intraday timeline data.
@@ -140,30 +149,30 @@ func (c *QuoteClient) GetQuoteDepth(req model.DepthQuoteRequest) ([]model.Depth,
 
 // === Option market data methods ===
 
-// GetOptionExpiration returns option expiration dates.
-func (c *QuoteClient) GetOptionExpiration(symbol string) ([]model.OptionExpiration, error) {
+// GetOptionExpiration returns option expiration dates for multiple symbols.
+func (c *QuoteClient) GetOptionExpiration(symbols []string) ([]model.OptionExpiration, error) {
 	var out []model.OptionExpiration
-	err := c.callInto("option_expiration", map[string]interface{}{"symbols": []string{symbol}}, &out)
+	err := c.callInto("option_expiration", map[string]interface{}{"symbols": symbols}, &out)
 	return out, err
 }
 
-// GetOptionChain returns the option chain for a symbol and expiry date.
-// expiry: "YYYY-MM-DD" string.
-func (c *QuoteClient) GetOptionChain(symbol, expiry string) ([]model.OptionChain, error) {
-	expiryTs, err := parseOptionExpiry(expiry)
-	if err != nil {
-		return nil, fmt.Errorf("invalid expiry date: %w", err)
+// GetOptionChain returns option chains for multiple (symbol, expiry) pairs.
+// Each item is [2]string{symbol, "YYYY-MM-DD"}.
+func (c *QuoteClient) GetOptionChain(items [][2]string) ([]model.OptionChain, error) {
+	optionBasic := make([]map[string]interface{}, 0, len(items))
+	for _, it := range items {
+		expiryTs, err := parseOptionExpiry(it[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid expiry date for %q: %w", it[0], err)
+		}
+		optionBasic = append(optionBasic, map[string]interface{}{
+			"symbol": it[0],
+			"expiry": expiryTs,
+		})
 	}
-	params := map[string]interface{}{
-		"option_basic": []map[string]interface{}{
-			{
-				"symbol": symbol,
-				"expiry": expiryTs,
-			},
-		},
-	}
+	params := map[string]interface{}{"option_basic": optionBasic}
 	var out []model.OptionChain
-	err = c.callIntoVersioned("option_chain", params, "3.0", &out)
+	err := c.callIntoVersioned("option_chain", params, "3.0", &out)
 	return out, err
 }
 
@@ -187,25 +196,25 @@ func (c *QuoteClient) GetOptionBrief(identifiers []string) ([]model.Brief, error
 	return out, err
 }
 
-// GetOptionKline returns option K-line data.
-func (c *QuoteClient) GetOptionKline(identifier, period string) ([]model.Kline, error) {
-	contract, err := optionContractFromIdentifier(identifier)
-	if err != nil {
-		return nil, fmt.Errorf("invalid option identifier %q: %w", identifier, err)
+// GetOptionKline returns option K-line data for multiple identifiers.
+func (c *QuoteClient) GetOptionKline(identifiers []string, period string) ([]model.Kline, error) {
+	optionQuery := make([]map[string]interface{}, 0, len(identifiers))
+	for _, id := range identifiers {
+		contract, err := optionContractFromIdentifier(id)
+		if err != nil {
+			return nil, fmt.Errorf("invalid option identifier %q: %w", id, err)
+		}
+		optionQuery = append(optionQuery, map[string]interface{}{
+			"symbol": contract.Symbol,
+			"expiry": contract.Expiry,
+			"right":  contract.Right,
+			"strike": contract.Strike,
+			"period": period,
+		})
 	}
-	params := map[string]interface{}{
-		"option_query": []map[string]interface{}{
-			{
-				"symbol": contract.Symbol,
-				"expiry": contract.Expiry,
-				"right":  contract.Right,
-				"strike": contract.Strike,
-				"period": period,
-			},
-		},
-	}
+	params := map[string]interface{}{"option_query": optionQuery}
 	var out []model.Kline
-	err = c.callIntoVersioned("option_kline", params, "2.0", &out)
+	err := c.callIntoVersioned("option_kline", params, "2.0", &out)
 	return out, err
 }
 
@@ -445,17 +454,9 @@ func (c *QuoteClient) GetStockDelayBriefs(req model.StockDelayBriefsRequest) ([]
 	return out, err
 }
 
-// GetBars K 线（完整参数版）。wire: kline
-// 推荐使用 BarsRequest 以访问时间范围、分页、交易时段、复权选项。
-func (c *QuoteClient) GetBars(req model.BarsRequest) ([]model.Kline, error) {
-	var out []model.Kline
-	err := c.callInto("kline", req, &out)
-	return out, err
-}
-
-// GetBarsByPage 客户端分页封装：循环调用 GetBars 直到获得 TotalSize 条 K 线。
-// 返回时按时间升序合并（与 Python get_bars_by_page 行为一致）。
-func (c *QuoteClient) GetBarsByPage(req model.BarsByPageRequest) ([]model.KlineItem, error) {
+// GetKlineByPage client-side paginated K-line: loops until TotalSize bars are collected.
+// Returns merged slice in ascending time order.
+func (c *QuoteClient) GetKlineByPage(req model.KlineByPageRequest) ([]model.KlineItem, error) {
 	if req.PageSize <= 0 {
 		req.PageSize = 200
 	}
@@ -472,7 +473,7 @@ func (c *QuoteClient) GetBarsByPage(req model.BarsByPageRequest) ([]model.KlineI
 		beginTime = -1
 	}
 	for len(acc) < req.TotalSize {
-		sub := model.BarsRequest{
+		sub := model.KlineRequest{
 			Symbols:      []string{req.Symbol},
 			Period:       req.Period,
 			Right:        req.Right,
@@ -494,7 +495,6 @@ func (c *QuoteClient) GetBarsByPage(req model.BarsByPageRequest) ([]model.KlineI
 		if len(items) < req.PageSize {
 			break
 		}
-		// 以最早一根 bar 的时间作为下一页的 endTime
 		oldest := items[0].Time
 		for _, it := range items {
 			if it.Time < oldest {
@@ -504,6 +504,11 @@ func (c *QuoteClient) GetBarsByPage(req model.BarsByPageRequest) ([]model.KlineI
 		endTime = oldest - 1
 	}
 	return acc, nil
+}
+
+// Deprecated: Use GetKlineByPage with KlineByPageRequest instead.
+func (c *QuoteClient) GetBarsByPage(req model.KlineByPageRequest) ([]model.KlineItem, error) {
+	return c.GetKlineByPage(req)
 }
 
 // GetTimelineHistory 历史分时。wire: history_timeline
@@ -569,13 +574,6 @@ func (c *QuoteClient) GetKlineQuota(req model.KlineQuotaRequest) ([]model.KlineQ
 // ============================================================================
 // Batch 4: 期权/期货扩展
 // ============================================================================
-
-// GetOptionBars 期权 K 线。wire: option_kline
-func (c *QuoteClient) GetOptionBars(req model.OptionBarsRequest) ([]model.Kline, error) {
-	var out []model.Kline
-	err := c.callIntoVersioned("option_kline", req, "2.0", &out)
-	return out, err
-}
 
 // GetOptionTradeTicks 期权逐笔成交。wire: option_trade_tick
 func (c *QuoteClient) GetOptionTradeTicks(req model.OptionTradeTicksRequest) ([]model.TradeTick, error) {
@@ -650,22 +648,8 @@ func (c *QuoteClient) GetFutureHistoryMainContract(req model.FutureHistoryMainCo
 	return out, err
 }
 
-// GetFutureBars 期货 K 线（含索引分页）。wire: future_kline
-// begin_time / end_time 默认 -1 表示无界（服务端要求字段必须存在）。
-func (c *QuoteClient) GetFutureBars(req model.FutureBarsRequest) ([]model.FutureKline, error) {
-	if req.BeginTime == 0 {
-		req.BeginTime = -1
-	}
-	if req.EndTime == 0 {
-		req.EndTime = -1
-	}
-	var out []model.FutureKline
-	err := c.callInto("future_kline", req, &out)
-	return out, err
-}
-
-// GetFutureBarsByPage 期货 K 线分页包装。
-func (c *QuoteClient) GetFutureBarsByPage(req model.FutureBarsByPageRequest) ([]model.FutureKlineItem, error) {
+// GetFutureKlineByPage client-side paginated futures K-line: loops until TotalSize bars are collected.
+func (c *QuoteClient) GetFutureKlineByPage(req model.FutureKlineByPageRequest) ([]model.FutureKlineItem, error) {
 	if req.PageSize <= 0 {
 		req.PageSize = 200
 	}
@@ -682,7 +666,7 @@ func (c *QuoteClient) GetFutureBarsByPage(req model.FutureBarsByPageRequest) ([]
 		beginTime = -1
 	}
 	for len(acc) < req.TotalSize {
-		sub := model.FutureBarsRequest{
+		sub := model.FutureKlineRequest{
 			ContractCodes: []string{req.ContractCode},
 			Period:        req.Period,
 			BeginTime:     beginTime,
@@ -784,7 +768,7 @@ func (c *QuoteClient) GetFundHistoryQuote(req model.FundHistoryQuoteRequest) ([]
 	return out, err
 }
 
-// GetWarrantBriefs 窝轮简要行情。wire: warrant_briefs
+// GetWarrantBriefs 窝轮实时行情。wire: warrant_briefs
 func (c *QuoteClient) GetWarrantBriefs(req model.WarrantBriefsRequest) ([]model.WarrantBrief, error) {
 	var out []model.WarrantBrief
 	err := c.callInto("warrant_briefs", req, &out)

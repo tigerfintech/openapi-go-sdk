@@ -415,3 +415,30 @@ func TestTradeClientApiError(t *testing.T) {
 		t.Fatal("期望返回错误，但返回了 nil")
 	}
 }
+
+func TestNewTradeClientFromConfig(t *testing.T) {
+	server := mockServer(t, map[string]interface{}{
+		"items": []map[string]interface{}{{"symbol": "AAPL", "secType": "STK"}},
+	})
+	defer server.Close()
+
+	cfg := &config.ClientConfig{
+		TigerID:    "test_tiger_id",
+		PrivateKey: cachedTestPrivateKey,
+		Account:    "test_account",
+		Language:   "zh_CN",
+		Timeout:    5 * time.Second,
+		ServerURL:  server.URL,
+	}
+	tc := NewTradeClientFromConfig(cfg)
+	if tc == nil {
+		t.Fatal("NewTradeClientFromConfig 返回 nil")
+	}
+	data, err := tc.Contract("AAPL", "STK")
+	if err != nil {
+		t.Fatalf("NewTradeClientFromConfig 创建的客户端调用失败: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("期望有合约数据，但返回空")
+	}
+}

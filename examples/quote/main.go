@@ -9,6 +9,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/tigerfintech/openapi-go-sdk/client"
@@ -42,7 +43,11 @@ func skip(name, reason string) {
 }
 
 func main() {
-	cfg, err := config.NewClientConfig()
+	var cfgOpts []config.Option
+	if p := os.Getenv("TIGER_CONFIG_PATH"); p != "" {
+		cfgOpts = append(cfgOpts, config.WithPropertiesFile(p))
+	}
+	cfg, err := config.NewClientConfig(cfgOpts...)
 	if err != nil {
 		log.Fatal("load config failed: ", err)
 	}
@@ -69,7 +74,7 @@ func main() {
 		ok("GetBrief", strings.Join(summary, " "))
 	}
 
-	if klines, err := qc.GetKline("AAPL", "day"); err != nil {
+	if klines, err := qc.GetKline(model.KlineRequest{Symbols: []string{"AAPL"}, Period: "day"}); err != nil {
 		fail("GetKline(AAPL day)", err)
 	} else if len(klines) > 0 {
 		ok("GetKline(AAPL day)", fmt.Sprintf("symbol=%s bars=%d", klines[0].Symbol, len(klines[0].Items)))
@@ -107,7 +112,7 @@ func main() {
 
 	fmt.Println("\n=== Options ===")
 	var expiryDate, optIdentifier string
-	if exps, err := qc.GetOptionExpiration("AAPL"); err != nil {
+	if exps, err := qc.GetOptionExpiration([]string{"AAPL"}); err != nil {
 		fail("GetOptionExpiration(AAPL)", err)
 	} else if len(exps) > 0 && len(exps[0].Dates) > 0 {
 		ok("GetOptionExpiration(AAPL)", fmt.Sprintf("dates=%d first=%s", len(exps[0].Dates), exps[0].Dates[0]))
@@ -123,7 +128,7 @@ func main() {
 		skip("GetOptionBrief", "no expiry available")
 		skip("GetOptionKline", "no expiry available")
 	} else {
-		if chain, err := qc.GetOptionChain("AAPL", expiryDate); err != nil {
+		if chain, err := qc.GetOptionChain([][2]string{{"AAPL", expiryDate}}); err != nil {
 			fail("GetOptionChain(AAPL)", err)
 		} else if len(chain) > 0 && len(chain[0].Items) > 0 {
 			ok(fmt.Sprintf("GetOptionChain(%s)", expiryDate), fmt.Sprintf("rows=%d", len(chain[0].Items)))
@@ -148,7 +153,7 @@ func main() {
 			} else {
 				ok("GetOptionBrief", "(empty)")
 			}
-			if ks, err := qc.GetOptionKline(optIdentifier, "day"); err != nil {
+			if ks, err := qc.GetOptionKline([]string{optIdentifier}, "day"); err != nil {
 				fail("GetOptionKline", err)
 			} else if len(ks) > 0 {
 				ok("GetOptionKline", fmt.Sprintf("bars=%d", len(ks[0].Items)))
@@ -301,12 +306,12 @@ func main() {
 		ok("GetStockDelayBriefs(AAPL)", fmt.Sprintf("count=%d", len(items)))
 	}
 
-	if items, err := qc.GetBars(model.BarsRequest{
+	if items, err := qc.GetKline(model.KlineRequest{
 		Symbols: []string{"AAPL"}, Period: "day", Limit: 10,
 	}); err != nil {
-		fail("GetBars(AAPL day)", err)
+		fail("GetKline(AAPL day)", err)
 	} else if len(items) > 0 {
-		ok("GetBars(AAPL day)", fmt.Sprintf("bars=%d", len(items[0].Items)))
+		ok("GetKline(AAPL day)", fmt.Sprintf("bars=%d", len(items[0].Items)))
 	} else {
 		ok("GetBars(AAPL day)", "(empty)")
 	}
@@ -392,12 +397,12 @@ func main() {
 		ok("GetFutureContinuousContracts(MEUR)", fmt.Sprintf("count=%d", len(items)))
 	}
 
-	if items, err := qc.GetFutureBars(model.FutureBarsRequest{
+	if items, err := qc.GetFutureKline(model.FutureKlineRequest{
 		ContractCodes: []string{futureContract}, Period: "day", Limit: 10,
 	}); err != nil {
-		fail("GetFutureBars", err)
+		fail("GetFutureKline", err)
 	} else if len(items) > 0 {
-		ok("GetFutureBars", fmt.Sprintf("bars=%d", len(items[0].Items)))
+		ok("GetFutureKline", fmt.Sprintf("bars=%d", len(items[0].Items)))
 	} else {
 		ok("GetFutureBars", "(empty)")
 	}
