@@ -93,19 +93,19 @@ func TestGetMarketState(t *testing.T) {
 	}
 }
 
-func TestGetBrief(t *testing.T) {
-	server := mockServer(t, "brief", []map[string]interface{}{
+func TestGetRealTimeQuote(t *testing.T) {
+	server := mockServer(t, "quote_real_time", []map[string]interface{}{
 		{"symbol": "AAPL", "latestPrice": 150.0},
 	})
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetBrief(model.BriefRequest{Symbols: []string{"AAPL"}})
+	data, err := qc.GetRealTimeQuote(model.BriefRequest{Symbols: []string{"AAPL"}})
 	if err != nil {
-		t.Fatalf("GetBrief 失败: %v", err)
+		t.Fatalf("GetRealTimeQuote 失败: %v", err)
 	}
 	if data == nil {
-		t.Fatal("GetBrief 返回 nil data")
+		t.Fatal("GetRealTimeQuote 返回 nil data")
 	}
 }
 
@@ -207,19 +207,19 @@ func TestGetOptionChain(t *testing.T) {
 	}
 }
 
-func TestGetOptionBrief(t *testing.T) {
+func TestGetOptionQuote(t *testing.T) {
 	server := mockServer(t, "option_brief", []map[string]interface{}{
 		{"identifier": "AAPL 240119C00150000"},
 	})
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetOptionBrief([]string{"AAPL 240119C00150000"})
+	data, err := qc.GetOptionQuote([]string{"AAPL 240119C00150000"})
 	if err != nil {
-		t.Fatalf("GetOptionBrief 失败: %v", err)
+		t.Fatalf("GetOptionQuote 失败: %v", err)
 	}
 	if data == nil {
-		t.Fatal("GetOptionBrief 返回 nil data")
+		t.Fatal("GetOptionQuote 返回 nil data")
 	}
 }
 
@@ -236,6 +236,38 @@ func TestGetOptionKline(t *testing.T) {
 	}
 	if data == nil {
 		t.Fatal("GetOptionKline 返回 nil data")
+	}
+}
+
+func TestGetDelayedQuote(t *testing.T) {
+	server := mockServer(t, "quote_delay", []map[string]interface{}{
+		{"symbol": "AAPL", "latestPrice": 148.0},
+	})
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	data, err := qc.GetDelayedQuote(model.StockDelayBriefsRequest{Symbols: []string{"AAPL"}})
+	if err != nil {
+		t.Fatalf("GetDelayedQuote 失败: %v", err)
+	}
+	if data == nil {
+		t.Fatal("GetDelayedQuote 返回 nil data")
+	}
+}
+
+func TestGetWarrantQuote(t *testing.T) {
+	server := mockServer(t, "warrant_briefs", []map[string]interface{}{
+		{"symbol": "28888.HK"},
+	})
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	data, err := qc.GetWarrantQuote(model.WarrantBriefsRequest{Symbols: []string{"28888.HK"}})
+	if err != nil {
+		t.Fatalf("GetWarrantQuote 失败: %v", err)
+	}
+	if data == nil {
+		t.Fatal("GetWarrantQuote 返回 nil data")
 	}
 }
 

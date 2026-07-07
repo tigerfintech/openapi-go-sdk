@@ -103,13 +103,17 @@ func (c *QuoteClient) GetMarketState(market string) ([]model.MarketState, error)
 	return out, err
 }
 
-// GetBrief returns real-time stock quotes with full filter options.
+// GetRealTimeQuote returns real-time stock quotes with full filter options.
 // Wire method: quote_real_time. Accepts BriefRequest for include_hour_trading / sec_type / lang.
-// 对应 Python get_stock_briefs。
-func (c *QuoteClient) GetBrief(req model.BriefRequest) ([]model.Brief, error) {
+func (c *QuoteClient) GetRealTimeQuote(req model.BriefRequest) ([]model.Brief, error) {
 	var out []model.Brief
 	err := c.callInto("quote_real_time", req, &out)
 	return out, err
+}
+
+// Deprecated: Use GetRealTimeQuote instead.
+func (c *QuoteClient) GetBrief(req model.BriefRequest) ([]model.Brief, error) {
+	return c.GetRealTimeQuote(req)
 }
 
 // GetKline returns K-line data. Supports time range (BeginTime/EndTime) or index paging (BeginIndex/EndIndex).
@@ -176,8 +180,8 @@ func (c *QuoteClient) GetOptionChain(items [][2]string) ([]model.OptionChain, er
 	return out, err
 }
 
-// GetOptionBrief returns option quotes for the given identifiers.
-func (c *QuoteClient) GetOptionBrief(identifiers []string) ([]model.Brief, error) {
+// GetOptionQuote returns option quotes for the given identifiers.
+func (c *QuoteClient) GetOptionQuote(identifiers []string) ([]model.Brief, error) {
 	optionBasics := make([]map[string]interface{}, 0, len(identifiers))
 	for _, id := range identifiers {
 		contract, err := optionContractFromIdentifier(id)
@@ -194,6 +198,11 @@ func (c *QuoteClient) GetOptionBrief(identifiers []string) ([]model.Brief, error
 	var out []model.Brief
 	err := c.callIntoVersioned("option_brief", map[string]interface{}{"option_basic": optionBasics}, "2.0", &out)
 	return out, err
+}
+
+// Deprecated: Use GetOptionQuote instead.
+func (c *QuoteClient) GetOptionBrief(identifiers []string) ([]model.Brief, error) {
+	return c.GetOptionQuote(identifiers)
 }
 
 // GetOptionKline returns option K-line data for multiple identifiers.
@@ -447,11 +456,16 @@ func (c *QuoteClient) GetStockDetails(req model.StockDetailsRequest) ([]model.St
 	return out, err
 }
 
-// GetStockDelayBriefs 延时行情。wire: quote_delay
-func (c *QuoteClient) GetStockDelayBriefs(req model.StockDelayBriefsRequest) ([]model.Brief, error) {
+// GetDelayedQuote returns delayed stock quotes. wire: quote_delay
+func (c *QuoteClient) GetDelayedQuote(req model.StockDelayBriefsRequest) ([]model.Brief, error) {
 	var out []model.Brief
 	err := c.callInto("quote_delay", req, &out)
 	return out, err
+}
+
+// Deprecated: Use GetDelayedQuote instead.
+func (c *QuoteClient) GetStockDelayBriefs(req model.StockDelayBriefsRequest) ([]model.Brief, error) {
+	return c.GetDelayedQuote(req)
 }
 
 // GetKlineByPage client-side paginated K-line: loops until TotalSize bars are collected.
@@ -768,11 +782,16 @@ func (c *QuoteClient) GetFundHistoryQuote(req model.FundHistoryQuoteRequest) ([]
 	return out, err
 }
 
-// GetWarrantBriefs 窝轮实时行情。wire: warrant_briefs
-func (c *QuoteClient) GetWarrantBriefs(req model.WarrantBriefsRequest) ([]model.WarrantBrief, error) {
+// GetWarrantQuote returns real-time warrant quotes. wire: warrant_briefs
+func (c *QuoteClient) GetWarrantQuote(req model.WarrantBriefsRequest) ([]model.WarrantBrief, error) {
 	var out []model.WarrantBrief
 	err := c.callInto("warrant_briefs", req, &out)
 	return out, err
+}
+
+// Deprecated: Use GetWarrantQuote instead.
+func (c *QuoteClient) GetWarrantBriefs(req model.WarrantBriefsRequest) ([]model.WarrantBrief, error) {
+	return c.GetWarrantQuote(req)
 }
 
 // GetWarrantFilter 窝轮筛选。wire: warrant_filter
