@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`NewQuoteClientFromConfig(cfg)`**：直接从 `ClientConfig` 创建 `QuoteClient`，内部自动使用 `NewQuoteHttpClient(cfg)`，无需调用方手动构造 `HttpClient`。
 
+### Deprecated
+
+- **`GetBrief` → `GetRealTimeQuote`**：方法名与 wire method `quote_real_time` 不一致，现以 `GetRealTimeQuote` 为主，旧名保留并标记为 Deprecated。
+- **`GetOptionBrief` → `GetOptionQuote`**：wire method 为 `option_brief`，语义上表示期权实时行情，更名为 `GetOptionQuote`。
+- **`GetStockDelayBriefs` → `GetDelayedQuote`**：wire method 为 `quote_delay`，更名与之对齐。
+- **`GetWarrantBriefs` → `GetWarrantQuote`**：wire method 为 `warrant_briefs`，更名以保持接口层风格一致。
+
 
 
 ### Added
