@@ -230,7 +230,7 @@ func TestGetOptionKline(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetOptionKline([]string{"AAPL 240119C00150000"}, "day")
+	data, err := qc.GetOptionKline([]string{"AAPL 240119C00150000"}, "day", -1, -1)
 	if err != nil {
 		t.Fatalf("GetOptionKline 失败: %v", err)
 	}
@@ -603,7 +603,7 @@ func TestGetOptionKlineMultiIdentifier(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	qc.GetOptionKline([]string{"AAPL 240119C00150000", "AAPL 240119P00140000"}, "day")
+	qc.GetOptionKline([]string{"AAPL 240119C00150000", "AAPL 240119P00140000"}, "day", -1, -1)
 
 	queries, ok := captured["option_query"].([]interface{})
 	if !ok || len(queries) != 2 {
@@ -691,7 +691,7 @@ func TestGetOptionKlineExpiryTimezone(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	qc.GetOptionKline([]string{"AAPL 240119C00150000"}, "day")
+	qc.GetOptionKline([]string{"AAPL 240119C00150000"}, "day", -1, -1)
 
 	queries, ok := captured["option_query"].([]interface{})
 	if !ok || len(queries) != 1 {
