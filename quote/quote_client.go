@@ -224,13 +224,19 @@ func (c *QuoteClient) GetOptionBrief(identifiers []string) ([]model.Brief, error
 }
 
 // GetOptionKline returns option K-line data for multiple identifiers.
-// beginTime and endTime are millisecond timestamps; pass -1 for server defaults.
+// beginTime and endTime are millisecond timestamps; pass -1 for server defaults, 0 is treated as -1.
 // timezone is optional; if provided, the first element overrides the inferred timezone.
 // US options default to America/New_York; HK options (.HK suffix) default to Asia/Hong_Kong.
 func (c *QuoteClient) GetOptionKline(identifiers []string, period string, beginTime, endTime int64, timezone ...string) ([]model.Kline, error) {
 	tz := ""
 	if len(timezone) > 0 {
 		tz = timezone[0]
+	}
+	if beginTime == 0 {
+		beginTime = -1
+	}
+	if endTime == 0 {
+		endTime = -1
 	}
 	optionQuery := make([]map[string]interface{}, 0, len(identifiers))
 	for _, id := range identifiers {
@@ -239,17 +245,13 @@ func (c *QuoteClient) GetOptionKline(identifiers []string, period string, beginT
 			return nil, fmt.Errorf("invalid option identifier %q: %w", id, err)
 		}
 		entry := map[string]interface{}{
-			"symbol": contract.Symbol,
-			"expiry": contract.Expiry,
-			"right":  contract.Right,
-			"strike": contract.Strike,
-			"period": period,
-		}
-		if beginTime != 0 {
-			entry["begin_time"] = beginTime
-		}
-		if endTime != 0 {
-			entry["end_time"] = endTime
+			"symbol":     contract.Symbol,
+			"expiry":     contract.Expiry,
+			"right":      contract.Right,
+			"strike":     contract.Strike,
+			"period":     period,
+			"begin_time": beginTime,
+			"end_time":   endTime,
 		}
 		optionQuery = append(optionQuery, entry)
 	}
