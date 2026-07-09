@@ -154,9 +154,14 @@ func (c *QuoteClient) GetQuoteDepth(req model.DepthQuoteRequest) ([]model.Depth,
 // === Option market data methods ===
 
 // GetOptionExpiration returns option expiration dates for multiple symbols.
-func (c *QuoteClient) GetOptionExpiration(symbols []string) ([]model.OptionExpiration, error) {
+// market is optional; pass "HK" or "US" to filter by market. Defaults to US if omitted.
+func (c *QuoteClient) GetOptionExpiration(symbols []string, market ...string) ([]model.OptionExpiration, error) {
 	var out []model.OptionExpiration
-	err := c.callInto("option_expiration", map[string]interface{}{"symbols": symbols}, &out)
+	params := map[string]interface{}{"symbols": symbols}
+	if len(market) > 0 && market[0] != "" {
+		params["market"] = market[0]
+	}
+	err := c.callInto("option_expiration", params, &out)
 	return out, err
 }
 
@@ -219,9 +224,10 @@ func (c *QuoteClient) GetOptionBrief(identifiers []string) ([]model.Brief, error
 }
 
 // GetOptionKline returns option K-line data for multiple identifiers.
+// beginTime and endTime are millisecond timestamps; pass -1 for server defaults.
 // timezone is optional; if provided, the first element overrides the inferred timezone.
 // US options default to America/New_York; HK options (.HK suffix) default to Asia/Hong_Kong.
-func (c *QuoteClient) GetOptionKline(identifiers []string, period string, timezone ...string) ([]model.Kline, error) {
+func (c *QuoteClient) GetOptionKline(identifiers []string, period string, beginTime, endTime int64, timezone ...string) ([]model.Kline, error) {
 	tz := ""
 	if len(timezone) > 0 {
 		tz = timezone[0]
@@ -232,13 +238,20 @@ func (c *QuoteClient) GetOptionKline(identifiers []string, period string, timezo
 		if err != nil {
 			return nil, fmt.Errorf("invalid option identifier %q: %w", id, err)
 		}
-		optionQuery = append(optionQuery, map[string]interface{}{
+		entry := map[string]interface{}{
 			"symbol": contract.Symbol,
 			"expiry": contract.Expiry,
 			"right":  contract.Right,
 			"strike": contract.Strike,
 			"period": period,
-		})
+		}
+		if beginTime != 0 {
+			entry["begin_time"] = beginTime
+		}
+		if endTime != 0 {
+			entry["end_time"] = endTime
+		}
+		optionQuery = append(optionQuery, entry)
 	}
 	params := map[string]interface{}{"option_query": optionQuery}
 	var out []model.Kline

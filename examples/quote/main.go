@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/tigerfintech/openapi-go-sdk/client"
 	"github.com/tigerfintech/openapi-go-sdk/config"
@@ -153,12 +154,68 @@ func main() {
 			} else {
 				ok("GetOptionQuote", "(empty)")
 			}
-			if ks, err := qc.GetOptionKline([]string{optIdentifier}, "day"); err != nil {
+			nowMs := time.Now().UnixMilli()
+			beginMs := nowMs - 30*24*60*60*1000 // 30 days ago
+			if ks, err := qc.GetOptionKline([]string{optIdentifier}, "day", beginMs, nowMs); err != nil {
 				fail("GetOptionKline", err)
 			} else if len(ks) > 0 {
 				ok("GetOptionKline", fmt.Sprintf("bars=%d", len(ks[0].Items)))
 			} else {
 				ok("GetOptionKline", "(empty)")
+			}
+		}
+	}
+
+	// HK options smoke test
+	fmt.Println("\n=== Options (HK) ===")
+	var hkExpiryDate, hkOptIdentifier string
+	if exps, err := qc.GetOptionExpiration([]string{"00700.HK"}, "HK"); err != nil {
+		fail("GetOptionExpiration(00700.HK)", err)
+	} else if len(exps) > 0 && len(exps[0].Dates) > 0 {
+		ok("GetOptionExpiration(00700.HK)", fmt.Sprintf("dates=%d first=%s", len(exps[0].Dates), exps[0].Dates[0]))
+		hkExpiryDate = exps[0].Dates[0]
+	} else {
+		ok("GetOptionExpiration(00700.HK)", "(empty)")
+	}
+
+	if hkExpiryDate == "" {
+		skip("GetOptionChain(HK)", "no expiry available")
+		skip("GetOptionQuote(HK)", "no expiry available")
+		skip("GetOptionKline(HK)", "no expiry available")
+	} else {
+		if chain, err := qc.GetOptionChain([][2]string{{"00700.HK", hkExpiryDate}}, "Asia/Hong_Kong"); err != nil {
+			fail("GetOptionChain(00700.HK)", err)
+		} else if len(chain) > 0 && len(chain[0].Items) > 0 {
+			ok(fmt.Sprintf("GetOptionChain(HK %s)", hkExpiryDate), fmt.Sprintf("rows=%d", len(chain[0].Items)))
+			mid := chain[0].Items[len(chain[0].Items)/2]
+			if mid.Call != nil {
+				hkOptIdentifier = mid.Call.Identifier
+			} else if mid.Put != nil {
+				hkOptIdentifier = mid.Put.Identifier
+			}
+		} else {
+			ok(fmt.Sprintf("GetOptionChain(HK %s)", hkExpiryDate), "(empty items)")
+		}
+
+		if hkOptIdentifier == "" {
+			skip("GetOptionQuote(HK)", "no identifier from chain")
+			skip("GetOptionKline(HK)", "no identifier from chain")
+		} else {
+			if briefs, err := qc.GetOptionQuote([]string{hkOptIdentifier}, "Asia/Hong_Kong"); err != nil {
+				fail("GetOptionQuote(HK)", err)
+			} else if len(briefs) > 0 {
+				ok("GetOptionQuote(HK)", fmt.Sprintf("%s latestPrice=%.4f", briefs[0].Symbol, briefs[0].LatestPrice))
+			} else {
+				ok("GetOptionQuote(HK)", "(empty)")
+			}
+			nowMs := time.Now().UnixMilli()
+			beginMs := nowMs - 30*24*60*60*1000
+			if ks, err := qc.GetOptionKline([]string{hkOptIdentifier}, "day", beginMs, nowMs, "Asia/Hong_Kong"); err != nil {
+				fail("GetOptionKline(HK)", err)
+			} else if len(ks) > 0 {
+				ok("GetOptionKline(HK)", fmt.Sprintf("bars=%d", len(ks[0].Items)))
+			} else {
+				ok("GetOptionKline(HK)", "(empty)")
 			}
 		}
 	}
