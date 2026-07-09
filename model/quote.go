@@ -29,7 +29,7 @@ type Brief struct {
 	Change       float64 `json:"change,omitempty"`
 	ChangeRate   float64 `json:"changeRate,omitempty"`
 	Amplitude    float64 `json:"amplitude,omitempty"`
-	Expiry       string  `json:"expiry,omitempty"`
+	Expiry       int64   `json:"expiry,omitempty"`
 	Strike       string  `json:"strike,omitempty"`
 	Right        string  `json:"right,omitempty"`
 	Multiplier   int     `json:"multiplier,omitempty"`

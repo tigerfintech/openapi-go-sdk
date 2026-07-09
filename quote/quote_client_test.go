@@ -230,7 +230,7 @@ func TestGetOptionKline(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetOptionKline([]string{"AAPL 240119C00150000"}, "day")
+	data, err := qc.GetOptionKline([]string{"AAPL 240119C00150000"}, "day", -1, -1)
 	if err != nil {
 		t.Fatalf("GetOptionKline 失败: %v", err)
 	}
@@ -603,11 +603,111 @@ func TestGetOptionKlineMultiIdentifier(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	qc.GetOptionKline([]string{"AAPL 240119C00150000", "AAPL 240119P00140000"}, "day")
+	qc.GetOptionKline([]string{"AAPL 240119C00150000", "AAPL 240119P00140000"}, "day", -1, -1)
 
 	queries, ok := captured["option_query"].([]interface{})
 	if !ok || len(queries) != 2 {
 		t.Fatalf("期望 option_query 有 2 项，得到: %v", captured["option_query"])
+	}
+}
+
+// === Timezone unit tests ===
+
+// TestParseOptionExpiryTimezone verifies that parseOptionExpiry uses the correct timezone.
+// 2024-01-19 00:00:00 UTC        = 1705622400000 ms
+// 2024-01-19 00:00:00 America/NY = 1705640400000 ms  (UTC-5 in Jan)
+// 2024-01-19 00:00:00 Asia/HK    = 1705593600000 ms  (UTC+8)
+func TestParseOptionExpiryTimezone(t *testing.T) {
+	tests := []struct {
+		name     string
+		expiry   string
+		tz       string
+		wantMs   int64
+	}{
+		{"us_ny", "2024-01-19", "America/New_York", 1705640400000},
+		{"hk", "2024-01-19", "Asia/Hong_Kong", 1705593600000},
+		{"utc", "2024-01-19", "UTC", 1705622400000},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseOptionExpiry(tc.expiry, tc.tz)
+			if err != nil {
+				t.Fatalf("parseOptionExpiry(%q, %q) error: %v", tc.expiry, tc.tz, err)
+			}
+			if got != tc.wantMs {
+				t.Errorf("parseOptionExpiry(%q, %q) = %d, want %d", tc.expiry, tc.tz, got, tc.wantMs)
+			}
+		})
+	}
+}
+
+// TestResolveOptionTimezone verifies timezone inference from symbol.
+func TestResolveOptionTimezone(t *testing.T) {
+	if got := resolveOptionTimezone("", "AAPL"); got != "America/New_York" {
+		t.Errorf("resolveOptionTimezone(\"\", \"AAPL\") = %q, want America/New_York", got)
+	}
+	if got := resolveOptionTimezone("", "00700.HK"); got != "Asia/Hong_Kong" {
+		t.Errorf("resolveOptionTimezone(\"\", \"00700.HK\") = %q, want Asia/Hong_Kong", got)
+	}
+	if got := resolveOptionTimezone("UTC", "AAPL"); got != "UTC" {
+		t.Errorf("resolveOptionTimezone(\"UTC\", \"AAPL\") = %q, want UTC (explicit override)", got)
+	}
+}
+
+// TestGetOptionChainExpiryTimezone verifies the correct expiry timestamp is sent to the server
+// for a US option (AAPL). America/New_York midnight of 2024-01-19 = 1705640400000 ms.
+func TestGetOptionChainExpiryTimezone(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	qc.GetOptionChain([][2]string{{"AAPL", "2024-01-19"}})
+
+	basics, ok := captured["option_basic"].([]interface{})
+	if !ok || len(basics) != 1 {
+		t.Fatalf("期望 option_basic 有 1 项，得到: %v", captured["option_basic"])
+	}
+	item, ok := basics[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("option_basic[0] 不是 map: %T", basics[0])
+	}
+	// JSON numbers decode as float64
+	expiryFloat, ok := item["expiry"].(float64)
+	if !ok {
+		t.Fatalf("option_basic[0].expiry 不是 float64: %T = %v", item["expiry"], item["expiry"])
+	}
+	const wantExpiry = float64(1705640400000) // America/New_York midnight
+	if expiryFloat != wantExpiry {
+		t.Errorf("option_basic[0].expiry = %.0f, want %.0f (America/New_York midnight for 2024-01-19)", expiryFloat, wantExpiry)
+	}
+}
+
+// TestGetOptionKlineExpiryTimezone verifies the correct expiry timestamp is sent to the server
+// for a US option (AAPL). America/New_York midnight of 2024-01-19 = 1705640400000 ms.
+func TestGetOptionKlineExpiryTimezone(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	qc.GetOptionKline([]string{"AAPL 240119C00150000"}, "day", -1, -1)
+
+	queries, ok := captured["option_query"].([]interface{})
+	if !ok || len(queries) != 1 {
+		t.Fatalf("期望 option_query 有 1 项，得到: %v", captured["option_query"])
+	}
+	item, ok := queries[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("option_query[0] 不是 map: %T", queries[0])
+	}
+	expiryFloat, ok := item["expiry"].(float64)
+	if !ok {
+		t.Fatalf("option_query[0].expiry 不是 float64: %T = %v", item["expiry"], item["expiry"])
+	}
+	const wantExpiry = float64(1705640400000) // America/New_York midnight
+	if expiryFloat != wantExpiry {
+		t.Errorf("option_query[0].expiry = %.0f, want %.0f (America/New_York midnight for 2024-01-19)", expiryFloat, wantExpiry)
 	}
 }
 

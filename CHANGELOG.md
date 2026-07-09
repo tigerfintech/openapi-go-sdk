@@ -5,6 +5,22 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Breaking Changes
+
+- **`GetOptionKline` 签名变更**：新增必填参数 `beginTime, endTime int64`（毫秒时间戳，传 `-1` 为服务端默认值）。旧调用 `GetOptionKline(identifiers, period)` 需改为 `GetOptionKline(identifiers, period, -1, -1)`。
+- **`model.Brief.Expiry` 类型变更**：`string → int64`（服务端返回毫秒时间戳数字，原 string 类型会导致 JSON 反序列化失败）。
+
+### Added
+
+- **`GetOptionExpiration` 新增可选 `market` 参数**：`GetOptionExpiration(symbols []string, market ...string)`，查询 HK 期权时传 `"HK"`。
+- **`GetOptionChain`/`GetOptionQuote`/`GetOptionKline` 新增可选 `timezone` 参数**：`timezone ...string`，向后兼容；US 期权默认 `America/New_York`，HK 期权（`.HK` 后缀）默认 `Asia/Hong_Kong`。
+
+### Fixed
+
+- **期权到期日时区错误**：`parseOptionExpiry` 原使用 `time.Parse`（UTC），导致 US/HK 期权到期日时间戳偏差 4–8 小时，服务端可能返回空数据。现改用 `time.ParseInLocation` 并按市场推断时区。
+
 ## [0.4.5] - 2026-07-07
 
 ### Deprecated
