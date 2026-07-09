@@ -162,10 +162,17 @@ func (c *QuoteClient) GetOptionExpiration(symbols []string) ([]model.OptionExpir
 
 // GetOptionChain returns option chains for multiple (symbol, expiry) pairs.
 // Each item is [2]string{symbol, "YYYY-MM-DD"}.
-func (c *QuoteClient) GetOptionChain(items [][2]string) ([]model.OptionChain, error) {
+// timezone is optional; if provided, the first element overrides the inferred timezone.
+// US options default to America/New_York; HK options (.HK suffix) default to Asia/Hong_Kong.
+func (c *QuoteClient) GetOptionChain(items [][2]string, timezone ...string) ([]model.OptionChain, error) {
+	tz := ""
+	if len(timezone) > 0 {
+		tz = timezone[0]
+	}
 	optionBasic := make([]map[string]interface{}, 0, len(items))
 	for _, it := range items {
-		expiryTs, err := parseOptionExpiry(it[1])
+		resolvedTz := resolveOptionTimezone(tz, it[0])
+		expiryTs, err := parseOptionExpiry(it[1], resolvedTz)
 		if err != nil {
 			return nil, fmt.Errorf("invalid expiry date for %q: %w", it[0], err)
 		}
@@ -181,10 +188,16 @@ func (c *QuoteClient) GetOptionChain(items [][2]string) ([]model.OptionChain, er
 }
 
 // GetOptionQuote returns option quotes for the given identifiers.
-func (c *QuoteClient) GetOptionQuote(identifiers []string) ([]model.Brief, error) {
+// timezone is optional; if provided, the first element overrides the inferred timezone.
+// US options default to America/New_York; HK options (.HK suffix) default to Asia/Hong_Kong.
+func (c *QuoteClient) GetOptionQuote(identifiers []string, timezone ...string) ([]model.Brief, error) {
+	tz := ""
+	if len(timezone) > 0 {
+		tz = timezone[0]
+	}
 	optionBasics := make([]map[string]interface{}, 0, len(identifiers))
 	for _, id := range identifiers {
-		contract, err := optionContractFromIdentifier(id)
+		contract, err := optionContractFromIdentifier(id, resolveOptionTimezone(tz, strings.SplitN(strings.TrimSpace(id), " ", 2)[0]))
 		if err != nil {
 			return nil, fmt.Errorf("invalid option identifier %q: %w", id, err)
 		}
@@ -206,10 +219,16 @@ func (c *QuoteClient) GetOptionBrief(identifiers []string) ([]model.Brief, error
 }
 
 // GetOptionKline returns option K-line data for multiple identifiers.
-func (c *QuoteClient) GetOptionKline(identifiers []string, period string) ([]model.Kline, error) {
+// timezone is optional; if provided, the first element overrides the inferred timezone.
+// US options default to America/New_York; HK options (.HK suffix) default to Asia/Hong_Kong.
+func (c *QuoteClient) GetOptionKline(identifiers []string, period string, timezone ...string) ([]model.Kline, error) {
+	tz := ""
+	if len(timezone) > 0 {
+		tz = timezone[0]
+	}
 	optionQuery := make([]map[string]interface{}, 0, len(identifiers))
 	for _, id := range identifiers {
-		contract, err := optionContractFromIdentifier(id)
+		contract, err := optionContractFromIdentifier(id, resolveOptionTimezone(tz, strings.SplitN(strings.TrimSpace(id), " ", 2)[0]))
 		if err != nil {
 			return nil, fmt.Errorf("invalid option identifier %q: %w", id, err)
 		}
@@ -362,9 +381,26 @@ type optionContract struct {
 	Strike float64
 }
 
-// parseOptionExpiry parses a date string like "2024-01-19" into a millisecond timestamp (UTC).
-func parseOptionExpiry(expiry string) (int64, error) {
-	t, err := time.Parse("2006-01-02", expiry)
+// resolveOptionTimezone returns the timezone string to use for expiry conversion.
+// tz takes precedence; if empty, infer from symbol (HK suffix → Asia/Hong_Kong, else America/New_York).
+func resolveOptionTimezone(tz string, symbol string) string {
+	if tz != "" {
+		return tz
+	}
+	if strings.HasSuffix(strings.ToUpper(symbol), ".HK") {
+		return "Asia/Hong_Kong"
+	}
+	return "America/New_York"
+}
+
+// parseOptionExpiry parses a date string like "2024-01-19" into a millisecond timestamp
+// in the given timezone (e.g. "America/New_York" or "Asia/Hong_Kong").
+func parseOptionExpiry(expiry string, tz string) (int64, error) {
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return 0, fmt.Errorf("invalid timezone %q: %w", tz, err)
+	}
+	t, err := time.ParseInLocation("2006-01-02", expiry, loc)
 	if err != nil {
 		return 0, fmt.Errorf("expected format YYYY-MM-DD, got %q: %w", expiry, err)
 	}
@@ -372,8 +408,8 @@ func parseOptionExpiry(expiry string) (int64, error) {
 }
 
 // optionContractFromIdentifier parses an OCC-style option identifier like "AAPL 240119C00150000"
-// into its component parts: symbol, expiry (ms timestamp), right (CALL/PUT), strike.
-func optionContractFromIdentifier(identifier string) (optionContract, error) {
+// into its component parts: symbol, expiry (ms timestamp in tz), right (CALL/PUT), strike.
+func optionContractFromIdentifier(identifier string, tz string) (optionContract, error) {
 	parts := strings.SplitN(strings.TrimSpace(identifier), " ", 2)
 	if len(parts) != 2 {
 		return optionContract{}, fmt.Errorf("expected format 'SYMBOL YYMMDDX00000000', got %q", identifier)
@@ -386,7 +422,11 @@ func optionContractFromIdentifier(identifier string) (optionContract, error) {
 	}
 
 	dateStr := rest[:6]
-	t, err := time.Parse("060102", dateStr)
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return optionContract{}, fmt.Errorf("invalid timezone %q: %w", tz, err)
+	}
+	t, err := time.ParseInLocation("060102", dateStr, loc)
 	if err != nil {
 		return optionContract{}, fmt.Errorf("invalid date in identifier: %q", dateStr)
 	}
