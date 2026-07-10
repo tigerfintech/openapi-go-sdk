@@ -490,17 +490,28 @@ type KlineQuotaDetail struct {
 // OptionAnalysis 期权分析（波动率等）。
 type OptionAnalysis struct {
 	Symbol           string                  `json:"symbol,omitempty"`
-	HistoricalVol30D float64                 `json:"historicalVolatility30Day,omitempty"`
-	HistoricalVol60D float64                 `json:"historicalVolatility60Day,omitempty"`
-	HistoricalVol90D float64                 `json:"historicalVolatility90Day,omitempty"`
-	ImpliedVol       float64                 `json:"impliedVolatility,omitempty"`
+	ImpliedVol30Days float64                 `json:"impliedVol30Days,omitempty"`
+	HisVolatility    float64                 `json:"hisVolatility,omitempty"`
+	IvHisVRatio      float64                 `json:"ivHisVRatio,omitempty"`
+	CallPutRatio     float64                 `json:"callPutRatio,omitempty"`
+	ImpliedVolMetric *ImpliedVolMetric       `json:"impliedVolMetric,omitempty"`
 	VolatilityList   []OptionVolatilityPoint `json:"volatilityList,omitempty"`
 }
 
-// OptionVolatilityPoint 期权历史波动率时序点。
+// ImpliedVolMetric 隐含波动率指标（IV 百分位/排名）。
+type ImpliedVolMetric struct {
+	Period     string  `json:"period,omitempty"`
+	Percentile float64 `json:"percentile,omitempty"`
+	Rank       float64 `json:"rank,omitempty"`
+}
+
+// OptionVolatilityPoint 期权波动率时序点。
 type OptionVolatilityPoint struct {
-	Date       string  `json:"date,omitempty"`
-	Volatility float64 `json:"volatility,omitempty"`
+	ImpliedVol    float64 `json:"impliedVol,omitempty"`
+	Percentile    float64 `json:"percentile,omitempty"`
+	Rank          float64 `json:"rank,omitempty"`
+	HisVolatility float64 `json:"hisVolatility,omitempty"`
+	Timestamp     int64   `json:"timestamp,omitempty"`
 }
 
 // OptionSymbol 期权代码（get_option_symbols 返回）。
@@ -633,10 +644,11 @@ type QuoteOvernight struct {
 	EndTime    int64   `json:"endTime,omitempty"`
 }
 
-// MarketScannerTags 扫描器可用标签集合。
-type MarketScannerTags struct {
-	TagFields []string           `json:"tagFields,omitempty"`
-	Tags      []MarketScannerTag `json:"tags,omitempty"`
+// MarketScannerTagGroup 扫描器标签分组（server 返回数组，每个元素一个 market/multiTagField 组合）。
+type MarketScannerTagGroup struct {
+	Market        string             `json:"market,omitempty"`
+	MultiTagField string             `json:"multiTagField,omitempty"`
+	TagList       []MarketScannerTag `json:"tagList,omitempty"`
 }
 
 // MarketScannerTag 单个标签。
@@ -645,6 +657,9 @@ type MarketScannerTag struct {
 	Name   string   `json:"name,omitempty"`
 	Values []string `json:"values,omitempty"`
 }
+
+// Deprecated: MarketScannerTags has wrong shape; use []MarketScannerTagGroup instead.
+type MarketScannerTags = []MarketScannerTagGroup
 
 // FundContractInfo 基金合约。
 type FundContractInfo struct {
