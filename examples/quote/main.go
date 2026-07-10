@@ -318,6 +318,29 @@ func main() {
 		ok("MarketScanner", fmt.Sprintf("page=%d/%d totalCount=%d items=%d", res.Page, res.TotalPage, res.TotalCount, len(res.Items)))
 	}
 
+	if tags, err := qc.GetMarketScannerTags(model.MarketScannerTagsRequest{
+		Market:          "US",
+		MultiTagsFields: []string{"MultiTagField_Industry"},
+	}); err != nil {
+		fail("GetMarketScannerTags(US)", err)
+	} else {
+		ok("GetMarketScannerTags(US)", fmt.Sprintf("groups=%d", len(tags)))
+	}
+
+	if analyses, err := qc.GetOptionAnalysis(model.OptionAnalysisRequest{
+		Symbols: []string{"AAPL"},
+		Market:  "US",
+		Period:  "26week",
+	}); err != nil {
+		fail("GetOptionAnalysis(AAPL 26week)", err)
+	} else if len(analyses) > 0 {
+		a := analyses[0]
+		ok("GetOptionAnalysis(AAPL 26week)", fmt.Sprintf("symbol=%s impliedVol30Days=%.4f hisVol=%.4f ivHisVRatio=%.4f callPutRatio=%.4f points=%d",
+			a.Symbol, a.ImpliedVol30Days, a.HisVolatility, a.IvHisVRatio, a.CallPutRatio, len(a.VolatilityList)))
+	} else {
+		skip("GetOptionAnalysis(AAPL 26week)", "empty response")
+	}
+
 	if perms, err := qc.GrabQuotePermission(); err != nil {
 		fail("GrabQuotePermission", err)
 	} else {
@@ -388,7 +411,11 @@ func main() {
 	}
 
 	if items, err := qc.GetShortInterest(model.ShortInterestRequest{Symbols: []string{"AAPL"}}); err != nil {
-		fail("GetShortInterest(AAPL)", err)
+		if strings.Contains(err.Error(), "not support") || strings.Contains(err.Error(), "permission") {
+			skip("GetShortInterest(AAPL)", err.Error())
+		} else {
+			fail("GetShortInterest(AAPL)", err)
+		}
 	} else {
 		ok("GetShortInterest(AAPL)", fmt.Sprintf("rows=%d", len(items)))
 	}

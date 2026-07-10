@@ -415,7 +415,7 @@ type FinancialCurrencyRequest struct {
 // MarketScannerTagsRequest 扫描器标签。wire: market_scanner_tags
 type MarketScannerTagsRequest struct {
 	Market          string   `json:"market,omitempty"`
-	MultiTagsFields []string `json:"multi_tags_fields,omitempty"`
+	MultiTagsFields []string `json:"multi_tag_field_list,omitempty"`
 	Lang            string   `json:"lang,omitempty"`
 }
 
