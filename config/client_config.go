@@ -46,6 +46,9 @@ type ClientConfig struct {
 	QuoteServerURL       string                 `json:"-"`
 	EnableDynamicDomain  bool                   `json:"-"`
 	TigerPublicKey       string                 `json:"-"`
+	// explicitPropertiesFile is set when WithPropertiesFile was called, so auto-discovery
+	// skips the local ./tiger_openapi_config.properties to prevent accidental contamination.
+	explicitPropertiesFile bool
 }
 
 // Option 配置选项函数类型
@@ -139,7 +142,9 @@ func WithEnableDynamicDomain(enable bool) Option {
 	return func(c *ClientConfig) { c.EnableDynamicDomain = enable }
 }
 
-// WithPropertiesFile 从 properties 配置文件加载配置
+// WithPropertiesFile 从 properties 配置文件加载配置。
+// 调用后，auto-discovery 会跳过本地 ./tiger_openapi_config.properties，
+// 防止开发目录中的测试配置文件污染显式指定的配置。
 func WithPropertiesFile(path string) Option {
 	return func(c *ClientConfig) {
 		props, err := ParsePropertiesFile(path)
@@ -148,6 +153,7 @@ func WithPropertiesFile(path string) Option {
 			return
 		}
 		applyProperties(c, props)
+		c.explicitPropertiesFile = true
 	}
 }
 
@@ -203,9 +209,12 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 	}
 
 	// Auto-discover config file for any fields still empty.
-	// Searches: ./tiger_openapi_config.properties, then ~/.tigeropen/tiger_openapi_config.properties
-	defaultPaths := []string{
-		"tiger_openapi_config.properties",
+	// Searches: ./tiger_openapi_config.properties, then ~/.tigeropen/tiger_openapi_config.properties.
+	// When WithPropertiesFile was used, skip ./tiger_openapi_config.properties to prevent local
+	// development configs from contaminating explicitly specified credentials.
+	var defaultPaths []string
+	if !cfg.explicitPropertiesFile {
+		defaultPaths = append(defaultPaths, "tiger_openapi_config.properties")
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		defaultPaths = append(defaultPaths, filepath.Join(home, ".tigeropen", "tiger_openapi_config.properties"))
