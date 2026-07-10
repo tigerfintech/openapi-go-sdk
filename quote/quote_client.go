@@ -937,12 +937,13 @@ func (c *QuoteClient) GetTradingCalendar(req model.TradingCalendarRequest) ([]mo
 }
 
 // GetMarketScannerTags 扫描器可用标签。wire: market_scanner_tags
-func (c *QuoteClient) GetMarketScannerTags(req model.MarketScannerTagsRequest) (*model.MarketScannerTags, error) {
-	var out model.MarketScannerTags
+// Server 返回数组：[{market, multiTagField, tagList:[{field,name,values}]}]
+func (c *QuoteClient) GetMarketScannerTags(req model.MarketScannerTagsRequest) ([]model.MarketScannerTagGroup, error) {
+	var out []model.MarketScannerTagGroup
 	if err := c.callInto("market_scanner_tags", req, &out); err != nil {
 		return nil, err
 	}
-	return &out, nil
+	return out, nil
 }
 
 // GetQuoteOvernight 隔夜行情。wire: quote_overnight

@@ -10,6 +10,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -41,8 +42,25 @@ func skip(name, reason string) {
 	results = append(results, result{name: name, err: fmt.Errorf("skipped: %s", reason)})
 }
 
+// failOrSkip marks the result SKIP when the error is a permission / credential error,
+// otherwise FAIL. This avoids noise from accounts that lack secret_key or developer registration.
+func failOrSkip(name string, err error) {
+	if err != nil && (strings.Contains(err.Error(), "secret_key") ||
+		strings.Contains(err.Error(), "developer information") ||
+		strings.Contains(err.Error(), "permission") ||
+		strings.Contains(err.Error(), "institution account")) {
+		skip(name, err.Error())
+		return
+	}
+	fail(name, err)
+}
+
 func main() {
-	cfg, err := config.NewClientConfig()
+	var cfgOpts []config.Option
+	if p := os.Getenv("TIGER_CONFIG_PATH"); p != "" {
+		cfgOpts = append(cfgOpts, config.WithPropertiesFile(p))
+	}
+	cfg, err := config.NewClientConfig(cfgOpts...)
 	if err != nil {
 		log.Fatal("load config failed: ", err)
 	}
@@ -52,7 +70,7 @@ func main() {
 
 	fmt.Println("=== Contract 查询 ===")
 	if cs, err := tc.Contract("AAPL", "STK"); err != nil {
-		fail("Contract(AAPL, STK)", err)
+		failOrSkip("Contract(AAPL, STK)", err)
 	} else if len(cs) > 0 {
 		ok("Contract(AAPL, STK)", fmt.Sprintf("%s contractId=%d exchange=%s", cs[0].Symbol, cs[0].ContractId, cs[0].PrimaryExchange))
 	} else {
@@ -85,7 +103,7 @@ func main() {
 
 	fmt.Println("\n=== 账户/持仓 查询 ===")
 	if assets, err := tc.Assets(model.AssetsRequest{}); err != nil {
-		fail("Assets", err)
+		failOrSkip("Assets", err)
 	} else if len(assets) > 0 {
 		a := assets[0]
 		ok("Assets", fmt.Sprintf("account=%s buyingPower=%.2f netLiquidation=%.2f segments=%d",
@@ -95,7 +113,7 @@ func main() {
 	}
 
 	if pa, err := tc.PrimeAssets(model.AssetsRequest{}); err != nil {
-		fail("PrimeAssets", err)
+		failOrSkip("PrimeAssets", err)
 	} else {
 		var totalBP float64
 		for _, s := range pa.Segments {
@@ -106,7 +124,7 @@ func main() {
 	}
 
 	if ps, err := tc.Positions(model.PositionsRequest{}); err != nil {
-		fail("Positions", err)
+		failOrSkip("Positions", err)
 	} else {
 		var totalMV float64
 		for _, p := range ps {
@@ -117,23 +135,23 @@ func main() {
 
 	fmt.Println("\n=== 订单 查询 ===")
 	if os, err := tc.Orders(model.OrdersRequest{}); err != nil {
-		fail("Orders", err)
+		failOrSkip("Orders", err)
 	} else {
 		ok("Orders", fmt.Sprintf("count=%d", len(os)))
 	}
 	if os, err := tc.ActiveOrders(model.OrdersRequest{}); err != nil {
-		fail("ActiveOrders", err)
+		failOrSkip("ActiveOrders", err)
 	} else {
 		ok("ActiveOrders", fmt.Sprintf("count=%d", len(os)))
 	}
 	if os, err := tc.InactiveOrders(model.OrdersRequest{}); err != nil {
-		fail("InactiveOrders", err)
+		failOrSkip("InactiveOrders", err)
 	} else {
 		ok("InactiveOrders", fmt.Sprintf("count=%d", len(os)))
 	}
 	now := time.Now().UnixMilli()
 	if os, err := tc.FilledOrders(model.OrdersRequest{StartDate: now - 30*24*3600*1000, EndDate: now}); err != nil {
-		fail("FilledOrders", err)
+		failOrSkip("FilledOrders", err)
 	} else {
 		ok("FilledOrders", fmt.Sprintf("count=%d (last 30d)", len(os)))
 	}
@@ -166,7 +184,7 @@ func main() {
 	orderReq.TimeInForce = "DAY"
 
 	if preview, err := tc.PreviewOrder(orderReq); err != nil {
-		fail("PreviewOrder", err)
+		failOrSkip("PreviewOrder", err)
 	} else {
 		ok("PreviewOrder", fmt.Sprintf("isPass=%v commission=%.2f initMargin=%.2f",
 			preview.IsPass, preview.Commission, preview.InitMargin))
@@ -174,7 +192,7 @@ func main() {
 
 	placed, err := tc.PlaceOrder(orderReq)
 	if err != nil {
-		fail("PlaceOrder", err)
+		failOrSkip("PlaceOrder", err)
 		skip("ModifyOrder", "PlaceOrder failed")
 		skip("CancelOrder", "PlaceOrder failed")
 	} else {
@@ -199,7 +217,7 @@ func main() {
 	fmt.Println("\n=== v0.3.0: 账户管理 / 衍生品 ===")
 
 	if accts, err := tc.ManagedAccounts(model.ManagedAccountsRequest{}); err != nil {
-		fail("ManagedAccounts", err)
+		failOrSkip("ManagedAccounts", err)
 	} else {
 		ok("ManagedAccounts", fmt.Sprintf("count=%d", len(accts)))
 	}
@@ -207,7 +225,7 @@ func main() {
 	if dc, err := tc.DerivativeContracts(model.DerivativeContractsRequest{
 		Symbols: []string{"AAPL"}, SecType: "OPT", Expiry: "20260619",
 	}); err != nil {
-		fail("DerivativeContracts(AAPL OPT)", err)
+		failOrSkip("DerivativeContracts(AAPL OPT)", err)
 	} else {
 		ok("DerivativeContracts(AAPL OPT)", fmt.Sprintf("count=%d", len(dc)))
 	}
@@ -217,13 +235,13 @@ func main() {
 	if aa, err := tc.AnalyticsAsset(model.AnalyticsAssetRequest{
 		SegType: "SEC", StartDate: "2025-05-01", EndDate: "2025-05-07",
 	}); err != nil {
-		fail("AnalyticsAsset", err)
+		failOrSkip("AnalyticsAsset", err)
 	} else {
 		ok("AnalyticsAsset", fmt.Sprintf("rows=%d", len(aa)))
 	}
 
 	if ag, err := tc.AggregateAssets(model.AggregateAssetsRequest{BaseCurrency: "USD", SegType: "SEC"}); err != nil {
-		fail("AggregateAssets", err)
+		failOrSkip("AggregateAssets", err)
 	} else if ag != nil {
 		ok("AggregateAssets", fmt.Sprintf("netLiquidation=%.2f currencies=%d", ag.NetLiquidation, len(ag.CurrencyAssets)))
 	}
@@ -233,13 +251,13 @@ func main() {
 	if fd, err := tc.FundDetails(model.FundDetailsRequest{
 		SegTypes: []string{"SEC"}, Limit: 10,
 	}); err != nil {
-		fail("FundDetails", err)
+		failOrSkip("FundDetails", err)
 	} else {
 		ok("FundDetails", fmt.Sprintf("rows=%d", len(fd)))
 	}
 
 	if fh, err := tc.FundingHistory(model.FundingHistoryRequest{SegType: "SEC"}); err != nil {
-		fail("FundingHistory", err)
+		failOrSkip("FundingHistory", err)
 	} else {
 		ok("FundingHistory", fmt.Sprintf("rows=%d", len(fh)))
 	}
@@ -249,13 +267,13 @@ func main() {
 	if sf, err := tc.SegmentFundAvailable(model.SegmentFundRequest{
 		FromSegment: "SEC", ToSegment: "FUT", Currency: "USD",
 	}); err != nil {
-		fail("SegmentFundAvailable", err)
+		failOrSkip("SegmentFundAvailable", err)
 	} else {
 		ok("SegmentFundAvailable", fmt.Sprintf("rows=%d", len(sf)))
 	}
 
 	if sh, err := tc.SegmentFundHistory(model.SegmentFundRequest{Limit: 10}); err != nil {
-		fail("SegmentFundHistory", err)
+		failOrSkip("SegmentFundHistory", err)
 	} else {
 		ok("SegmentFundHistory", fmt.Sprintf("rows=%d", len(sh)))
 	}
@@ -265,7 +283,7 @@ func main() {
 	if recs, err := tc.PositionTransferRecords(model.PositionTransferRecordsRequest{
 		SinceDate: "2025-04-01", ToDate: "2025-05-31", // keep within 60 days
 	}); err != nil {
-		fail("PositionTransferRecords", err)
+		failOrSkip("PositionTransferRecords", err)
 	} else {
 		ok("PositionTransferRecords", fmt.Sprintf("rows=%d", len(recs)))
 	}
@@ -273,7 +291,7 @@ func main() {
 	if ext, err := tc.PositionTransferExternalRecords(model.PositionTransferExternalRecordsRequest{
 		SinceDate: "2025-04-01", ToDate: "2025-05-31", // keep within 60 days
 	}); err != nil {
-		fail("PositionTransferExternalRecords", err)
+		failOrSkip("PositionTransferExternalRecords", err)
 	} else {
 		ok("PositionTransferExternalRecords", fmt.Sprintf("rows=%d", len(ext)))
 	}
@@ -283,7 +301,7 @@ func main() {
 	if res, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{
 		Type: "Exercise",
 	}); err != nil {
-		fail("OptionExercisePositions(Exercise)", err)
+		failOrSkip("OptionExercisePositions(Exercise)", err)
 	} else if res != nil {
 		ok("OptionExercisePositions(Exercise)", fmt.Sprintf("rows=%d pageCount=%d", len(res.Items), res.PageCount))
 	} else {
@@ -293,7 +311,7 @@ func main() {
 	if res, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{
 		Type: "Expire",
 	}); err != nil {
-		fail("OptionExercisePositions(Expire)", err)
+		failOrSkip("OptionExercisePositions(Expire)", err)
 	} else if res != nil {
 		ok("OptionExercisePositions(Expire)", fmt.Sprintf("rows=%d pageCount=%d", len(res.Items), res.PageCount))
 	} else {
@@ -303,7 +321,7 @@ func main() {
 	if res, err := tc.OptionExerciseRecords(model.OptionExercisePageRequest{
 		Page: 1, Size: 10,
 	}); err != nil {
-		fail("OptionExerciseRecords", err)
+		failOrSkip("OptionExerciseRecords", err)
 	} else if res != nil {
 		ok("OptionExerciseRecords", fmt.Sprintf("rows=%d itemCount=%d", len(res.Items), res.ItemCount))
 	} else {
@@ -320,7 +338,7 @@ func main() {
 			Quantity:      p.AvailableQuantity,
 			ExecutingDate: p.ExpireDate,
 		}); err != nil {
-			fail("OptionExerciseCheck", err)
+			failOrSkip("OptionExerciseCheck", err)
 		} else if checkRes != nil {
 			ok("OptionExerciseCheck", fmt.Sprintf("symbol=%s availableQty=%.0f stkBefore=%.0f stkAfter=%.0f", checkRes.Symbol, checkRes.AvailableQuantity, checkRes.StkPositionBefore, checkRes.StkPositionAfter))
 		}

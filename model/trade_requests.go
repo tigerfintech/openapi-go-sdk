@@ -29,7 +29,7 @@ type OrdersRequest struct {
 }
 
 // GetOrderRequest — 按订单 ID 查询单个订单。
-// 对应 wire method: order_no
+// 对应 wire method: orders
 type GetOrderRequest struct {
 	Account     string `json:"account,omitempty"`
 	SecretKey   string `json:"secret_key,omitempty"`
