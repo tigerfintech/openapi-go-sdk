@@ -261,7 +261,7 @@ type OptionAnalysisRequest struct {
 type OptionAnalysisSymbol struct {
 	Symbol                string `json:"symbol"`
 	Period                string `json:"period,omitempty"`
-	RequireVolatilityList bool   `json:"require_volatility_list,omitempty"`
+	RequireVolatilityList *bool  `json:"require_volatility_list,omitempty"`
 }
 
 // RangeFloat64 范围值（序列化为 {"min":...,"max":...}，对应 Java Range<Double>）
@@ -305,7 +305,7 @@ type OptionChainFilter struct {
 
 // OptionChainRequest 期权链请求（支持 option_filter 和 return_greek_value）
 type OptionChainRequest struct {
-	OptionBasic      []map[string]interface{} `json:"option_basic"`
+	OptionBasic      []map[string]interface{} `json:"option_basic,omitempty"`
 	ReturnGreekValue *bool                    `json:"return_greek_value,omitempty"`
 	OptionFilter     *OptionChainFilter       `json:"option_filter,omitempty"`
 	Market           string                   `json:"market,omitempty"`

@@ -799,7 +799,7 @@ func TestOptionAnalysisPerSymbol(t *testing.T) {
 	qc := newTestQuoteClient(server.URL)
 	qc.GetOptionAnalysis(model.OptionAnalysisRequest{
 		Symbols: []model.OptionAnalysisSymbol{
-			{Symbol: "AAPL", Period: "26week", RequireVolatilityList: true},
+			{Symbol: "AAPL", Period: "26week", RequireVolatilityList: func() *bool { v := true; return &v }()},
 			{Symbol: "TSLA", Period: "month"},
 		},
 		Market: "US",
@@ -847,7 +847,7 @@ func TestOrderRequestNewFields(t *testing.T) {
 		ProfitTakerOrderId: 12345,
 		StopLossOrderId:    67890,
 		ContractLegs: []model.ContractLegRequest{
-			{Symbol: "AAPL", Right: "CALL", Action: "BUY", Ratio: 1},
+			{Symbol: "AAPL", Right: "CALL", Action: "BUY", Ratio: func() *int { v := 1; return &v }()},
 		},
 	}
 	b, _ := json.Marshal(req)

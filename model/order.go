@@ -202,7 +202,7 @@ type OrderRequest struct {
 	// 按金额下单：委托金额
 	Amount float64 `json:"amount,omitempty"`
 	// 是否按金额下单
-	IsQuantityByAmount bool `json:"is_quantity_by_amount,omitempty"`
+	IsQuantityByAmount *bool `json:"is_quantity_by_amount,omitempty"`
 	// 账户分配列表（机构账户）
 	AllocAccounts []string `json:"alloc_accounts,omitempty"`
 	// 各账户分配份额（与 AllocAccounts 一一对应）
@@ -235,7 +235,7 @@ type ContractLegRequest struct {
 	Strike  string `json:"strike,omitempty"`
 	Right   string `json:"right,omitempty"`
 	Action  string `json:"action,omitempty"`
-	Ratio   int    `json:"ratio,omitempty"`
+	Ratio   *int   `json:"ratio,omitempty"`
 }
 
 // OrderLegRequest 附加订单请求模型（止盈/止损）
