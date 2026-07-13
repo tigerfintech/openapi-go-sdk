@@ -5,6 +5,19 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7] - 2026-07-13
+
+### Added
+
+- **`OptionChainRequest`**：新增 `ReturnGreekValue` 和 `OptionFilter` 字段，支持按价内外、隐含波动率、持仓量、Greeks 范围过滤期权链。
+- **`RangeFloat64` / `RangeInt`**：新增范围类型，序列化为 `{"min":...,"max":...}` 嵌套对象（对应服务端 Range 格式）。
+- **`OptionChainFilterGreeks`**：delta / gamma / vega / theta / rho 各字段支持范围过滤。
+- **`GetOptionChainByReq`**：新增接受完整 `OptionChainRequest` 的方法；原 `GetOptionChain` 保持不变（向前兼容）。
+- **`OptionAnalysisRequest.Symbols`**：类型从 `[]string` 改为 `[]OptionAnalysisSymbol`，支持每个标的独立设置 `period` 和 `require_volatility_list`。
+- **`GetOptionKlineWithOpts`**：新增 `limit` 和 `sort_dir` 参数；`GetOptionKline` 委托至此方法（向前兼容）。
+- **`OrderRequest`**：补齐缺失字段：`ExpireTime` / `AfterHoursPrice` / `BatchNo` / `SegType` / `Amount` / `IsQuantityByAmount` / `AllocAccounts` / `AllocShares` / `Source` / `Channel` / `VirtualOrderType` / `VirtualId` / `ProfitTakerOrderId` / `StopLossOrderId` / `LocalNo` / `OcaOrders` / `ContractLegs`。
+- **`ContractLegRequest`**：新增多腿期权子腿结构体（MLEG）。
+
 ## [0.4.6] - 2026-07-09
 
 ### Breaking Changes
