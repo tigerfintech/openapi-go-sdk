@@ -252,11 +252,64 @@ type OptionSymbolsRequest struct {
 
 // OptionAnalysisRequest 期权分析。wire: option_analysis
 type OptionAnalysisRequest struct {
-	Symbols               []string `json:"symbols,omitempty"`
-	Market                string   `json:"market,omitempty"`
-	Period                string   `json:"period,omitempty"` // OptionAnalysisPeriod
-	RequireVolatilityList bool     `json:"require_volatility_list,omitempty"`
-	Lang                  string   `json:"lang,omitempty"`
+	Symbols []OptionAnalysisSymbol `json:"symbols,omitempty"`
+	Market  string                 `json:"market,omitempty"`
+	Lang    string                 `json:"lang,omitempty"`
+}
+
+// OptionAnalysisSymbol 期权分析单个标的（允许每个 symbol 独立设置 period 和 requireVolatilityList）
+type OptionAnalysisSymbol struct {
+	Symbol                string `json:"symbol"`
+	Period                string `json:"period,omitempty"`
+	RequireVolatilityList bool   `json:"require_volatility_list,omitempty"`
+}
+
+// RangeFloat64 范围值（序列化为 {"min":...,"max":...}，对应 Java Range<Double>）
+type RangeFloat64 struct {
+	Min *float64 `json:"min,omitempty"`
+	Max *float64 `json:"max,omitempty"`
+}
+
+// NewRangeFloat64 构造 RangeFloat64
+func NewRangeFloat64(min, max float64) *RangeFloat64 {
+	return &RangeFloat64{Min: &min, Max: &max}
+}
+
+// RangeInt 范围值（序列化为 {"min":...,"max":...}，对应 Java Range<Integer>）
+type RangeInt struct {
+	Min *int `json:"min,omitempty"`
+	Max *int `json:"max,omitempty"`
+}
+
+// NewRangeInt 构造 RangeInt
+func NewRangeInt(min, max int) *RangeInt {
+	return &RangeInt{Min: &min, Max: &max}
+}
+
+// OptionChainFilterGreeks Greeks 范围筛选（对应 Java OptionChainFilterModel.Greeks）
+type OptionChainFilterGreeks struct {
+	Delta *RangeFloat64 `json:"delta,omitempty"`
+	Gamma *RangeFloat64 `json:"gamma,omitempty"`
+	Vega  *RangeFloat64 `json:"vega,omitempty"`
+	Theta *RangeFloat64 `json:"theta,omitempty"`
+	Rho   *RangeFloat64 `json:"rho,omitempty"`
+}
+
+// OptionChainFilter 期权链筛选条件（对应 Java OptionChainFilterModel）
+type OptionChainFilter struct {
+	InTheMoney        *bool                    `json:"in_the_money,omitempty"`
+	ImpliedVolatility *RangeFloat64            `json:"implied_volatility,omitempty"`
+	OpenInterest      *RangeInt                `json:"open_interest,omitempty"`
+	Greeks            *OptionChainFilterGreeks `json:"greeks,omitempty"`
+}
+
+// OptionChainRequest 期权链请求（支持 option_filter 和 return_greek_value）
+type OptionChainRequest struct {
+	OptionBasic      []map[string]interface{} `json:"option_basic"`
+	ReturnGreekValue *bool                    `json:"return_greek_value,omitempty"`
+	OptionFilter     *OptionChainFilter       `json:"option_filter,omitempty"`
+	Market           string                   `json:"market,omitempty"`
+	Lang             string                   `json:"lang,omitempty"`
 }
 
 // FutureContractSingleRequest 按 contract_code/identifier 查询期货合约。wire: future_contract_by_contract_code / future_current_contract 等

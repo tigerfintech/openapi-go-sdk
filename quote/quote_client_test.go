@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"crypto/rand"
@@ -734,5 +735,136 @@ func TestNewQuoteClientFromConfig(t *testing.T) {
 	}
 	if len(data) == 0 {
 		t.Fatal("期望有数据，但返回空")
+	}
+}
+
+func TestGetOptionChainWithFilter(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	trueVal := true
+	qc := newTestQuoteClient(server.URL)
+	qc.GetOptionChainByReq(model.OptionChainRequest{
+		OptionBasic: []map[string]interface{}{{"symbol": "AAPL", "expiry": int64(1705640400000)}},
+		ReturnGreekValue: &trueVal,
+		OptionFilter: &model.OptionChainFilter{
+			InTheMoney: &trueVal,
+			ImpliedVolatility: model.NewRangeFloat64(0.1, 1.0),
+			Greeks: &model.OptionChainFilterGreeks{
+				Delta: model.NewRangeFloat64(0.0, 0.6),
+			},
+		},
+	})
+
+	if captured["return_greek_value"] != true {
+		t.Errorf("期望 return_greek_value=true，得到: %v", captured["return_greek_value"])
+	}
+	filter, ok := captured["option_filter"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("期望 option_filter 为 map，得到: %T", captured["option_filter"])
+	}
+	if filter["in_the_money"] != true {
+		t.Errorf("期望 in_the_money=true，得到: %v", filter["in_the_money"])
+	}
+	iv, ok := filter["implied_volatility"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("期望 implied_volatility 为 {min,max} 对象，得到: %T", filter["implied_volatility"])
+	}
+	if iv["min"] == nil || iv["max"] == nil {
+		t.Errorf("implied_volatility 缺少 min/max，得到: %v", iv)
+	}
+}
+
+func TestOptionChainFilterRangeJSON(t *testing.T) {
+	f := model.OptionChainFilter{
+		ImpliedVolatility: model.NewRangeFloat64(0.2, 0.8),
+		OpenInterest:      model.NewRangeInt(100, 5000),
+	}
+	b, _ := json.Marshal(f)
+	s := string(b)
+	if !strings.Contains(s, `"implied_volatility":{"min":0.2,"max":0.8}`) {
+		t.Errorf("implied_volatility 序列化错误: %s", s)
+	}
+	if !strings.Contains(s, `"open_interest":{"min":100,"max":5000}`) {
+		t.Errorf("open_interest 序列化错误: %s", s)
+	}
+}
+
+func TestOptionAnalysisPerSymbol(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	qc.GetOptionAnalysis(model.OptionAnalysisRequest{
+		Symbols: []model.OptionAnalysisSymbol{
+			{Symbol: "AAPL", Period: "26week", RequireVolatilityList: true},
+			{Symbol: "TSLA", Period: "month"},
+		},
+		Market: "US",
+	})
+
+	syms, ok := captured["symbols"].([]interface{})
+	if !ok || len(syms) != 2 {
+		t.Fatalf("期望 symbols 有 2 项，得到: %v", captured["symbols"])
+	}
+	first, ok := syms[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("期望每个 symbol 是 {symbol, period, ...} 对象，得到: %T", syms[0])
+	}
+	if first["symbol"] != "AAPL" || first["period"] != "26week" {
+		t.Errorf("第一个 symbol 对象不符合预期: %v", first)
+	}
+}
+
+func TestGetOptionKlineWithLimit(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	qc.GetOptionKlineWithOpts([]string{"AAPL 240119C00150000"}, "day", -1, -1, 50, "asc")
+
+	queries, ok := captured["option_query"].([]interface{})
+	if !ok || len(queries) != 1 {
+		t.Fatalf("期望 option_query 有 1 项，得到: %v", captured["option_query"])
+	}
+	q := queries[0].(map[string]interface{})
+	if q["limit"] != float64(50) {
+		t.Errorf("期望 limit=50，得到: %v", q["limit"])
+	}
+	if q["sort_dir"] != "asc" {
+		t.Errorf("期望 sort_dir=asc，得到: %v", q["sort_dir"])
+	}
+}
+
+func TestOrderRequestNewFields(t *testing.T) {
+	req := model.OrderRequest{
+		Symbol:             "AAPL",
+		AllocAccounts:      []string{"ACC1", "ACC2"},
+		AllocShares:        []float64{50.0, 50.0},
+		ProfitTakerOrderId: 12345,
+		StopLossOrderId:    67890,
+		ContractLegs: []model.ContractLegRequest{
+			{Symbol: "AAPL", Right: "CALL", Action: "BUY", Ratio: 1},
+		},
+	}
+	b, _ := json.Marshal(req)
+	s := string(b)
+	if !strings.Contains(s, `"alloc_accounts":["ACC1","ACC2"]`) {
+		t.Errorf("alloc_accounts 序列化错误: %s", s)
+	}
+	if !strings.Contains(s, `"alloc_shares":[50,50]`) {
+		t.Errorf("alloc_shares 序列化错误: %s", s)
+	}
+	if !strings.Contains(s, `"profit_taker_orderId":12345`) {
+		t.Errorf("profit_taker_orderId wire name 错误: %s", s)
+	}
+	if !strings.Contains(s, `"stop_loss_orderId":67890`) {
+		t.Errorf("stop_loss_orderId wire name 错误: %s", s)
+	}
+	if !strings.Contains(s, `"contract_legs"`) {
+		t.Errorf("contract_legs 缺失: %s", s)
 	}
 }

@@ -170,6 +170,7 @@ func (c *QuoteClient) GetOptionExpiration(symbols []string, market ...string) ([
 // timezone is optional; if provided, the first element overrides the inferred timezone.
 // US options default to America/New_York; HK options (.HK suffix) default to Asia/Hong_Kong.
 func (c *QuoteClient) GetOptionChain(items [][2]string, timezone ...string) ([]model.OptionChain, error) {
+	req := model.OptionChainRequest{}
 	tz := ""
 	if len(timezone) > 0 {
 		tz = timezone[0]
@@ -186,9 +187,14 @@ func (c *QuoteClient) GetOptionChain(items [][2]string, timezone ...string) ([]m
 			"expiry": expiryTs,
 		})
 	}
-	params := map[string]interface{}{"option_basic": optionBasic}
+	req.OptionBasic = optionBasic
+	return c.GetOptionChainByReq(req)
+}
+
+// GetOptionChainByReq retrieves option chain data with full filter and Greeks support.
+func (c *QuoteClient) GetOptionChainByReq(req model.OptionChainRequest) ([]model.OptionChain, error) {
 	var out []model.OptionChain
-	err := c.callIntoVersioned("option_chain", params, "3.0", &out)
+	err := c.callIntoVersioned("option_chain", req, "3.0", &out)
 	return out, err
 }
 
@@ -228,6 +234,11 @@ func (c *QuoteClient) GetOptionBrief(identifiers []string) ([]model.Brief, error
 // timezone is optional; if provided, the first element overrides the inferred timezone.
 // US options default to America/New_York; HK options (.HK suffix) default to Asia/Hong_Kong.
 func (c *QuoteClient) GetOptionKline(identifiers []string, period string, beginTime, endTime int64, timezone ...string) ([]model.Kline, error) {
+	return c.GetOptionKlineWithOpts(identifiers, period, beginTime, endTime, 0, "", timezone...)
+}
+
+// GetOptionKlineWithOpts retrieves option kline data with optional limit and sort direction.
+func (c *QuoteClient) GetOptionKlineWithOpts(identifiers []string, period string, beginTime, endTime int64, limit int, sortDir string, timezone ...string) ([]model.Kline, error) {
 	tz := ""
 	if len(timezone) > 0 {
 		tz = timezone[0]
@@ -252,6 +263,12 @@ func (c *QuoteClient) GetOptionKline(identifiers []string, period string, beginT
 			"period":     period,
 			"begin_time": beginTime,
 			"end_time":   endTime,
+		}
+		if limit > 0 {
+			entry["limit"] = limit
+		}
+		if sortDir != "" {
+			entry["sort_dir"] = sortDir
 		}
 		optionQuery = append(optionQuery, entry)
 	}
