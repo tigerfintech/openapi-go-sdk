@@ -175,16 +175,16 @@ func (c *QuoteClient) GetOptionChain(items [][2]string, timezone ...string) ([]m
 	if len(timezone) > 0 {
 		tz = timezone[0]
 	}
-	optionBasic := make([]map[string]interface{}, 0, len(items))
+	optionBasic := make([]model.OptionQueryItem, 0, len(items))
 	for _, it := range items {
 		resolvedTz := resolveOptionTimezone(tz, it[0])
 		expiryTs, err := parseOptionExpiry(it[1], resolvedTz)
 		if err != nil {
 			return nil, fmt.Errorf("invalid expiry date for %q: %w", it[0], err)
 		}
-		optionBasic = append(optionBasic, map[string]interface{}{
-			"symbol": it[0],
-			"expiry": expiryTs,
+		optionBasic = append(optionBasic, model.OptionQueryItem{
+			Symbol: it[0],
+			Expiry: expiryTs,
 		})
 	}
 	req.OptionBasic = optionBasic

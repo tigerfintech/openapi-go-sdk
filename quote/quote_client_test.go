@@ -590,7 +590,10 @@ func TestGetOptionChainMultiItem(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	qc.GetOptionChain([][2]string{{"AAPL", "2024-01-19"}, {"TSLA", "2024-02-16"}})
+	_, err := qc.GetOptionChain([][2]string{{"AAPL", "2024-01-19"}, {"TSLA", "2024-02-16"}})
+	if err != nil {
+		t.Fatalf("GetOptionChain 失败: %v", err)
+	}
 
 	basics, ok := captured["option_basic"].([]interface{})
 	if !ok || len(basics) != 2 {
@@ -604,7 +607,10 @@ func TestGetOptionKlineMultiIdentifier(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	qc.GetOptionKline([]string{"AAPL 240119C00150000", "AAPL 240119P00140000"}, "day", -1, -1)
+	_, err := qc.GetOptionKline([]string{"AAPL 240119C00150000", "AAPL 240119P00140000"}, "day", -1, -1)
+	if err != nil {
+		t.Fatalf("GetOptionKline 失败: %v", err)
+	}
 
 	queries, ok := captured["option_query"].([]interface{})
 	if !ok || len(queries) != 2 {
@@ -745,8 +751,8 @@ func TestGetOptionChainWithFilter(t *testing.T) {
 
 	trueVal := true
 	qc := newTestQuoteClient(server.URL)
-	qc.GetOptionChainByReq(model.OptionChainRequest{
-		OptionBasic: []map[string]interface{}{{"symbol": "AAPL", "expiry": int64(1705640400000)}},
+	_, err := qc.GetOptionChainByReq(model.OptionChainRequest{
+		OptionBasic: []model.OptionQueryItem{{Symbol: "AAPL", Expiry: int64(1705640400000)}},
 		ReturnGreekValue: &trueVal,
 		OptionFilter: &model.OptionChainFilter{
 			InTheMoney: &trueVal,
@@ -756,6 +762,9 @@ func TestGetOptionChainWithFilter(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("GetOptionChainByReq 失败: %v", err)
+	}
 
 	if captured["return_greek_value"] != true {
 		t.Errorf("期望 return_greek_value=true，得到: %v", captured["return_greek_value"])
@@ -797,13 +806,16 @@ func TestOptionAnalysisPerSymbol(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	qc.GetOptionAnalysis(model.OptionAnalysisRequest{
+	_, err := qc.GetOptionAnalysis(model.OptionAnalysisRequest{
 		Symbols: []model.OptionAnalysisSymbol{
 			{Symbol: "AAPL", Period: "26week", RequireVolatilityList: func() *bool { v := true; return &v }()},
 			{Symbol: "TSLA", Period: "month"},
 		},
 		Market: "US",
 	})
+	if err != nil {
+		t.Fatalf("GetOptionAnalysis 失败: %v", err)
+	}
 
 	syms, ok := captured["symbols"].([]interface{})
 	if !ok || len(syms) != 2 {

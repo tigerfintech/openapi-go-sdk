@@ -305,7 +305,7 @@ type OptionChainFilter struct {
 
 // OptionChainRequest 期权链请求（支持 option_filter 和 return_greek_value）
 type OptionChainRequest struct {
-	OptionBasic      []map[string]interface{} `json:"option_basic,omitempty"`
+	OptionBasic      []OptionQueryItem        `json:"option_basic,omitempty"`
 	ReturnGreekValue *bool                    `json:"return_greek_value,omitempty"`
 	OptionFilter     *OptionChainFilter       `json:"option_filter,omitempty"`
 	Market           string                   `json:"market,omitempty"`

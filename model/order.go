@@ -215,9 +215,11 @@ type OrderRequest struct {
 	VirtualOrderType string `json:"virtual_order_type,omitempty"`
 	// 虚拟订单 ID
 	VirtualId string `json:"virtual_id,omitempty"`
-	// 止盈订单 ID（bracket 关联，wire key 为驼峰）
+	// 止盈订单 ID（bracket 关联）
+	// 注意：wire key 保留驼峰后缀，与 Java SDK @JSONField(name="profit_taker_orderId") 保持一致，勿改为纯 snake_case
 	ProfitTakerOrderId int64 `json:"profit_taker_orderId,omitempty"`
-	// 止损订单 ID（bracket 关联，wire key 为驼峰）
+	// 止损订单 ID（bracket 关联）
+	// 注意：wire key 保留驼峰后缀，与 Java SDK @JSONField(name="stop_loss_orderId") 保持一致，勿改为纯 snake_case
 	StopLossOrderId int64 `json:"stop_loss_orderId,omitempty"`
 	// 本地流水号
 	LocalNo string `json:"local_no,omitempty"`
