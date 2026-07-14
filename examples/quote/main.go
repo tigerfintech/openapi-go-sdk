@@ -139,9 +139,38 @@ func main() {
 			} else if mid.Put != nil {
 				optIdentifier = mid.Put.Identifier
 			}
+
+			// Verify option_filter and return_greek_value — reuse expiry from chain response
+			trueVal := true
+			if filtered, err := qc.GetOptionChainByReq(model.OptionChainRequest{
+				OptionBasic:      []map[string]interface{}{{"symbol": chain[0].Symbol, "expiry": chain[0].Expiry}},
+				ReturnGreekValue: &trueVal,
+				OptionFilter: &model.OptionChainFilter{
+					InTheMoney:        func() *bool { f := false; return &f }(),
+					ImpliedVolatility: model.NewRangeFloat64(0.0, 5.0),
+					Greeks: &model.OptionChainFilterGreeks{
+						Delta: model.NewRangeFloat64(0.0, 0.6),
+					},
+				},
+			}); err != nil {
+				fail("GetOptionChain(filter+greek)", err)
+			} else {
+				rows := 0
+				hasGreek := false
+				for _, c := range filtered {
+					rows += len(c.Items)
+					for _, row := range c.Items {
+						if row.Call != nil && row.Call.Delta != 0 {
+							hasGreek = true
+						}
+					}
+				}
+				ok("GetOptionChain(filter+greek)", fmt.Sprintf("rows=%d has_greek=%v", rows, hasGreek))
+			}
 		} else {
 			ok(fmt.Sprintf("GetOptionChain(%s)", expiryDate), "(empty items)")
 		}
+
 
 		if optIdentifier == "" {
 			skip("GetOptionQuote", "no identifier from chain")
@@ -328,9 +357,8 @@ func main() {
 	}
 
 	if analyses, err := qc.GetOptionAnalysis(model.OptionAnalysisRequest{
-		Symbols: []string{"AAPL"},
+		Symbols: []model.OptionAnalysisSymbol{{Symbol: "AAPL", Period: "26week"}},
 		Market:  "US",
-		Period:  "26week",
 	}); err != nil {
 		fail("GetOptionAnalysis(AAPL 26week)", err)
 	} else if len(analyses) > 0 {

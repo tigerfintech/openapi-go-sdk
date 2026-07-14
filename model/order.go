@@ -191,6 +191,53 @@ type OrderRequest struct {
 	StartTime int64 `json:"start_time,omitempty"`
 	// 冰山单：生效结束时间（epoch ms，可选）
 	EndTime int64 `json:"end_time,omitempty"`
+	// GTD 到期时间（epoch ms）
+	ExpireTime int64 `json:"expire_time,omitempty"`
+	// 盘后委托价格
+	AfterHoursPrice float64 `json:"after_hours_price,omitempty"`
+	// 批次号
+	BatchNo int64 `json:"batch_no,omitempty"`
+	// 资金类型（CASH / MARGIN）
+	SegType string `json:"seg_type,omitempty"`
+	// 按金额下单：委托金额
+	Amount float64 `json:"amount,omitempty"`
+	// 是否按金额下单
+	IsQuantityByAmount *bool `json:"is_quantity_by_amount,omitempty"`
+	// 账户分配列表（机构账户）
+	AllocAccounts []string `json:"alloc_accounts,omitempty"`
+	// 各账户分配份额（与 AllocAccounts 一一对应）
+	AllocShares []float64 `json:"alloc_shares,omitempty"`
+	// 下单来源
+	Source string `json:"source,omitempty"`
+	// 下单渠道
+	Channel string `json:"channel,omitempty"`
+	// 虚拟订单类型
+	VirtualOrderType string `json:"virtual_order_type,omitempty"`
+	// 虚拟订单 ID
+	VirtualId string `json:"virtual_id,omitempty"`
+	// 止盈订单 ID（bracket 关联）
+	// 注意：wire key 保留驼峰后缀，与 Java SDK @JSONField(name="profit_taker_orderId") 保持一致，勿改为纯 snake_case
+	ProfitTakerOrderId int64 `json:"profit_taker_orderId,omitempty"`
+	// 止损订单 ID（bracket 关联）
+	// 注意：wire key 保留驼峰后缀，与 Java SDK @JSONField(name="stop_loss_orderId") 保持一致，勿改为纯 snake_case
+	StopLossOrderId int64 `json:"stop_loss_orderId,omitempty"`
+	// 本地流水号
+	LocalNo string `json:"local_no,omitempty"`
+	// OCA 订单组（One-Cancels-All）
+	OcaOrders []*OrderRequest `json:"oca_orders,omitempty"`
+	// 多腿期权各腿（MLEG）
+	ContractLegs []ContractLegRequest `json:"contract_legs,omitempty"`
+}
+
+// ContractLegRequest 多腿期权单腿定义（MLEG 子腿，对应 Java ContractLeg）
+type ContractLegRequest struct {
+	Symbol  string `json:"symbol,omitempty"`
+	SecType string `json:"sec_type,omitempty"`
+	Expiry  string `json:"expiry,omitempty"`
+	Strike  string `json:"strike,omitempty"`
+	Right   string `json:"right,omitempty"`
+	Action  string `json:"action,omitempty"`
+	Ratio   *int   `json:"ratio,omitempty"`
 }
 
 // OrderLegRequest 附加订单请求模型（止盈/止损）
