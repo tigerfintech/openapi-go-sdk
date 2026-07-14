@@ -158,6 +158,7 @@ type TimeInForce string
 const (
 	TimeInForceDAY TimeInForce = "DAY"
 	TimeInForceGTC TimeInForce = "GTC"
+	TimeInForceGTD TimeInForce = "GTD"
 	TimeInForceOPG TimeInForce = "OPG"
 )
 
