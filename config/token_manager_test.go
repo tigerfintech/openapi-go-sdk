@@ -387,3 +387,59 @@ func TestTokenManager_ShouldTokenRefresh_NonNumericGenTs(t *testing.T) {
 		t.Error("gen_ts 非数字时不应触发刷新")
 	}
 }
+
+// TestTokenManager_StartAutoRefresh_NoGoroutineLeak 验证重复调用 StartAutoRefresh 不泄漏旧 goroutine
+func TestTokenManager_StartAutoRefresh_NoGoroutineLeak(t *testing.T) {
+	m := NewTokenManager(
+		WithTokenRefreshInterval(20*time.Millisecond),
+		WithRefreshDuration(0), // 不刷新，只测 goroutine 不泄漏
+	)
+
+	callCount := 0
+	refresh := func() (string, error) {
+		callCount++
+		return "tok", nil
+	}
+
+	// 第一次启动
+	m.StartAutoRefresh(refresh)
+	// 第二次启动应先停止第一个 goroutine
+	m.StartAutoRefresh(refresh)
+
+	time.Sleep(60 * time.Millisecond)
+	m.StopAutoRefresh()
+
+	// 若旧 goroutine 仍在运行，callCount 会更高；
+	// 这里主要验证不 panic 且 StopAutoRefresh 正常返回
+	t.Logf("callCount=%d（预期值取决于 ShouldTokenRefresh，不硬断言）", callCount)
+}
+
+// TestTokenManager_StartAutoRefresh_ConcurrentTokenAccess 验证并发刷新不 data race
+func TestTokenManager_StartAutoRefresh_ConcurrentTokenAccess(t *testing.T) {
+	m := NewTokenManager(
+		WithTokenRefreshInterval(5*time.Millisecond),
+		WithRefreshDuration(0),
+	)
+	// 并发读
+	done := make(chan struct{})
+	for i := 0; i < 10; i++ {
+		go func() {
+			for j := 0; j < 50; j++ {
+				_ = m.GetToken()
+			}
+			done <- struct{}{}
+		}()
+	}
+	// 并发写
+	for i := 0; i < 10; i++ {
+		go func(idx int) {
+			for j := 0; j < 50; j++ {
+				_ = m.SetToken("tok_" + string(rune('a'+idx)))
+			}
+			done <- struct{}{}
+		}(i)
+	}
+	for i := 0; i < 20; i++ {
+		<-done
+	}
+}

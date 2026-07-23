@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/base64"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,9 +13,7 @@ import (
 )
 
 const (
-	// 默认 Token 文件名
-	defaultTokenFileName = "tiger_openapi_token.properties"
-	// 默认 Token 刷新间隔
+	defaultTokenFileName        = "tiger_openapi_token.properties"
 	defaultTokenRefreshInterval = 24 * time.Hour
 )
 
@@ -28,9 +27,9 @@ type TokenManager struct {
 	interval        time.Duration
 	stopCh          chan struct{}
 	refreshDuration int64
-	refreshFn       func() (string, error) // 由 StartAutoRefresh 注入，在 refreshLoop 中调用
-	tokenLoader     func() (string, error) // 自定义加载函数，优先于文件加载
-	tokenWriter     func(token string)     // token 写入后的回调（可选）
+	refreshFn       func() (string, error)
+	tokenLoader     func() (string, error)
+	tokenWriter     func(token string)
 }
 
 // TokenManagerOption TokenManager 配置选项
@@ -159,9 +158,7 @@ func (m *TokenManager) saveTokenToFile(token string) error {
 	return os.WriteFile(m.filePath, []byte(content), 0644)
 }
 
-// ShouldTokenRefresh 判断 Token 是否需要刷新。
-// 解码 base64 token，提取前 27 字符中的 gen_ts，
-// 当 (当前时间秒 - gen_ts/1000) > refreshDuration 时返回 true。
+// ShouldTokenRefresh returns true when the token's gen_ts is older than refreshDuration.
 func (m *TokenManager) ShouldTokenRefresh() bool {
 	m.mu.RLock()
 	token := m.token
@@ -193,14 +190,19 @@ func (m *TokenManager) ShouldTokenRefresh() bool {
 	return (time.Now().Unix() - genTs/1000) > dur
 }
 
-// StartAutoRefresh 启动后台定期刷新
+// StartAutoRefresh 启动后台定期刷新。
+// 若已有刷新 goroutine 在运行，先停止旧的再启动新的，避免 goroutine 泄漏。
 func (m *TokenManager) StartAutoRefresh(refreshFn func() (string, error)) {
 	m.mu.Lock()
+	if m.stopCh != nil {
+		close(m.stopCh)
+	}
 	m.refreshFn = refreshFn
 	m.stopCh = make(chan struct{})
+	ch := m.stopCh
 	m.mu.Unlock()
 
-	go m.refreshLoop()
+	go m.refreshLoopWith(ch)
 }
 
 // StopAutoRefresh 停止后台刷新
@@ -213,17 +215,15 @@ func (m *TokenManager) StopAutoRefresh() {
 	}
 }
 
-// refreshLoop 后台刷新循环
-func (m *TokenManager) refreshLoop() {
+func (m *TokenManager) refreshLoopWith(stopCh <-chan struct{}) {
 	ticker := time.NewTicker(m.interval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-m.stopCh:
+		case <-stopCh:
 			return
 		case <-ticker.C:
-			// 先检查是否需要刷新
 			if !m.ShouldTokenRefresh() {
 				continue
 			}
@@ -232,7 +232,9 @@ func (m *TokenManager) refreshLoop() {
 			m.mu.RUnlock()
 			if fn != nil {
 				if newToken, err := fn(); err == nil && newToken != "" {
-					m.SetToken(newToken)
+					_ = m.SetToken(newToken)
+				} else if err != nil {
+					log.Printf("[token_manager] auto-refresh failed: %v", err)
 				}
 			}
 		}

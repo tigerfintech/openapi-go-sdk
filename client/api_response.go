@@ -39,14 +39,15 @@ func UnmarshalData(data json.RawMessage, out interface{}) error {
 		return nil
 	}
 	// 尝试直接解码
-	if err := json.Unmarshal(data, out); err == nil {
+	firstErr := json.Unmarshal(data, out)
+	if firstErr == nil {
 		return nil
 	}
-	// 服务端偶尔把 data 编码成 JSON 字符串(如 trade 的部分接口)。先解一层。
+	// 服务端偶尔把 data 编码成 JSON 字符串(如 trade 的部分接口)。先解一层字符串。
 	var asStr string
 	if err := json.Unmarshal(data, &asStr); err == nil {
 		return json.Unmarshal([]byte(asStr), out)
 	}
-	// 都失败,返回原始错误
-	return json.Unmarshal(data, out)
+	// 双层解码均失败，返回第一次的原始错误（语义最清晰）
+	return firstErr
 }
