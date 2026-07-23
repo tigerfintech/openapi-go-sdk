@@ -574,6 +574,27 @@ func main() {
 	} else {
 		ok("GetCorporateDividend(AAPL)", fmt.Sprintf("rows=%d", len(items)))
 	}
+	if items, err := qc.GetCorporateSymbolChange(model.CorporateActionRequest{
+		Symbols: []string{"META"}, Market: "US", BeginDate: "2022-01-01", EndDate: "2023-01-01",
+	}); err != nil {
+		fail("GetCorporateSymbolChange(META)", err)
+	} else {
+		ok("GetCorporateSymbolChange(META)", fmt.Sprintf("rows=%d", len(items)))
+	}
+	if items, err := qc.GetCorporateDelisting(model.CorporateActionRequest{
+		Symbols: []string{"TWTR"}, Market: "US", BeginDate: "2022-01-01", EndDate: "2023-01-01",
+	}); err != nil {
+		fail("GetCorporateDelisting(TWTR)", err)
+	} else {
+		ok("GetCorporateDelisting(TWTR)", fmt.Sprintf("rows=%d", len(items)))
+	}
+	if items, err := qc.GetCorporateIPO(model.CorporateActionRequest{
+		Symbols: []string{"RIVN"}, Market: "US", BeginDate: "2021-01-01", EndDate: "2022-01-01",
+	}); err != nil {
+		fail("GetCorporateIPO(RIVN)", err)
+	} else {
+		ok("GetCorporateIPO(RIVN)", fmt.Sprintf("rows=%d", len(items)))
+	}
 
 	if items, err := qc.GetFinancialCurrency(model.FinancialCurrencyRequest{Symbols: []string{"AAPL"}, Market: "US"}); err != nil {
 		fail("GetFinancialCurrency(AAPL)", err)

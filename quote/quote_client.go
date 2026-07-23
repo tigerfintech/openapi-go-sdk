@@ -932,6 +932,48 @@ func (c *QuoteClient) GetCorporateEarningsCalendar(req model.CorporateActionRequ
 	return out, nil
 }
 
+// GetCorporateSymbolChange 公司行动 - 股票代码变更。wire: corporate_action (action_type=symbol_change)
+func (c *QuoteClient) GetCorporateSymbolChange(req model.CorporateActionRequest) ([]model.CorporateSymbolChange, error) {
+	req.ActionType = string(model.CorporateActionTypeSymbolChange)
+	var grouped map[string][]model.CorporateSymbolChange
+	if err := c.callInto("corporate_action", req, &grouped); err != nil {
+		return nil, err
+	}
+	var out []model.CorporateSymbolChange
+	for _, list := range grouped {
+		out = append(out, list...)
+	}
+	return out, nil
+}
+
+// GetCorporateDelisting 公司行动 - 退市。wire: corporate_action (action_type=delisting)
+func (c *QuoteClient) GetCorporateDelisting(req model.CorporateActionRequest) ([]model.CorporateDelisting, error) {
+	req.ActionType = string(model.CorporateActionTypeDelisting)
+	var grouped map[string][]model.CorporateDelisting
+	if err := c.callInto("corporate_action", req, &grouped); err != nil {
+		return nil, err
+	}
+	var out []model.CorporateDelisting
+	for _, list := range grouped {
+		out = append(out, list...)
+	}
+	return out, nil
+}
+
+// GetCorporateIPO 公司行动 - 新股上市。wire: corporate_action (action_type=ipo)
+func (c *QuoteClient) GetCorporateIPO(req model.CorporateActionRequest) ([]model.CorporateIPO, error) {
+	req.ActionType = string(model.CorporateActionTypeIPO)
+	var grouped map[string][]model.CorporateIPO
+	if err := c.callInto("corporate_action", req, &grouped); err != nil {
+		return nil, err
+	}
+	var out []model.CorporateIPO
+	for _, list := range grouped {
+		out = append(out, list...)
+	}
+	return out, nil
+}
+
 // GetFinancialExchangeRate 汇率数据。wire: financial_exchange_rate
 func (c *QuoteClient) GetFinancialExchangeRate(req model.FinancialExchangeRateRequest) ([]model.ExchangeRate, error) {
 	var out []model.ExchangeRate

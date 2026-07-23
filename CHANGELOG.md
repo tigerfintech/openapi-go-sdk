@@ -5,6 +5,14 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.9] - 2026-07-23
+
+### Added
+- `GetCorporateSymbolChange` — 股票代码变更查询
+- `GetCorporateDelisting` — 退市事件查询
+- `GetCorporateIPO` — 新股上市查询
+- `CorporateActionType`：新增 `SymbolChange`、`Delisting`、`IPO`
+
 ## [0.4.8] - 2026-07-22
 ### Fixed
 - 修复 `logger` 全局 logger 并发读写 panic（`SetDefault`/`Default` 存在 data race），改用 `atomic.Pointer[Logger]` 保证并发安全。

@@ -184,9 +184,12 @@ const (
 type CorporateActionType string
 
 const (
-	CorporateActionTypeSplit    CorporateActionType = "split"
-	CorporateActionTypeDividend CorporateActionType = "dividend"
-	CorporateActionTypeEarning  CorporateActionType = "earning"
+	CorporateActionTypeSplit        CorporateActionType = "split"
+	CorporateActionTypeDividend     CorporateActionType = "dividend"
+	CorporateActionTypeEarning      CorporateActionType = "earning"
+	CorporateActionTypeSymbolChange CorporateActionType = "symbol_change"
+	CorporateActionTypeDelisting    CorporateActionType = "delisting"
+	CorporateActionTypeIPO          CorporateActionType = "ipo"
 )
 
 // IndustryLevel 行业级别（1~4 级）
