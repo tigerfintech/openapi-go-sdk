@@ -19,8 +19,11 @@ import (
 
 const (
 	UserAgentPrefix = "openapi-go-sdk-"
-	SDKVersion      = "0.4.5"
-	DefaultCharset  = "UTF-8"
+	// SDKVersion SDK 版本号
+	SDKVersion = "0.4.9"
+	// DefaultCharset 默认字符集
+	DefaultCharset = "UTF-8"
+	// DefaultSignType 默认签名类型
 	DefaultSignType = "RSA"
 	DefaultVersion  = "2.0"
 

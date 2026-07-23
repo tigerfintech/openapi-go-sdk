@@ -262,6 +262,48 @@ type CorporateAction struct {
 	ToFactor   float64 `json:"toFactor,omitempty"`
 }
 
+// CorporateSymbolChange 股票代码变更事件
+type CorporateSymbolChange struct {
+	Symbol      string `json:"symbol"`
+	Market      string `json:"market,omitempty"`
+	Exchange    string `json:"exchange,omitempty"`
+	ExecuteDate string `json:"executeDate,omitempty"`
+	ActionType  string `json:"actionType,omitempty"`
+	OldSymbol   string `json:"oldSymbol,omitempty"`
+	// NewSymbol is the ticker after the rename; same as Symbol.
+	NewSymbol string `json:"newSymbol,omitempty"`
+}
+
+// CorporateDelisting 退市事件
+type CorporateDelisting struct {
+	Symbol        string `json:"symbol"`
+	Market        string `json:"market,omitempty"`
+	Exchange      string `json:"exchange,omitempty"`
+	ExecuteDate   string `json:"executeDate,omitempty"`
+	ActionType    string `json:"actionType,omitempty"`
+	AnnouncedDate string `json:"announcedDate,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+// CorporateIPO 新股上市事件
+type CorporateIPO struct {
+	Symbol              string  `json:"symbol"`
+	Market              string  `json:"market,omitempty"`
+	Exchange            string  `json:"exchange,omitempty"`
+	ExecuteDate         string  `json:"executeDate,omitempty"`
+	ActionType          string  `json:"actionType,omitempty"`
+	IpoName             string  `json:"ipoName,omitempty"`
+	ListingDate         string  `json:"listingDate,omitempty"`
+	ListingPrice        float64 `json:"listingPrice,omitempty"`
+	SharesOutstanding   int64   `json:"sharesOutstanding,omitempty"`
+	SharesFloat         int64   `json:"sharesFloat,omitempty"`
+	OfferAmount         float64 `json:"offerAmount,omitempty"`
+	PriceRange          string  `json:"priceRange,omitempty"`
+	Currency            string  `json:"currency,omitempty"`
+	MinPurchaseQuantity int     `json:"minPurchaseQuantity,omitempty"`
+	LeverageRatio       float64 `json:"leverageRatio,omitempty"`
+}
+
 // CapitalFlow 资金流向
 type CapitalFlow struct {
 	Symbol string            `json:"symbol"`

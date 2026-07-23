@@ -412,6 +412,91 @@ func TestGetCorporateAction(t *testing.T) {
 	}
 }
 
+func TestGetCorporateSymbolChange(t *testing.T) {
+	server := mockServer(t, "corporate_action", map[string]interface{}{
+		"META": []map[string]interface{}{
+			{"symbol": "META", "actionType": "symbol_change", "oldSymbol": "FB", "newSymbol": "META", "executeDate": "2022-06-09", "market": "US"},
+		},
+	})
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	data, err := qc.GetCorporateSymbolChange(model.CorporateActionRequest{
+		Symbols:   []string{"META"},
+		Market:    "US",
+		BeginDate: "2022-01-01",
+		EndDate:   "2023-01-01",
+	})
+	if err != nil {
+		t.Fatalf("GetCorporateSymbolChange 失败: %v", err)
+	}
+	if len(data) != 1 {
+		t.Fatalf("期望 1 条，实际 %d 条", len(data))
+	}
+	if data[0].OldSymbol != "FB" || data[0].NewSymbol != "META" {
+		t.Errorf("symbol change 字段不匹配: %+v", data[0])
+	}
+}
+
+func TestGetCorporateDelisting(t *testing.T) {
+	server := mockServer(t, "corporate_action", map[string]interface{}{
+		"TWTR": []map[string]interface{}{
+			{"symbol": "TWTR", "actionType": "delisting", "announcedDate": "2022-10-27", "reason": "acquired", "executeDate": "2022-10-28", "market": "US"},
+		},
+	})
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	data, err := qc.GetCorporateDelisting(model.CorporateActionRequest{
+		Symbols:   []string{"TWTR"},
+		Market:    "US",
+		BeginDate: "2022-01-01",
+		EndDate:   "2023-01-01",
+	})
+	if err != nil {
+		t.Fatalf("GetCorporateDelisting 失败: %v", err)
+	}
+	if len(data) != 1 {
+		t.Fatalf("期望 1 条，实际 %d 条", len(data))
+	}
+	if data[0].Reason != "acquired" {
+		t.Errorf("delisting reason 不匹配: %+v", data[0])
+	}
+}
+
+func TestGetCorporateIPO(t *testing.T) {
+	server := mockServer(t, "corporate_action", map[string]interface{}{
+		"RIVN": []map[string]interface{}{
+			{
+				"symbol": "RIVN", "actionType": "ipo", "ipoName": "Rivian Automotive",
+				"listingDate": "2021-11-10", "listingPrice": 78.0,
+				"sharesOutstanding": 864000000, "sharesFloat": 153000000,
+				"offerAmount": 11932000000.0, "priceRange": "72-74",
+				"currency": "USD", "minPurchaseQuantity": 1,
+				"leverageRatio": 1.0, "executeDate": "2021-11-10", "market": "US",
+			},
+		},
+	})
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	data, err := qc.GetCorporateIPO(model.CorporateActionRequest{
+		Symbols:   []string{"RIVN"},
+		Market:    "US",
+		BeginDate: "2021-01-01",
+		EndDate:   "2022-01-01",
+	})
+	if err != nil {
+		t.Fatalf("GetCorporateIPO 失败: %v", err)
+	}
+	if len(data) != 1 {
+		t.Fatalf("期望 1 条，实际 %d 条", len(data))
+	}
+	if data[0].IpoName != "Rivian Automotive" || data[0].ListingPrice != 78.0 {
+		t.Errorf("IPO 字段不匹配: %+v", data[0])
+	}
+}
+
 func TestGetCapitalFlow(t *testing.T) {
 	server := mockServer(t, "capital_flow", map[string]interface{}{
 		"symbol": "AAPL",
