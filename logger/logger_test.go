@@ -97,3 +97,31 @@ func TestGlobalLogger(t *testing.T) {
 	Warnf("test")
 	Errorf("test")
 }
+
+// TestGlobalLogger_ConcurrentAccess 验证 SetDefault / Default 并发调用不 panic、不 data race。
+// 用 -race 标志跑时若仍有竞争，race detector 会报告。
+func TestGlobalLogger_ConcurrentAccess(t *testing.T) {
+	original := Default()
+	defer SetDefault(original)
+
+	const goroutines = 20
+	done := make(chan struct{})
+
+	// 并发写
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			SetDefault(&NopLogger{})
+			done <- struct{}{}
+		}()
+	}
+	// 并发读
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			_ = Default()
+			done <- struct{}{}
+		}()
+	}
+	for i := 0; i < goroutines*2; i++ {
+		<-done
+	}
+}

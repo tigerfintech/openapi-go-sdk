@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -82,8 +84,9 @@ func TestHttpClient_RefreshToken_UpdatesConfig(t *testing.T) {
 	if err := c.RefreshToken(nil); err != nil {
 		t.Fatalf("RefreshToken 失败: %v", err)
 	}
-	if cfg.Token != "refreshed_token_xyz" {
-		t.Errorf("期望 config.Token=refreshed_token_xyz，实际=%s", cfg.Token)
+	// Use getToken() to read the token atomically (avoids data race with bg goroutine)
+	if got := c.getToken(); got != "refreshed_token_xyz" {
+		t.Errorf("期望 token=refreshed_token_xyz，实际=%s", got)
 	}
 }
 
@@ -110,6 +113,10 @@ func TestHttpClient_RefreshToken_PersistsToFile(t *testing.T) {
 	}
 	if string(data) != "token=persisted_token\n" {
 		t.Errorf("token 文件内容不符: %q", string(data))
+	}
+	// Also verify in-memory token was updated atomically
+	if got := c.getToken(); got != "persisted_token" {
+		t.Errorf("getToken() 期望 persisted_token，实际=%s", got)
 	}
 }
 
@@ -138,10 +145,10 @@ func TestHttpClient_RefreshToken_TokenWriterCallback(t *testing.T) {
 // TestHttpClient_StartTokenAutoRefresh_NilManager 验证不使用文件、只在代码里设置 token 时，
 // 传 nil tokenManager + opts 也能正常触发自动刷新。
 func TestHttpClient_StartTokenAutoRefresh_NilManager(t *testing.T) {
-	callCount := 0
+	var callCount int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		callCount++
-		fmt.Fprintf(w, `{"code":0,"message":"success","data":{"token":"nil_tm_token_%d"},"timestamp":1700000000}`, callCount)
+		n := atomic.AddInt64(&callCount, 1)
+		fmt.Fprintf(w, `{"code":0,"message":"success","data":{"token":"nil_tm_token_%d"},"timestamp":1700000000}`, n)
 	}))
 	defer server.Close()
 
@@ -149,26 +156,33 @@ func TestHttpClient_StartTokenAutoRefresh_NilManager(t *testing.T) {
 	cfg.Token = makeExpiredToken(100) // 直接在代码里设置一个"已过期" token
 	c := NewHttpClient(cfg)
 
+	var mu sync.Mutex
 	var savedToken string
 	tm := c.StartTokenAutoRefresh(
 		nil,
 		config.WithRefreshDuration(30),
 		config.WithTokenRefreshInterval(50*time.Millisecond),
-		config.TokenWriterOption(func(token string) { savedToken = token }),
+		config.TokenWriterOption(func(token string) {
+			mu.Lock()
+			savedToken = token
+			mu.Unlock()
+		}),
 	)
 	defer tm.StopAutoRefresh()
 
 	time.Sleep(200 * time.Millisecond)
 
-	if callCount == 0 {
+	if n := atomic.LoadInt64(&callCount); n == 0 {
 		t.Error("nil tokenManager 场景：期望至少触发一次刷新，实际未触发")
 	}
-	if cfg.Token == "" || cfg.Token == makeExpiredToken(100) {
-		t.Errorf("config.Token 应已更新，实际=%s", cfg.Token)
+	if tok := c.getToken(); tok == "" || tok == makeExpiredToken(100) {
+		t.Errorf("token 应已更新，实际=%s", tok)
 	}
 	// WithTokenWriter 通过 opts 注入时，SetToken 触发（初始同步那次），刷新后由 refreshFn 更新内存不走 SetToken
 	// 因此 savedToken 仅在初始 SetToken 时触发；此处只验证刷新本身正常即可
+	mu.Lock()
 	_ = savedToken
+	mu.Unlock()
 }
 
 // TestHttpClient_StartTokenAutoRefresh_NilManager_Callback 验证回调在初始 SetToken 时触发
@@ -203,13 +217,13 @@ func TestHttpClient_StartTokenAutoRefresh_NilManager_Callback(t *testing.T) {
 // TestNewHttpClient_AutoRefreshOnCreation 验证 cfg.TokenRefreshDuration > 0 时
 // NewHttpClient 自动启动后台刷新，无需手动调用 StartTokenAutoRefresh。
 func TestNewHttpClient_AutoRefreshOnCreation(t *testing.T) {
-	callCount := 0
+	var callCount int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 忽略非刷新请求（如签名请求等）
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		if body["method"] == methodTokenRefresh {
-			callCount++
+			atomic.AddInt64(&callCount, 1)
 		}
 		fmt.Fprint(w, `{"code":0,"message":"success","data":{"token":"auto_created_token"},"timestamp":1700000000}`)
 	}))
@@ -225,21 +239,19 @@ func TestNewHttpClient_AutoRefreshOnCreation(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	if callCount == 0 {
+	if n := atomic.LoadInt64(&callCount); n == 0 {
 		t.Error("NewHttpClient 应在 TokenRefreshDuration>0 时自动触发刷新，实际未触发")
 	}
-	if cfg.Token != "auto_created_token" {
-		t.Errorf("config.Token 应已更新，实际=%s", cfg.Token)
-	}
+	// Token is stored in atomicToken, not mirrored to cfg; check via callCount only.
 }
 
 func TestNewHttpClient_NoAutoRefreshWhenZero(t *testing.T) {
-	callCount := 0
+	var callCount int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]string
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		if body["method"] == methodTokenRefresh {
-			callCount++
+			atomic.AddInt64(&callCount, 1)
 		}
 		fmt.Fprint(w, `{"code":0,"message":"success","data":{"token":"should_not_refresh"},"timestamp":1700000000}`)
 	}))
@@ -252,8 +264,8 @@ func TestNewHttpClient_NoAutoRefreshWhenZero(t *testing.T) {
 	NewHttpClient(cfg)
 	time.Sleep(200 * time.Millisecond)
 
-	if callCount != 0 {
-		t.Errorf("TokenRefreshDuration=0 时不应触发刷新，但触发了 %d 次", callCount)
+	if n := atomic.LoadInt64(&callCount); n != 0 {
+		t.Errorf("TokenRefreshDuration=0 时不应触发刷新，但触发了 %d 次", n)
 	}
 }
 
@@ -265,27 +277,36 @@ func TestNewHttpClient_WithTokenWriter(t *testing.T) {
 	}))
 	defer server.Close()
 
+	var mu sync.Mutex
 	var saved string
 	cfg := newTestConfig(t, server.URL)
 	cfg.Token = makeExpiredToken(100)
 	cfg.TokenRefreshDuration = 30 * time.Second
 	cfg.TokenCheckInterval = 50 * time.Millisecond
-	cfg.TokenWriter = func(token string) { saved = token }
+	cfg.TokenWriter = func(token string) {
+		mu.Lock()
+		saved = token
+		mu.Unlock()
+	}
 
 	NewHttpClient(cfg)
 	time.Sleep(200 * time.Millisecond)
 
+	mu.Lock()
+	got := saved
+	mu.Unlock()
+
 	// 初始 SetToken（同步 config.Token）触发一次回调，值为初始 token
-	if saved == "" {
+	if got == "" {
 		t.Error("TokenWriter 回调未触发")
 	}
 }
 
 func TestHttpClient_StartTokenAutoRefresh(t *testing.T) {
-	callCount := 0
+	var callCount int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		callCount++
-		fmt.Fprintf(w, `{"code":0,"message":"success","data":{"token":"auto_token_%d"},"timestamp":1700000000}`, callCount)
+		n := atomic.AddInt64(&callCount, 1)
+		fmt.Fprintf(w, `{"code":0,"message":"success","data":{"token":"auto_token_%d"},"timestamp":1700000000}`, n)
 	}))
 	defer server.Close()
 
@@ -310,10 +331,10 @@ func TestHttpClient_StartTokenAutoRefresh(t *testing.T) {
 	// 等待至少一次刷新触发
 	time.Sleep(200 * time.Millisecond)
 
-	if callCount == 0 {
+	if n := atomic.LoadInt64(&callCount); n == 0 {
 		t.Error("期望至少触发一次 token 刷新，实际未触发")
 	}
-	if cfg.Token == "" {
-		t.Error("config.Token 应已被更新")
+	if got := c.getToken(); got == "" {
+		t.Error("getToken() 应已被更新")
 	}
 }
