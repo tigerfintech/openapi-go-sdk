@@ -54,3 +54,45 @@ func TestNewApiRequest_WithNil(t *testing.T) {
 		t.Errorf("nil 参数应生成空 JSON 对象，实际为 %s", req.BizContent)
 	}
 }
+
+// TestUnmarshalData_NoThirdRetry 验证 UnmarshalData 失败时返回第一次错误，不会对 out 第三次调用 Unmarshal
+func TestUnmarshalData_NoThirdRetry(t *testing.T) {
+	// out 类型与 data 完全不兼容（data 是 JSON 数字，out 是 struct）
+	type Foo struct{ Name string }
+	var out Foo
+	data := json.RawMessage(`12345`) // 数字，无法反序列化为 struct 也无法作为字符串层
+	err := UnmarshalData(data, &out)
+	if err == nil {
+		t.Fatal("期望返回错误，但得到 nil")
+	}
+	// out 不应被污染（Foo{} 的零值）
+	if out.Name != "" {
+		t.Errorf("out 不应被修改，Name=%q", out.Name)
+	}
+}
+
+// TestUnmarshalData_DoubleEncoded 验证双重编码（data 是 JSON string 包裹 JSON object）正确解码
+func TestUnmarshalData_DoubleEncoded(t *testing.T) {
+	type Inner struct{ OrderID int64 }
+	inner := Inner{OrderID: 12345678}
+	innerJSON, _ := json.Marshal(inner)
+	// 把 inner JSON 再编码为 JSON string
+	outerEncoded, _ := json.Marshal(string(innerJSON))
+	data := json.RawMessage(outerEncoded)
+
+	var out Inner
+	if err := UnmarshalData(data, &out); err != nil {
+		t.Fatalf("双重编码解码失败: %v", err)
+	}
+	if out.OrderID != 12345678 {
+		t.Errorf("OrderID 期望 12345678，实际 %d", out.OrderID)
+	}
+}
+
+// TestUnmarshalData_NullData 验证 null data 返回 nil
+func TestUnmarshalData_NullData(t *testing.T) {
+	var out map[string]interface{}
+	if err := UnmarshalData(json.RawMessage(`null`), &out); err != nil {
+		t.Fatalf("null data 应返回 nil 错误，实际 %v", err)
+	}
+}

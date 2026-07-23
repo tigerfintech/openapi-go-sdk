@@ -27,30 +27,29 @@ func ParsePropertiesFile(path string) (map[string]string, error) {
 		line := scanner.Text()
 
 		if continuation {
-			// 续行：去除前导空格后拼接
 			line = strings.TrimLeft(line, " \t")
-			if strings.HasSuffix(line, "\\") {
+			// blank/comment lines terminate continuation (matches java.util.Properties behaviour)
+			if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "!") {
+				continuation = false
+			} else if endsWithContinuation(line) {
 				currentLine += line[:len(line)-1]
 				continue
+			} else {
+				currentLine += line
+				continuation = false
 			}
-			currentLine += line
-			continuation = false
 		} else {
-			// 去除前后空格
 			trimmed := strings.TrimSpace(line)
 
-			// 跳过空行
 			if trimmed == "" {
 				continue
 			}
 
-			// 跳过注释行
 			if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "!") {
 				continue
 			}
 
-			// 检查续行
-			if strings.HasSuffix(trimmed, "\\") {
+			if endsWithContinuation(trimmed) {
 				currentLine = trimmed[:len(trimmed)-1]
 				continuation = true
 				continue
@@ -59,7 +58,6 @@ func ParsePropertiesFile(path string) (map[string]string, error) {
 			currentLine = trimmed
 		}
 
-		// 解析键值对
 		key, value := parseKeyValue(currentLine)
 		if key != "" {
 			props[key] = value
@@ -82,10 +80,20 @@ func ParsePropertiesFile(path string) (map[string]string, error) {
 	return props, nil
 }
 
+// endsWithContinuation reports whether a trimmed line ends with an odd number of
+// backslashes, which means it is a line-continuation marker in Java properties format.
+// An even number of backslashes means the last backslash is an escaped literal '\'.
+func endsWithContinuation(line string) bool {
+	count := 0
+	for i := len(line) - 1; i >= 0 && line[i] == '\\'; i-- {
+		count++
+	}
+	return count%2 == 1
+}
+
 // parseKeyValue 解析单行键值对，支持 = 和 : 分隔符。
 // 值中可以包含 = 或 :，只按第一个分隔符拆分。
 func parseKeyValue(line string) (string, string) {
-	// 找到第一个 = 或 : 的位置
 	eqIdx := strings.Index(line, "=")
 	colonIdx := strings.Index(line, ":")
 
