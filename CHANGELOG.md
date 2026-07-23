@@ -5,6 +5,14 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.8] - 2026-07-22
+### Fixed
+- 修复 `logger` 全局 logger 并发读写 panic（`SetDefault`/`Default` 存在 data race），改用 `atomic.Pointer[Logger]` 保证并发安全。
+- 修复后台 token 自动刷新在并发场景下的竞态问题，避免极端情况下 token 更新不可见或 goroutine 泄漏。
+- 修复 quote client 在 token 刷新后仍使用旧 token 发起请求的问题。新增 `WithSharedTokenFrom(primary)` 选项，构造 quote client 时传入即可共享 token。
+- 修复响应 data 反序列化失败时可能对已部分写入的目标对象继续操作的问题。
+- 修复 properties 配置文件续行（`\`）解析：注释行不再被拼入值，`\\` 不再触发续行。
+
 ## [0.4.7] - 2026-07-13
 
 ### Breaking Changes

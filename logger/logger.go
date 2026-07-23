@@ -1,13 +1,10 @@
 // Package logger 提供日志接口和默认实现。
-//
-// 定义 Logger 接口，支持注入自定义 logger。
-// 默认实现使用标准库 log 包输出到 stderr。
 package logger
 
 import (
-	"fmt"
 	"log"
 	"os"
+	"sync/atomic"
 )
 
 // Level 日志级别
@@ -105,40 +102,27 @@ func (l *NopLogger) SetLevel(level Level)                  {}
 var _ Logger = (*DefaultLogger)(nil)
 var _ Logger = (*NopLogger)(nil)
 
-// 全局默认 logger
-var defaultLogger Logger = NewDefaultLogger()
+// globalLogger stores the global default logger using atomic.Pointer (Go 1.19+).
+// Logger is a two-word interface, so plain assignment is not atomic.
+var globalLogger atomic.Pointer[Logger]
 
-// SetDefault 设置全局默认 logger
-func SetDefault(l Logger) {
-	defaultLogger = l
+func init() {
+	l := Logger(NewDefaultLogger())
+	globalLogger.Store(&l)
 }
 
-// Default 获取全局默认 logger
+// SetDefault 设置全局默认 logger（并发安全）
+func SetDefault(l Logger) {
+	globalLogger.Store(&l)
+}
+
+// Default 获取全局默认 logger（并发安全）
 func Default() Logger {
-	return defaultLogger
+	return *globalLogger.Load()
 }
 
 // 全局便捷方法
-
-// Debugf 输出 DEBUG 级别日志
-func Debugf(msg string, args ...interface{}) {
-	defaultLogger.Debug(msg, args...)
-}
-
-// Infof 输出 INFO 级别日志
-func Infof(msg string, args ...interface{}) {
-	defaultLogger.Info(msg, args...)
-}
-
-// Warnf 输出 WARN 级别日志
-func Warnf(msg string, args ...interface{}) {
-	defaultLogger.Warn(msg, args...)
-}
-
-// Errorf 输出 ERROR 级别日志
-func Errorf(msg string, args ...interface{}) {
-	defaultLogger.Error(msg, args...)
-}
-
-// 确保 fmt 包被使用
-var _ = fmt.Sprintf
+func Debugf(msg string, args ...interface{}) { Default().Debug(msg, args...) }
+func Infof(msg string, args ...interface{})  { Default().Info(msg, args...) }
+func Warnf(msg string, args ...interface{})  { Default().Warn(msg, args...) }
+func Errorf(msg string, args ...interface{}) { Default().Error(msg, args...) }
