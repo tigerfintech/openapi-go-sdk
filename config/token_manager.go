@@ -216,7 +216,11 @@ func (m *TokenManager) StopAutoRefresh() {
 }
 
 func (m *TokenManager) refreshLoopWith(stopCh <-chan struct{}) {
-	ticker := time.NewTicker(m.interval)
+	interval := m.interval
+	if interval <= 0 {
+		interval = defaultTokenRefreshInterval
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
