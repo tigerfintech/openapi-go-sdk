@@ -139,3 +139,119 @@ func IcebergOrder(account, symbol, secType, action string, quantity int64, limit
 		PriceType:     string(PriceTypeLimitPrice),
 	}
 }
+
+// MarketOrderByAmount 构造按金额市价单（以现金金额代替数量下单）
+func MarketOrderByAmount(account, symbol, secType, action string, amount float64) OrderRequest {
+	return OrderRequest{
+		Account:       account,
+		Symbol:        symbol,
+		SecType:       secType,
+		Action:        action,
+		OrderType:     string(OrderTypeMKT),
+		TotalQuantity: 0,
+		Amount:        amount,
+		TimeInForce:   string(TimeInForceDAY),
+	}
+}
+
+// LimitOrderByAmount 构造按金额限价单（以现金金额代替数量下单）
+func LimitOrderByAmount(account, symbol, secType, action string, amount, limitPrice float64) OrderRequest {
+	return OrderRequest{
+		Account:       account,
+		Symbol:        symbol,
+		SecType:       secType,
+		Action:        action,
+		OrderType:     string(OrderTypeLMT),
+		TotalQuantity: 0,
+		Amount:        amount,
+		LimitPrice:    limitPrice,
+		TimeInForce:   string(TimeInForceDAY),
+	}
+}
+
+// TrailOrderByPrice 构造按固定价差跟踪止损单（使用 AuxPrice 而非百分比）
+func TrailOrderByPrice(account, symbol, secType, action string, quantity int64, auxPrice float64) OrderRequest {
+	return OrderRequest{
+		Account:       account,
+		Symbol:        symbol,
+		SecType:       secType,
+		Action:        action,
+		OrderType:     string(OrderTypeTRAIL),
+		TotalQuantity: quantity,
+		AuxPrice:      auxPrice,
+		TimeInForce:   string(TimeInForceDAY),
+	}
+}
+
+// LimitOrderWithLegs 构造限价单 + 附加止盈/止损腿（bracket 单，最多 2 腿）
+func LimitOrderWithLegs(account, symbol, secType, action string, quantity int64, limitPrice float64, orderLegs []OrderLegRequest) OrderRequest {
+	if len(orderLegs) == 0 {
+		panic("LimitOrderWithLegs: at least 1 order leg is required")
+	}
+	if len(orderLegs) > 2 {
+		panic("LimitOrderWithLegs: at most 2 order legs are supported")
+	}
+	return OrderRequest{
+		Account:       account,
+		Symbol:        symbol,
+		SecType:       secType,
+		Action:        action,
+		OrderType:     string(OrderTypeLMT),
+		TotalQuantity: quantity,
+		LimitPrice:    limitPrice,
+		OrderLegs:     orderLegs,
+		TimeInForce:   string(TimeInForceDAY),
+	}
+}
+
+// ComboOrder 构造多腿组合单（MLEG）
+// comboType 通常为 "MLEG"；limitPrice/auxPrice/trailingPercent 按需传入（零值省略）。
+func ComboOrder(account, action, orderType string, quantity int64, contractLegs []ContractLegRequest, comboType string, limitPrice, auxPrice, trailingPercent float64) OrderRequest {
+	req := OrderRequest{
+		Account:       account,
+		SecType:       "MLEG",
+		Action:        action,
+		OrderType:     orderType,
+		TotalQuantity: quantity,
+		ContractLegs:  contractLegs,
+		ComboType:     comboType,
+		TimeInForce:   string(TimeInForceDAY),
+	}
+	if limitPrice != 0 {
+		req.LimitPrice = limitPrice
+	}
+	if auxPrice != 0 {
+		req.AuxPrice = auxPrice
+	}
+	if trailingPercent != 0 {
+		req.TrailingPercent = trailingPercent
+	}
+	return req
+}
+
+// OcaOrder 构造 OCA（One-Cancels-All）单
+func OcaOrder(account, symbol, secType, action string, quantity int64, ocaOrders []*OrderRequest) OrderRequest {
+	return OrderRequest{
+		Account:       account,
+		Symbol:        symbol,
+		SecType:       secType,
+		Action:        action,
+		OrderType:     string(OrderTypeOCA),
+		TotalQuantity: quantity,
+		OcaOrders:     ocaOrders,
+		TimeInForce:   string(TimeInForceDAY),
+	}
+}
+
+// NewContractLeg 构造多腿组合单的子腿
+func NewContractLeg(symbol, secType, action string, ratio int, expiry, strike, right string) ContractLegRequest {
+	return ContractLegRequest{
+		Symbol:  symbol,
+		SecType: secType,
+		Action:  action,
+		Ratio:   &ratio,
+		Expiry:  expiry,
+		Strike:  strike,
+		Right:   right,
+	}
+}

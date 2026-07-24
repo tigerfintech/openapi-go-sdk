@@ -202,6 +202,7 @@ type OrderRequest struct {
 	// 按金额下单：委托金额
 	Amount float64 `json:"amount,omitempty"`
 	// 是否按金额下单
+	// Deprecated: 服务端不再需要此字段，by-amount 订单直接设置 Amount。新代码勿使用。
 	IsQuantityByAmount *bool `json:"is_quantity_by_amount,omitempty"`
 	// 账户分配列表（机构账户）
 	AllocAccounts []string `json:"alloc_accounts,omitempty"`
@@ -227,6 +228,8 @@ type OrderRequest struct {
 	OcaOrders []*OrderRequest `json:"oca_orders,omitempty"`
 	// 多腿期权各腿（MLEG）
 	ContractLegs []ContractLegRequest `json:"contract_legs,omitempty"`
+	// 组合单类型（如 MLEG）
+	ComboType string `json:"combo_type,omitempty"`
 }
 
 // ContractLegRequest 多腿期权单腿定义（MLEG 子腿，对应 Java ContractLeg）
