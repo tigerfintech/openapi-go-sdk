@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `IsQuantityByAmount` 标记为废弃（by-amount 订单直接设置 `Amount`）
 
-
+## [0.4.9] - 2026-07-23
 
 ### Added
 - `GetCorporateSymbolChange` — 股票代码变更查询
