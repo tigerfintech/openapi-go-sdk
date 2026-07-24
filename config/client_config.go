@@ -127,6 +127,12 @@ func WithDeviceID(id string) Option {
 	return func(c *ClientConfig) { c.DeviceID = id }
 }
 
+// WithTigerPublicKey overrides the Tiger server public key used for response signature verification.
+// Use this when connecting to non-production environments (e.g. QA/sandbox).
+func WithTigerPublicKey(key string) Option {
+	return func(c *ClientConfig) { c.TigerPublicKey = key }
+}
+
 // WithServerURL sets a dedicated trade/common server URL (overrides the default production gateway).
 func WithServerURL(url string) Option {
 	return func(c *ClientConfig) { c.ServerURL = url }
