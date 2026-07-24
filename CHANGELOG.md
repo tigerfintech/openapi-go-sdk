@@ -5,7 +5,20 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.9] - 2026-07-23
+## [0.5.0] - 2026-07-24
+
+### Added
+- 订单工具函数：新增 `MarketOrderByAmount`、`LimitOrderByAmount`、`TrailOrderByPrice`、`LimitOrderWithLegs`、`ComboOrder`、`OcaOrder`、`NewContractLeg`
+- `OrderRequest` 新增 `ComboType` 字段
+- `WithTigerPublicKey` 配置选项，支持非生产环境公钥覆盖
+
+### Fixed
+- `TokenManager.refreshLoopWith`：interval ≤ 0 时回退到默认值，防止 `time.NewTicker(0)` panic
+
+### Changed
+- `IsQuantityByAmount` 标记为废弃（by-amount 订单直接设置 `Amount`）
+
+
 
 ### Added
 - `GetCorporateSymbolChange` — 股票代码变更查询
