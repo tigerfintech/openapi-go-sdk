@@ -1,5 +1,7 @@
 package model
 
+import "fmt"
+
 // MarketOrder 构造市价单
 func MarketOrder(account, symbol, secType, action string, quantity int64) OrderRequest {
 	return OrderRequest{
@@ -183,13 +185,14 @@ func TrailOrderByPrice(account, symbol, secType, action string, quantity int64, 
 	}
 }
 
-// LimitOrderWithLegs 构造限价单 + 附加止盈/止损腿（bracket 单，最多 2 腿）
-func LimitOrderWithLegs(account, symbol, secType, action string, quantity int64, limitPrice float64, orderLegs []OrderLegRequest) OrderRequest {
+// LimitOrderWithLegs 构造限价单 + 附加止盈/止损腿（bracket 单，最多 2 腿）。
+// 返回 error 当 orderLegs 为空或超过 2 条。
+func LimitOrderWithLegs(account, symbol, secType, action string, quantity int64, limitPrice float64, orderLegs []OrderLegRequest) (OrderRequest, error) {
 	if len(orderLegs) == 0 {
-		panic("LimitOrderWithLegs: at least 1 order leg is required")
+		return OrderRequest{}, fmt.Errorf("LimitOrderWithLegs: at least 1 order leg is required")
 	}
 	if len(orderLegs) > 2 {
-		panic("LimitOrderWithLegs: at most 2 order legs are supported")
+		return OrderRequest{}, fmt.Errorf("LimitOrderWithLegs: at most 2 order legs are supported (got %d)", len(orderLegs))
 	}
 	return OrderRequest{
 		Account:       account,
@@ -201,7 +204,7 @@ func LimitOrderWithLegs(account, symbol, secType, action string, quantity int64,
 		LimitPrice:    limitPrice,
 		OrderLegs:     orderLegs,
 		TimeInForce:   string(TimeInForceDAY),
-	}
+	}, nil
 }
 
 // ComboOrder 构造多腿组合单（MLEG）

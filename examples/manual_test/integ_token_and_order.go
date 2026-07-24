@@ -31,7 +31,7 @@ func main() {
 		cfg.TigerID, cfg.Account,
 		func() string {
 			if cfg.SecretKey != "" {
-				return cfg.SecretKey[:8] + "..."
+				return "(set)"
 			}
 			return "(none)"
 		}())
@@ -42,9 +42,9 @@ func main() {
 	// ── 1. secret_key 注入验证 ─────────────────────────────────────────────
 	if cfg.SecretKey != "" {
 		if hc.SecretKey() == cfg.SecretKey {
-			pass("SecretKey injected into HttpClient", cfg.SecretKey[:8]+"...")
+			pass("SecretKey injected into HttpClient", "(set)")
 		} else {
-			fail("SecretKey mismatch", hc.SecretKey())
+			fail("SecretKey mismatch", "injected key differs from config")
 		}
 	} else {
 		info("SecretKey", "(not set in config, skipping injection check)")
@@ -56,7 +56,11 @@ func main() {
 		if err != nil {
 			info("QueryToken", "failed: "+err.Error())
 		} else {
-			pass("QueryToken", fmt.Sprintf("len=%d prefix=%s", len(newToken), newToken[:20]))
+			prefix := newToken
+			if len(prefix) > 20 {
+				prefix = prefix[:20]
+			}
+			pass("QueryToken", fmt.Sprintf("len=%d prefix=%s", len(newToken), prefix))
 			// Sync new token for next call
 			cfg.Token = newToken
 		}
@@ -119,7 +123,10 @@ func main() {
 	}
 
 	legs := []model.OrderLegRequest{model.NewOrderLeg("PROFIT", 300.0, "GTC")}
-	lwl := model.LimitOrderWithLegs(cfg.Account, "AAPL", "STK", "BUY", 1, 1.0, legs)
+	lwl, err := model.LimitOrderWithLegs(cfg.Account, "AAPL", "STK", "BUY", 1, 1.0, legs)
+	if err != nil {
+		fail("LimitOrderWithLegs", err.Error())
+	}
 	if len(lwl.OrderLegs) == 1 && lwl.LimitPrice == 1.0 {
 		pass("LimitOrderWithLegs", fmt.Sprintf("legs=%d LimitPrice=%.2f", len(lwl.OrderLegs), lwl.LimitPrice))
 	} else {
@@ -137,7 +144,10 @@ func main() {
 	if cfg.SecretKey != "" {
 		fmt.Println("\n--- Real placeOrder with secret_key ---")
 		tc := trade.NewTradeClientFromConfig(cfg)
-		order := model.LimitOrderWithLegs(cfg.Account, "AAPL", "STK", "BUY", 1, 1.00, legs)
+		order, err := model.LimitOrderWithLegs(cfg.Account, "AAPL", "STK", "BUY", 1, 1.00, legs)
+		if err != nil {
+			fail("LimitOrderWithLegs (for place)", err.Error())
+		}
 		order.Market = "US"
 		order.Currency = "USD"
 		placed, err := tc.PlaceOrder(order)
