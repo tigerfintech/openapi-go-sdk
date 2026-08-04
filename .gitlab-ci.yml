@@ -1,30 +1,40 @@
 # Two-stage pipeline: unit (no credentials) / integration (real API).
 # Mirrors the Python and Java SDK pipelines.
-# Unit stage does NOT inject any credential variables.
+#
+# Note: the default runner is a shell executor (v004.alihy.platform.tiger)
+# that ignores the `image:` directive and has no Go toolchain preinstalled,
+# so we download a self-contained Go tarball in before_script. Java pipelines
+# succeed on the same runner because jdk/maven are preinstalled there.
+#
+# Integration credentials: TIGEROPEN_TIGER_ID, TIGEROPEN_PRIVATE_KEY,
+# TIGEROPEN_ACCOUNT env vars set in GitLab CI Variables (Protected + Masked).
 
 stages:
   - unit
   - integration
 
-# Integration credentials: TIGEROPEN_TIGER_ID, TIGEROPEN_PRIVATE_KEY,
-# TIGEROPEN_ACCOUNT env vars set in GitLab CI Variables (Protected + Masked).
-
-.go_base:
-  image: golang:1.20
-  cache:
-    key: go-mod
-    paths:
-      - .go-mod-cache/
-  variables:
-    GOPATH: $CI_PROJECT_DIR/.go
-  before_script:
-    - mkdir -p .go
-    - go version
-    - go env GOMODCACHE
+.go_setup: &go_setup
+  - |
+    GO_VERSION=1.20.14
+    ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+    if command -v go >/dev/null 2>&1; then
+      echo "Using preinstalled go: $(go version)"
+    else
+      echo "Installing go ${GO_VERSION} linux/${ARCH}"
+      curl -sSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" -o /tmp/go.tar.gz
+      tar -C /tmp -xzf /tmp/go.tar.gz
+      export PATH="/tmp/go/bin:${PATH}"
+    fi
+  - export GOPATH="${CI_PROJECT_DIR}/.go"
+  - export GOMODCACHE="${CI_PROJECT_DIR}/.go/pkg/mod"
+  - export GOFLAGS="-mod=mod"
+  - go version
+  - go env GOMODCACHE
 
 unit:go:
-  extends: .go_base
   stage: unit
+  before_script:
+    - *go_setup
   script:
     - go vet ./...
     - go test -race -count=1 -coverprofile=coverage.out -covermode=atomic ./...
@@ -37,11 +47,12 @@ unit:go:
     expire_in: 1 week
 
 integration:go:
-  extends: .go_base
   stage: integration
   allow_failure: true
   variables:
     TIGER_RUN_INTEG: "true"
+  before_script:
+    - *go_setup
   script:
     - go test -tags=integration -count=1 -v ./quote/ ./trade/
   artifacts:
