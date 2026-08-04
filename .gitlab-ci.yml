@@ -1,0 +1,51 @@
+# Two-stage pipeline: unit (no credentials) / integration (real API).
+# Mirrors the Python and Java SDK pipelines.
+# Unit stage does NOT inject any credential variables.
+
+stages:
+  - unit
+  - integration
+
+# Integration credentials: TIGEROPEN_TIGER_ID, TIGEROPEN_PRIVATE_KEY,
+# TIGEROPEN_ACCOUNT env vars set in GitLab CI Variables (Protected + Masked).
+
+.go_base:
+  image: golang:1.20
+  cache:
+    key: go-mod
+    paths:
+      - .go-mod-cache/
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+  before_script:
+    - mkdir -p .go
+    - go version
+    - go env GOMODCACHE
+
+unit:go:
+  extends: .go_base
+  stage: unit
+  script:
+    - go vet ./...
+    - go test -race -count=1 -coverprofile=coverage.out -covermode=atomic ./...
+    - go tool cover -func=coverage.out | tail -1
+  coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  artifacts:
+    when: always
+    paths:
+      - coverage.out
+    expire_in: 1 week
+
+integration:go:
+  extends: .go_base
+  stage: integration
+  allow_failure: true
+  variables:
+    TIGER_RUN_INTEG: "true"
+  script:
+    - go test -tags=integration -count=1 -v ./quote/ ./trade/
+  artifacts:
+    when: always
+    paths:
+      - coverage.out
+    expire_in: 1 week

@@ -143,7 +143,7 @@ func main() {
 			// Verify option_filter and return_greek_value — reuse expiry from chain response
 			trueVal := true
 			if filtered, err := qc.GetOptionChainByReq(model.OptionChainRequest{
-				OptionBasic:      []map[string]interface{}{{"symbol": chain[0].Symbol, "expiry": chain[0].Expiry}},
+				OptionBasic:      []model.OptionQueryItem{{Symbol: chain[0].Symbol, Expiry: chain[0].Expiry}},
 				ReturnGreekValue: &trueVal,
 				OptionFilter: &model.OptionChainFilter{
 					InTheMoney:        func() *bool { f := false; return &f }(),
