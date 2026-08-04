@@ -9,6 +9,13 @@
 # Integration credentials: TIGEROPEN_TIGER_ID, TIGEROPEN_PRIVATE_KEY,
 # TIGEROPEN_ACCOUNT env vars set in GitLab CI Variables (Protected + Masked).
 
+variables:
+  # The Go module cache is written read-only. When GOPATH ever landed in
+  # the project dir (older pipelines) the leftover .go/ is untracked and
+  # breaks `git clean` with "Permission denied". Exclude it so clean does
+  # not abort get_sources before checkout runs.
+  GIT_CLEAN_FLAGS: "-ff -e .go/"
+
 stages:
   - unit
   - integration
