@@ -30,15 +30,18 @@ stages:
       echo "Installing go ${GO_VERSION} linux/${ARCH}"
       TARBALL="go${GO_VERSION}.linux-${ARCH}.tar.gz"
       # Aliyun mirror first (reliable from domestic runner), fallback to go.dev.
-      curl -sSL --retry 3 "https://mirrors.aliyun.com/golang/${TARBALL}" -o /tmp/go.tar.gz \
-        || curl -sSL --retry 3 "https://go.dev/dl/${TARBALL}" -o /tmp/go.tar.gz
+      # --fail so a soft-404 / HTML error page triggers the fallback instead of
+      # leaving a bogus tarball for `tar` to choke on.
+      curl --fail -sSL --retry 3 "https://mirrors.aliyun.com/golang/${TARBALL}" -o /tmp/go.tar.gz \
+        || curl --fail -sSL --retry 3 "https://go.dev/dl/${TARBALL}" -o /tmp/go.tar.gz
       tar -C /tmp -xzf /tmp/go.tar.gz
       export PATH="/tmp/go/bin:${PATH}"
     fi
   - export GOPATH="/tmp/go-${CI_PIPELINE_ID}"
   - export GOMODCACHE="${GOPATH}/pkg/mod"
-  - export GOFLAGS="-mod=mod"
+  - export GOFLAGS="-mod=readonly"
   - export GOPROXY="https://goproxy.cn,direct"
+  - export GOSUMDB=off
   - go version
   - go env GOMODCACHE
 

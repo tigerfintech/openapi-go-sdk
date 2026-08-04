@@ -65,8 +65,16 @@ func hasCreds() bool {
 // priority. When TIGEROPEN_PROPS_PATH points at a properties file, it is
 // loaded via WithPropertiesFile, which also disables ./ auto-discovery so
 // local dev configs cannot leak into CI runs.
+//
+// Skips only when credentials are absent. A malformed properties file or
+// invalid key is a real configuration error and must fail, not skip — otherwise
+// the integration job would report success while having run nothing.
 func NewConfig(t testing.TB) *config.ClientConfig {
 	t.Helper()
+	if !hasCreds() {
+		t.Skipf("skipped: no credentials — set %s/%s/%s env vars or %s",
+			envTigerID, envPrivateKey, envAccount, envPropsPath)
+	}
 
 	opts := []config.Option{config.WithServerURL(serverURL())}
 	if propsPath := os.Getenv(envPropsPath); propsPath != "" {
@@ -74,7 +82,7 @@ func NewConfig(t testing.TB) *config.ClientConfig {
 	}
 	cfg, err := config.NewClientConfig(opts...)
 	if err != nil {
-		t.Skipf("integration credentials unavailable: %v", err)
+		t.Fatalf("build integ config: %v", err)
 	}
 	return cfg
 }
