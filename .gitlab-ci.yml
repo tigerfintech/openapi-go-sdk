@@ -51,13 +51,7 @@ unit:go:
     - *go_setup
   script:
     - go vet ./...
-    - |
-      set -o pipefail
-      go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... 2>&1 | tee /tmp/unit.log
-      P=$(grep -c '^--- PASS' /tmp/unit.log || true)
-      F=$(grep -c '^--- FAIL' /tmp/unit.log || true)
-      S=$(grep -c '^--- SKIP' /tmp/unit.log || true)
-      echo "TEST_REPORT unit passed=$P failed=$F skipped=$S"
+    - go test -race -count=1 -coverprofile=coverage.out -covermode=atomic ./...
     - go tool cover -func=coverage.out | tail -1
   coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
   artifacts:
@@ -74,13 +68,7 @@ integration:go:
   before_script:
     - *go_setup
   script:
-    - |
-      set -o pipefail
-      go test -tags=integration -count=1 -v ./quote/ ./trade/ 2>&1 | tee /tmp/integ.log
-      P=$(grep -c '^--- PASS' /tmp/integ.log || true)
-      F=$(grep -c '^--- FAIL' /tmp/integ.log || true)
-      S=$(grep -c '^--- SKIP' /tmp/integ.log || true)
-      echo "TEST_REPORT integration passed=$P failed=$F skipped=$S"
+    - go test -tags=integration -count=1 -v ./quote/ ./trade/
   artifacts:
     when: always
     paths:
@@ -104,34 +92,27 @@ notify:webhook:
       fi
       TITLE="✅ Pipeline passed"
       COLOR="green"
+      FAILED_JOBS=""
       if [ "$CI_PIPELINE_STATUS" = "failed" ]; then
         TITLE="❌ Pipeline failed"
         COLOR="red"
-      fi
-      # Pull per-job test stats from the unit/integration job traces via the
-      # GitLab API (using the job token). Each test job echoes a
-      # "TEST_REPORT <stage> passed=N failed=M skipped=K" line at the end.
-      STATS=""
-      API="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}"
-      JOBS_JSON=$(curl -sS --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${API}/pipelines/${CI_PIPELINE_ID}/jobs" 2>/dev/null || true)
-      for jid in $(printf '%s' "$JOBS_JSON" | python3 -c "import sys,json
+        API="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}"
+        JOBS_JSON=$(curl -sS --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${API}/pipelines/${CI_PIPELINE_ID}/jobs" 2>/dev/null || echo "[]")
+        # List jobs that actually failed the pipeline (allow_failure jobs that
+        # soft-fail don't block). jobs API returns name + status only, no trace
+        # content, so no sensitive data leaves the pipeline.
+        FAILED_JOBS=$(printf '%s' "$JOBS_JSON" | python3 -c "import sys,json
       try:
-        for j in json.load(sys.stdin):
-          if j['name'] in ('unit:go','integration:go'):
-            print(j['id'])
+        js=json.load(sys.stdin)
+        failed=[j['name'] for j in js if j.get('status')=='failed' and not j.get('allow_failure')]
+        print(', '.join(failed))
       except Exception:
-        pass" 2>/dev/null); do
-        tr=$(curl -sS --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${API}/jobs/${jid}/trace" 2>/dev/null || true)
-        line=$(printf '%s' "$tr" | grep '^TEST_REPORT ' | tail -1 || true)
-        if [ -n "$line" ]; then
-          stage=$(echo "$line" | awk '{print $2}')
-          stats=$(echo "$line" | sed 's/^TEST_REPORT [^ ]* //')
-          STATS="${STATS}**${stage}:** ${stats}\n"
-        fi
-      done
+        print('')
+      " 2>/dev/null)
+      fi
       CONTENT="**Repo:** ${CI_PROJECT_NAME}\n**Branch:** ${CI_COMMIT_REF_NAME}\n**Commit:** ${CI_COMMIT_SHORT_SHA}\n"
-      if [ -n "$STATS" ]; then
-        CONTENT="${CONTENT}\n**Test results:**\n${STATS}"
+      if [ -n "$FAILED_JOBS" ]; then
+        CONTENT="${CONTENT}\n**Failed jobs:** ${FAILED_JOBS}\n"
       fi
       CONTENT="${CONTENT}[View pipeline](${CI_PROJECT_URL}/-/pipelines/${CI_PIPELINE_ID})"
       PAYLOAD=$(cat <<EOF
