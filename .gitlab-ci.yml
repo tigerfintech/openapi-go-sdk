@@ -28,7 +28,10 @@ stages:
       echo "Using preinstalled go: $(go version)"
     else
       echo "Installing go ${GO_VERSION} linux/${ARCH}"
-      curl -sSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" -o /tmp/go.tar.gz
+      TARBALL="go${GO_VERSION}.linux-${ARCH}.tar.gz"
+      # Aliyun mirror first (reliable from domestic runner), fallback to go.dev.
+      curl -sSL --retry 3 "https://mirrors.aliyun.com/golang/${TARBALL}" -o /tmp/go.tar.gz \
+        || curl -sSL --retry 3 "https://go.dev/dl/${TARBALL}" -o /tmp/go.tar.gz
       tar -C /tmp -xzf /tmp/go.tar.gz
       export PATH="/tmp/go/bin:${PATH}"
     fi
