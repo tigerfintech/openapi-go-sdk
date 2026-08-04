@@ -25,8 +25,8 @@ stages:
       tar -C /tmp -xzf /tmp/go.tar.gz
       export PATH="/tmp/go/bin:${PATH}"
     fi
-  - export GOPATH="${CI_PROJECT_DIR}/.go"
-  - export GOMODCACHE="${CI_PROJECT_DIR}/.go/pkg/mod"
+  - export GOPATH="/tmp/go-${CI_PIPELINE_ID}"
+  - export GOMODCACHE="${GOPATH}/pkg/mod"
   - export GOFLAGS="-mod=mod"
   - export GOPROXY="https://goproxy.cn,direct"
   - go version

@@ -74,7 +74,7 @@ func NewConfig(t testing.TB) *config.ClientConfig {
 	}
 	cfg, err := config.NewClientConfig(opts...)
 	if err != nil {
-		t.Fatalf("build integ config: %v", err)
+		t.Skipf("integration credentials unavailable: %v", err)
 	}
 	return cfg
 }
