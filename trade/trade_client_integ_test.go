@@ -13,6 +13,7 @@
 package trade_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -137,6 +138,479 @@ func TestIntegGetActiveOrders(t *testing.T) {
 		}
 		if o.Status == "" {
 			t.Errorf("ActiveOrder[%d].Status is empty, want non-empty", i)
+		}
+	}
+}
+
+// ============================================================================
+// Additional trade integration tests — covering all remaining public methods.
+// Write operations (PlaceOrder/ModifyOrder/CancelOrder/TransferSegmentFund/
+// CancelSegmentFund/PlaceForexOrder/OptionExerciseSubmit/OptionExerciseCancel/
+// TransferPosition) are skipped; only PreviewOrder and read-only methods are tested.
+// ============================================================================
+
+func TestIntegContract3(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.Contract3("AAPL", "STK")
+	if err != nil {
+		t.Fatalf("Contract3: %v", err)
+	}
+	if data == nil {
+		t.Fatal("Contract3 returned nil")
+	}
+	if data.Symbol != "AAPL" {
+		t.Errorf("Contract.Symbol = %q, want AAPL", data.Symbol)
+	}
+	if data.Currency == "" {
+		t.Errorf("Contract.Currency is empty, want non-empty")
+	}
+}
+
+func TestIntegContracts(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.Contracts([]string{"AAPL"}, "STK")
+	if err != nil {
+		t.Fatalf("Contracts: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("Contracts returned empty for AAPL")
+	}
+	if data[0].Symbol != "AAPL" {
+		t.Errorf("Contract.Symbol = %q, want AAPL", data[0].Symbol)
+	}
+}
+
+func TestIntegQuoteContract(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	// QuoteContract requires derivative sec types (OPT/WAR/IOPT) and an expiry.
+	// Fetch a valid option expiry from the quote client.
+	qc := integtest.NewQuoteClient(t)
+	exps, err := qc.GetOptionExpiration([]string{"AAPL"})
+	if err != nil || len(exps) == 0 || len(exps[0].Dates) == 0 {
+		t.Skipf("no option expiration for AAPL: err=%v", err)
+	}
+	// Convert "2024-01-19" to "20240119" for the trade API.
+	expiry := strings.ReplaceAll(exps[0].Dates[0], "-", "")
+
+	data, err := tc.QuoteContract("AAPL", "OPT", expiry)
+	if err != nil {
+		t.Fatalf("QuoteContract: %v", err)
+	}
+	// May return empty if no matching contracts.
+	_ = data
+}
+
+func TestIntegPreviewOrder(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	// PreviewOrder sends a preview request (no actual order placed).
+	result, err := tc.PreviewOrder(model.OrderRequest{
+		Symbol:        "AAPL",
+		SecType:       "STK",
+		Action:        "BUY",
+		OrderType:     "MKT",
+		TotalQuantity: 1,
+		Currency:      "USD",
+		Market:        "US",
+	})
+	if err != nil {
+		t.Fatalf("PreviewOrder: %v", err)
+	}
+	if result == nil {
+		t.Fatal("PreviewOrder returned nil")
+	}
+	// isPass may be false for accounts without sufficient buying power,
+	// but the call itself should succeed.
+}
+
+func TestIntegGetOrder(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	// Get an order ID from the orders list first.
+	now := time.Now()
+	orders, err := tc.Orders(model.OrdersRequest{
+		StartDate: now.AddDate(0, 0, -30).UnixMilli(),
+		EndDate:   now.UnixMilli(),
+		Limit:     1,
+	})
+	if err != nil {
+		t.Fatalf("Orders prerequisite: %v", err)
+	}
+	if len(orders) == 0 {
+		t.Skip("no orders in last 30 days to test GetOrder")
+	}
+
+	order, err := tc.GetOrder(model.GetOrderRequest{Id: orders[0].ID})
+	if err != nil {
+		t.Fatalf("GetOrder: %v", err)
+	}
+	if order == nil {
+		t.Fatal("GetOrder returned nil for existing order ID")
+	}
+	if order.ID != orders[0].ID {
+		t.Errorf("Order.ID = %v, want %v", order.ID, orders[0].ID)
+	}
+}
+
+func TestIntegOrderTransactions(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	now := time.Now()
+	data, err := tc.OrderTransactions(model.OrderTransactionsRequest{
+		StartDate: now.AddDate(0, 0, -30).UnixMilli(),
+		EndDate:   now.UnixMilli(),
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("OrderTransactions: %v", err)
+	}
+	// Transactions may be empty if no trades in last 30 days.
+	for i, tr := range data {
+		if tr.OrderID == 0 {
+			t.Errorf("Transaction[%d].OrderID = 0, want non-zero", i)
+		}
+		if tr.Symbol == "" {
+			t.Errorf("Transaction[%d].Symbol is empty, want non-empty", i)
+		}
+	}
+}
+
+func TestIntegPrimeAssets(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.PrimeAssets(model.AssetsRequest{})
+	if err != nil {
+		t.Fatalf("PrimeAssets: %v", err)
+	}
+	if data == nil {
+		t.Skip("PrimeAssets returned nil (may not be a prime account)")
+	}
+	if data.AccountID == "" {
+		t.Errorf("PrimeAsset.AccountID is empty, want non-empty")
+	}
+}
+
+func TestIntegInactiveOrders(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.InactiveOrders(model.OrdersRequest{})
+	if err != nil {
+		t.Fatalf("InactiveOrders: %v", err)
+	}
+	for i, o := range data {
+		if o.ID == 0 {
+			t.Errorf("InactiveOrder[%d].ID = 0, want non-zero", i)
+		}
+		if o.Symbol == "" {
+			t.Errorf("InactiveOrder[%d].Symbol is empty, want non-empty", i)
+		}
+	}
+}
+
+func TestIntegFilledOrders(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	now := time.Now()
+	data, err := tc.FilledOrders(model.OrdersRequest{
+		StartDate: now.AddDate(0, 0, -30).UnixMilli(),
+		EndDate:   now.UnixMilli(),
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("FilledOrders: %v", err)
+	}
+	for i, o := range data {
+		if o.ID == 0 {
+			t.Errorf("FilledOrder[%d].ID = 0, want non-zero", i)
+		}
+		if o.Status == "" {
+			t.Errorf("FilledOrder[%d].Status is empty, want non-empty", i)
+		}
+	}
+}
+
+func TestIntegManagedAccounts(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.ManagedAccounts(model.ManagedAccountsRequest{})
+	if err != nil {
+		t.Fatalf("ManagedAccounts: %v", err)
+	}
+	// May be empty for individual accounts.
+	for i, a := range data {
+		if a.Account == "" {
+			t.Errorf("ManagedAccount[%d].Account is empty, want non-empty", i)
+		}
+	}
+}
+
+func TestIntegDerivativeContracts(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.DerivativeContracts(model.DerivativeContractsRequest{
+		Symbols: []string{"AAPL"},
+		SecType: "OPT",
+	})
+	if err != nil {
+		t.Fatalf("DerivativeContracts: %v", err)
+	}
+	// May be empty if no option contracts available.
+	_ = data
+}
+
+func TestIntegAnalyticsAsset(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	now := time.Now()
+	data, err := tc.AnalyticsAsset(model.AnalyticsAssetRequest{
+		StartDate: now.AddDate(0, 0, -7).Format("2006-01-02"),
+		EndDate:   now.Format("2006-01-02"),
+	})
+	if err != nil {
+		t.Fatalf("AnalyticsAsset: %v", err)
+	}
+	// May be empty for new accounts.
+	for i, a := range data {
+		if a.Date == "" {
+			t.Errorf("AnalyticsAsset[%d].Date is empty, want non-empty", i)
+		}
+	}
+}
+
+func TestIntegAggregateAssets(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.AggregateAssets(model.AggregateAssetsRequest{})
+	if err != nil {
+		t.Fatalf("AggregateAssets: %v", err)
+	}
+	if data == nil {
+		t.Skip("AggregateAssets returned nil")
+	}
+	if data.AccountID == "" {
+		t.Errorf("AggregateAssets.AccountID is empty, want non-empty")
+	}
+}
+
+func TestIntegEstimateTradableQuantity(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.EstimateTradableQuantity(model.EstimateTradableQuantityRequest{
+		Symbol:    "AAPL",
+		SecType:   "STK",
+		Action:    "BUY",
+		OrderType: "MKT",
+	})
+	if err != nil {
+		t.Fatalf("EstimateTradableQuantity: %v", err)
+	}
+	if data == nil {
+		t.Fatal("EstimateTradableQuantity returned nil")
+	}
+	if data.Currency == "" {
+		t.Errorf("EstimateTradableQuantity.Currency is empty, want non-empty")
+	}
+}
+
+func TestIntegSegmentFundAvailable(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.SegmentFundAvailable(model.SegmentFundRequest{})
+	if err != nil {
+		t.Fatalf("SegmentFundAvailable: %v", err)
+	}
+	// May be empty for non-segment accounts.
+	_ = data
+}
+
+func TestIntegSegmentFundHistory(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.SegmentFundHistory(model.SegmentFundRequest{Limit: 5})
+	if err != nil {
+		t.Fatalf("SegmentFundHistory: %v", err)
+	}
+	// May be empty if no transfers.
+	_ = data
+}
+
+func TestIntegFundDetails(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	now := time.Now()
+	data, err := tc.FundDetails(model.FundDetailsRequest{
+		StartDate: now.AddDate(0, 0, -30).UnixMilli(),
+		EndDate:   now.UnixMilli(),
+		Limit:     5,
+	})
+	if err != nil {
+		t.Fatalf("FundDetails: %v", err)
+	}
+	// May be empty.
+	for i, f := range data {
+		if f.Account == "" {
+			t.Errorf("FundDetails[%d].Account is empty, want non-empty", i)
+		}
+	}
+}
+
+func TestIntegFundingHistory(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.FundingHistory(model.FundingHistoryRequest{})
+	if err != nil {
+		t.Fatalf("FundingHistory: %v", err)
+	}
+	// May be empty.
+	_ = data
+}
+
+func TestIntegPositionTransferRecords(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	now := time.Now()
+	data, err := tc.PositionTransferRecords(model.PositionTransferRecordsRequest{
+		SinceDate: now.AddDate(0, -3, 0).Format("2006-01-02"),
+		ToDate:    now.Format("2006-01-02"),
+	})
+	if err != nil {
+		t.Fatalf("PositionTransferRecords: %v", err)
+	}
+	// May be empty if no transfers.
+	_ = data
+}
+
+func TestIntegPositionTransferExternalRecords(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	now := time.Now()
+	data, err := tc.PositionTransferExternalRecords(model.PositionTransferExternalRecordsRequest{
+		SinceDate: now.AddDate(0, -3, 0).Format("2006-01-02"),
+		ToDate:    now.Format("2006-01-02"),
+	})
+	if err != nil {
+		t.Fatalf("PositionTransferExternalRecords: %v", err)
+	}
+	// May be empty.
+	_ = data
+}
+
+func TestIntegPositionTransferDetail(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	// PositionTransferDetail requires a valid transfer record ID.
+	// Fetch records first; skip if none exist.
+	now := time.Now()
+	records, err := tc.PositionTransferRecords(model.PositionTransferRecordsRequest{
+		SinceDate: now.AddDate(0, -3, 0).Format("2006-01-02"),
+		ToDate:    now.Format("2006-01-02"),
+	})
+	if err != nil {
+		t.Fatalf("PositionTransferRecords prerequisite: %v", err)
+	}
+	if len(records) == 0 {
+		t.Skip("no position transfer records to test PositionTransferDetail")
+	}
+	detail, err := tc.PositionTransferDetail(model.PositionTransferDetailRequest{
+		ID:        records[0].ID,
+		AccountID: records[0].FromAccount,
+	})
+	if err != nil {
+		t.Fatalf("PositionTransferDetail: %v", err)
+	}
+	if detail == nil {
+		t.Fatal("PositionTransferDetail returned nil for existing record ID")
+	}
+	if detail.ID == "" {
+		t.Errorf("PositionTransferDetail.ID is empty, want non-empty")
+	}
+}
+
+func TestIntegOptionExerciseCheck(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	// OptionExerciseCheck requires a valid option contract ID.
+	// Fetch exercisable positions first; skip if none exist.
+	positions, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{})
+	if err != nil || positions == nil || positions.ItemCount == 0 || len(positions.Items) == 0 {
+		t.Skipf("no exercisable positions: err=%v", err)
+	}
+	contractId := positions.Items[0].ContractId
+	result, err := tc.OptionExerciseCheck(model.OptionExerciseCheckRequest{
+		ContractId: contractId,
+		Type:       "Exercise",
+		Quantity:   1,
+	})
+	if err != nil {
+		t.Fatalf("OptionExerciseCheck: %v", err)
+	}
+	if result == nil {
+		t.Fatal("OptionExerciseCheck returned nil")
+	}
+	if result.Symbol == "" {
+		t.Errorf("OptionExerciseCheckResult.Symbol is empty, want non-empty")
+	}
+}
+
+func TestIntegOptionExercisePositions(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{})
+	if err != nil {
+		t.Fatalf("OptionExercisePositions: %v", err)
+	}
+	if data == nil {
+		t.Fatal("OptionExercisePositions returned nil")
+	}
+	// May have no exercisable positions.
+	if data.ItemCount > 0 && len(data.Items) > 0 {
+		if data.Items[0].Symbol == "" {
+			t.Errorf("OptionExercisePosition.Symbol is empty, want non-empty")
+		}
+	}
+}
+
+func TestIntegOptionExerciseRecords(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.OptionExerciseRecords(model.OptionExercisePageRequest{})
+	if err != nil {
+		t.Fatalf("OptionExerciseRecords: %v", err)
+	}
+	if data == nil {
+		t.Fatal("OptionExerciseRecords returned nil")
+	}
+	// May have no exercise records.
+	if data.ItemCount > 0 && len(data.Items) > 0 {
+		if data.Items[0].Symbol == "" {
+			t.Errorf("OptionExerciseRecord.Symbol is empty, want non-empty")
 		}
 	}
 }
