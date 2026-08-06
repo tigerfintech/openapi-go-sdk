@@ -1,7 +1,7 @@
 # Two-stage pipeline: unit (no credentials) / integration (real API).
 # Mirrors the Python and Java SDK pipelines.
 #
-# Note: the default runner is a shell executor (v004.alihy.platform.tiger)
+# Note: the default runner is a shell executor 
 # that ignores the `image:` directive and has no Go toolchain preinstalled,
 # so we download a self-contained Go tarball in before_script. Java pipelines
 # succeed on the same runner because jdk/maven are preinstalled there.
