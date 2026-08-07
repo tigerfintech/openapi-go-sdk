@@ -38,7 +38,7 @@ stages:
     fi
   - export GOPATH="/tmp/go-${CI_PIPELINE_ID}"
   - export GOMODCACHE="${GOPATH}/pkg/mod"
-  - export GOFLAGS="-mod=readonly"
+  - export GOFLAGS="-mod=mod"
   - export GOPROXY="https://goproxy.cn,direct"
   - export GOSUMDB=off
   - export PATH="${GOPATH}/bin:${PATH}"
@@ -52,6 +52,10 @@ unit:go:
   stage: unit
   before_script:
     - *go_setup
+  cache:
+    key: go-modules
+    paths:
+      - /tmp/go-*/pkg/mod/
   script:
     - |
       mkdir -p test-results
