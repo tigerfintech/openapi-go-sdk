@@ -12,6 +12,7 @@ package quote_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/tigerfintech/openapi-go-sdk/integtest"
 	"github.com/tigerfintech/openapi-go-sdk/model"
@@ -564,15 +565,18 @@ func TestIntegGetTimelineHistory(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
+	// Use yesterday to stay within the API's data retention window.
+	// If yesterday is a weekend, the API may return empty — skip in that case.
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 	data, err := qc.GetTimelineHistory(model.TimelineHistoryRequest{
 		Symbols: []string{"AAPL"},
-		Date:    "2024-01-02",
+		Date:    yesterday,
 	})
 	if err != nil {
 		t.Fatalf("GetTimelineHistory: %v", err)
 	}
 	if len(data) == 0 {
-		t.Skip("GetTimelineHistory returned empty for AAPL on 2024-01-02")
+		t.Skipf("GetTimelineHistory returned empty for AAPL on %s (likely weekend or holiday)", yesterday)
 	}
 	if data[0].Symbol != "AAPL" {
 		t.Errorf("Timeline.Symbol = %q, want AAPL", data[0].Symbol)
