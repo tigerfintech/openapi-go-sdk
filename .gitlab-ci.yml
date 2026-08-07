@@ -44,6 +44,7 @@ stages:
   - export PATH="${GOPATH}/bin:${PATH}"
   - go version
   - go env GOMODCACHE
+  - go mod download
 
 unit:go:
   image: golang:1.20
