@@ -144,7 +144,7 @@ notify:webhook:
       # Parse Go test output (text, not JUnit XML)
       def parse_go_txt(path):
           import re
-          p, f, s = 0, 0, 0
+          t, p, f, s = 0, 0, 0, 0
           try:
               content = open(path).read()
               for m in re.finditer(r'--- (PASS|FAIL|SKIP):', content):
