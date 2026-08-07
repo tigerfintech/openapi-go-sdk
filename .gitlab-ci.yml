@@ -143,14 +143,15 @@ notify:webhook:
       # Parse Go test output (text, not JUnit XML)
       def parse_go_txt(path):
           import re
-          t, p, f, s = 0, 0, 0, 0
+          p, f, s = 0, 0, 0
           try:
               content = open(path).read()
-              for m in re.finditer(r'test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored', content):
-                  t += int(m.group(1)) + int(m.group(2)) + int(m.group(3))
-                  p += int(m.group(1))
-                  f += int(m.group(2))
-                  s += int(m.group(3))
+              for m in re.finditer(r'--- (PASS|FAIL|SKIP):', content):
+                  if m.group(1) == 'PASS': p += 1
+                  elif m.group(1) == 'FAIL': f += 1
+                  elif m.group(1) == 'SKIP': s += 1
+              t = p + f + s
+              print(f"Parsed {path}: {t} tests: {p} passed, {f} failed, {s} skipped")
           except Exception as e:
               print(f"Failed to parse {path}: {e}")
           return t, p, f, s
