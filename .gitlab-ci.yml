@@ -55,12 +55,13 @@ unit:go:
   before_script:
     - *go_setup
   script:
-    - mkdir -p test-results
-    - go vet ./...
-    - go test -race -count=1 -coverprofile=coverage.out -covermode=atomic -json ./... > /tmp/gotest.json 2>&1; TEST_EXIT=$?
-    - go-junit-report -in-json < /tmp/gotest.json -out test-results/unit.xml || true
-    - go tool cover -func=coverage.out | tail -1
-    - exit $TEST_EXIT
+    - |
+      mkdir -p test-results
+      go vet ./...
+      go test -race -count=1 -coverprofile=coverage.out -covermode=atomic -json ./... > /tmp/gotest.json 2>&1; TEST_EXIT=$?
+      go-junit-report -in-json < /tmp/gotest.json -out test-results/unit.xml || true
+      go tool cover -func=coverage.out | tail -1
+      exit $TEST_EXIT
   coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
   artifacts:
     when: always
