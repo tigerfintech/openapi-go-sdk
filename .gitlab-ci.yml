@@ -57,8 +57,8 @@ unit:go:
   script:
     - mkdir -p test-results
     - go vet ./...
-    - go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... > /tmp/gotest.log 2>&1; TEST_EXIT=$?
-    - cat /tmp/gotest.log | go-junit-report -out test-results/unit.xml || true
+    - go test -race -count=1 -coverprofile=coverage.out -covermode=atomic -json ./... > /tmp/gotest.json 2>&1; TEST_EXIT=$?
+    - go-junit-report -in-json < /tmp/gotest.json -out test-results/unit.xml || true
     - go tool cover -func=coverage.out | tail -1
     - exit $TEST_EXIT
   coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
