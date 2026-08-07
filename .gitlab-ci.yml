@@ -55,11 +55,12 @@ unit:go:
   before_script:
     - *go_setup
   script:
-    - set -o pipefail
     - mkdir -p test-results
     - go vet ./...
-    - go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... 2>&1 | tee /dev/stderr | go-junit-report -out test-results/unit.xml
+    - go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... > /tmp/gotest.log 2>&1; TEST_EXIT=$?
+    - cat /tmp/gotest.log | go-junit-report -out test-results/unit.xml || true
     - go tool cover -func=coverage.out | tail -1
+    - exit $TEST_EXIT
   coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
   artifacts:
     when: always
