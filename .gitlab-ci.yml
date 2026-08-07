@@ -46,6 +46,9 @@ stages:
   - go env GOMODCACHE
 
 unit:go:
+  image: golang:1.20
+  tags:
+    - openapi
   stage: unit
   before_script:
     - *go_setup
@@ -61,6 +64,9 @@ unit:go:
     expire_in: 1 week
 
 integration:go:
+  image: golang:1.20
+  tags:
+    - openapi
   stage: integration
   allow_failure: true
   variables:
