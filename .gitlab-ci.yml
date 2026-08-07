@@ -44,8 +44,6 @@ stages:
   - export PATH="${GOPATH}/bin:${PATH}"
   - go version
   - go env GOMODCACHE
-  # Install go-junit-report for JUnit XML test output (v2).
-  - go install github.com/jstemmer/go-junit-report/v2@latest
 
 unit:go:
   image: golang:1.20
@@ -58,8 +56,11 @@ unit:go:
     - |
       mkdir -p test-results
       go vet ./...
+      go install github.com/jstemmer/go-junit-report/v2@latest 2>/dev/null || true
       go test -race -count=1 -coverprofile=coverage.out -covermode=atomic -json ./... > /tmp/gotest.json 2>&1; TEST_EXIT=$?
-      go-junit-report -in-json < /tmp/gotest.json -out test-results/unit.xml || true
+      if command -v go-junit-report >/dev/null 2>&1; then
+        go-junit-report -in-json < /tmp/gotest.json -out test-results/unit.xml || true
+      fi
       go tool cover -func=coverage.out | tail -1
       exit $TEST_EXIT
   coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
