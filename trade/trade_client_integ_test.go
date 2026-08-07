@@ -189,14 +189,16 @@ func TestIntegQuoteContract(t *testing.T) {
 	tc := integtest.NewTradeClient(t)
 
 	// QuoteContract requires derivative sec types (OPT/WAR/IOPT) and an expiry.
-	// Fetch a valid option expiry from the quote client.
+	// Fetch a valid option expiry from the quote client. Use a mid-range date
+	// to avoid the nearest expiry becoming stale on expiry day.
 	qc := integtest.NewQuoteClient(t)
 	exps, err := qc.GetOptionExpiration([]string{"AAPL"})
 	if err != nil || len(exps) == 0 || len(exps[0].Dates) == 0 {
 		t.Skipf("no option expiration for AAPL: err=%v", err)
 	}
 	// Convert "2024-01-19" to "20240119" for the trade API.
-	expiry := strings.ReplaceAll(exps[0].Dates[0], "-", "")
+	idx := len(exps[0].Dates) / 2
+	expiry := strings.ReplaceAll(exps[0].Dates[idx], "-", "")
 
 	data, err := tc.QuoteContract("AAPL", "OPT", expiry)
 	if err != nil {
