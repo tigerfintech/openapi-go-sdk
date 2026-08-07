@@ -304,7 +304,7 @@ func TestTokenManager_TokenWriter_NotCalledOnFileError(t *testing.T) {
 	callCount := 0
 	// 注意：必须显式调用 WithTokenFilePath 才会启用文件持久化
 	m := NewTokenManager(
-		WithTokenFilePath("/nonexistent_dir/token.properties"),
+		WithTokenFilePath("/dev/null/token.properties"),
 		TokenWriterOption(func(token string) { callCount++ }),
 	)
 
