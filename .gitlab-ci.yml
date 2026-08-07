@@ -58,7 +58,7 @@ unit:go:
     - set -o pipefail
     - mkdir -p test-results
     - go vet ./...
-    - go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... 2>&1 | go-junit-report -set-exit-code -out test-results/unit.xml
+    - go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... 2>&1 | tee /dev/stderr | go-junit-report -out test-results/unit.xml
     - go tool cover -func=coverage.out | tail -1
   coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
   artifacts:
