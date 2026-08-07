@@ -57,10 +57,8 @@ unit:go:
       mkdir -p test-results
       go vet ./...
       go install github.com/jstemmer/go-junit-report/v2@latest 2>/dev/null || true
-      go test -race -count=1 -coverprofile=coverage.out -covermode=atomic -json ./... > /tmp/gotest.json 2>&1; TEST_EXIT=$?
-      if command -v go-junit-report >/dev/null 2>&1; then
-        go-junit-report -in-json < /tmp/gotest.json -out test-results/unit.xml || true
-      fi
+      go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... > test-results/unit.txt 2>&1; TEST_EXIT=$?
+      cat test-results/unit.txt
       go tool cover -func=coverage.out | tail -1
       exit $TEST_EXIT
   coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
@@ -137,8 +135,23 @@ notify:webhook:
               print(f"Failed to parse {path}: {e}")
           return t, t - f - s, f, s
 
-      unit_t, unit_p, unit_f, unit_s = parse_xml("test-results/unit.xml")
-      integ_t, integ_p, integ_f, integ_s = parse_xml("test-results/integ.xml")
+      # Parse Go test output (text, not JUnit XML)
+      def parse_go_txt(path):
+          import re
+          t, p, f, s = 0, 0, 0, 0
+          try:
+              content = open(path).read()
+              for m in re.finditer(r'test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored', content):
+                  t += int(m.group(1)) + int(m.group(2)) + int(m.group(3))
+                  p += int(m.group(1))
+                  f += int(m.group(2))
+                  s += int(m.group(3))
+          except Exception as e:
+              print(f"Failed to parse {path}: {e}")
+          return t, p, f, s
+
+      unit_t, unit_p, unit_f, unit_s = parse_go_txt("test-results/unit.txt")
+      integ_t, integ_p, integ_f, integ_s = parse_go_txt("test-results/integ.txt")
 
       unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_t > 0 else ""
       integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_t > 0 else ""
