@@ -83,6 +83,7 @@ integration:go:
     - openapi
   stage: integration
   allow_failure: true
+  when: always
   variables:
     TIGER_RUN_INTEG: "true"
   before_script:
