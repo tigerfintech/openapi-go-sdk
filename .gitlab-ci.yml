@@ -89,16 +89,15 @@ integration:go:
   before_script:
     - *go_setup
   script:
-    - set -o pipefail
-    - mkdir -p test-results
-    - go test -tags=integration -v -count=1 ./quote/ ./trade/ 2>&1 | go-junit-report -set-exit-code -out test-results/integ.xml
+    - |
+      mkdir -p test-results
+      go test -tags=integration -v -count=1 ./quote/ ./trade/ > test-results/integ.txt 2>&1; TEST_EXIT=$?
+      cat test-results/integ.txt
+      exit $TEST_EXIT
   artifacts:
     when: always
     paths:
       - test-results/
-    reports:
-      junit:
-        - test-results/integ.xml
     expire_in: 1 week
 
 # Pipeline result notification via Feishu/Lark webhook.
