@@ -494,15 +494,16 @@ func TestIntegGetStockBroker(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
-	data, err := qc.GetStockBroker(model.StockBrokerRequest{Symbol: "AAPL", Limit: 5})
+	// stock_broker only supports HK market
+	data, err := qc.GetStockBroker(model.StockBrokerRequest{Symbol: "0700.HK", Limit: 5})
 	if err != nil {
 		t.Fatalf("GetStockBroker: %v", err)
 	}
 	if data == nil {
 		t.Fatal("GetStockBroker returned nil")
 	}
-	if data.Symbol != "AAPL" {
-		t.Errorf("StockBroker.Symbol = %q, want AAPL", data.Symbol)
+	if data.Symbol != "0700.HK" {
+		t.Errorf("StockBroker.Symbol = %q, want 0700.HK", data.Symbol)
 	}
 }
 
@@ -911,6 +912,7 @@ func TestIntegGetOptionTimeline(t *testing.T) {
 
 	leg, expiryTs := firstOptionChainLeg(t, qc)
 	data, err := qc.GetOptionTimeline(model.OptionTimelineRequest{
+		Market: "US",
 		OptionQuery: []model.OptionQueryItem{{
 			Symbol: "AAPL",
 			Expiry: expiryTs,
@@ -1097,7 +1099,7 @@ func TestIntegGetAllFutureContracts(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
-	data, err := qc.GetAllFutureContracts(model.AllFutureContractsRequest{})
+	data, err := qc.GetAllFutureContracts(model.AllFutureContractsRequest{Type: "MAIN"})
 	if err != nil {
 		t.Fatalf("GetAllFutureContracts: %v", err)
 	}
@@ -1130,7 +1132,7 @@ func TestIntegGetFutureContinuousContracts(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
-	data, err := qc.GetFutureContinuousContracts(model.FutureContinuousContractsRequest{})
+	data, err := qc.GetFutureContinuousContracts(model.FutureContinuousContractsRequest{Type: "MAIN"})
 	if err != nil {
 		t.Fatalf("GetFutureContinuousContracts: %v", err)
 	}
@@ -1299,9 +1301,12 @@ func TestIntegGetFundHistoryQuote(t *testing.T) {
 	if err != nil || len(symbols) == 0 {
 		t.Skipf("no fund symbols: err=%v", err)
 	}
+	now := time.Now()
 	data, err := qc.GetFundHistoryQuote(model.FundHistoryQuoteRequest{
-		Symbols: []string{symbols[0]},
-		Limit:   5,
+		Symbols:   []string{symbols[0]},
+		BeginTime: now.AddDate(0, -1, 0).UnixMilli(),
+		EndTime:   now.UnixMilli(),
+		Limit:     5,
 	})
 	if err != nil {
 		t.Fatalf("GetFundHistoryQuote: %v", err)

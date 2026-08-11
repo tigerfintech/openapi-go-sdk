@@ -374,7 +374,7 @@ func (c *QuoteClient) GetCapitalDistribution(symbol, market string) (*model.Capi
 	return &out, nil
 }
 
-// === Scanner and quote permission methods ===
+// === Scanner and market data access methods ===
 
 // MarketScanner runs the stock screener.
 func (c *QuoteClient) MarketScanner(req model.MarketScannerRequest) (*model.ScannerResult, error) {
@@ -386,7 +386,7 @@ func (c *QuoteClient) MarketScanner(req model.MarketScannerRequest) (*model.Scan
 	return &out, nil
 }
 
-// GrabQuotePermission requests quote permissions.
+// GrabQuotePermission claims market data device access.
 func (c *QuoteClient) GrabQuotePermission() ([]model.QuotePermission, error) {
 	var out []model.QuotePermission
 	err := c.callInto("grab_quote_permission", nil, &out)
