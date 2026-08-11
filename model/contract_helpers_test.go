@@ -31,7 +31,7 @@ func TestOptionContract(t *testing.T) {
 
 // 测试 OptionContractBySymbol 通过各字段构造
 func TestOptionContractBySymbol(t *testing.T) {
-	c := OptionContractBySymbol("AAPL", "20250620", 150.0, "CALL", "USD")
+	c := OptionContractBySymbol("AAPL", "20250620", "150.0", "CALL", "USD")
 	if c.Symbol != "AAPL" {
 		t.Errorf("Symbol = %q, want AAPL", c.Symbol)
 	}
@@ -41,8 +41,8 @@ func TestOptionContractBySymbol(t *testing.T) {
 	if c.Expiry != "20250620" {
 		t.Errorf("Expiry = %q, want 20250620", c.Expiry)
 	}
-	if c.Strike != 150.0 {
-		t.Errorf("Strike = %f, want 150.0", c.Strike)
+	if c.Strike != "150.0" {
+		t.Errorf("Strike = %q, want 150.0", c.Strike)
 	}
 	if c.Right != "CALL" {
 		t.Errorf("Right = %q, want CALL", c.Right)
@@ -96,7 +96,7 @@ func TestFundContract(t *testing.T) {
 
 // 测试 WarrantContract 构造函数
 func TestWarrantContract(t *testing.T) {
-	c := WarrantContract("00700", "HKD", "20251219", 400.0, "CALL")
+	c := WarrantContract("00700", "HKD", "20251219", "400.0", "CALL")
 	if c.Symbol != "00700" {
 		t.Errorf("Symbol = %q, want 00700", c.Symbol)
 	}
@@ -109,8 +109,8 @@ func TestWarrantContract(t *testing.T) {
 	if c.Expiry != "20251219" {
 		t.Errorf("Expiry = %q, want 20251219", c.Expiry)
 	}
-	if c.Strike != 400.0 {
-		t.Errorf("Strike = %f, want 400.0", c.Strike)
+	if c.Strike != "400.0" {
+		t.Errorf("Strike = %q, want 400.0", c.Strike)
 	}
 	if c.Right != "CALL" {
 		t.Errorf("Right = %q, want CALL", c.Right)
