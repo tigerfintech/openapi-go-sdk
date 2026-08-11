@@ -12,6 +12,10 @@ import (
 
 // TestNewClientConfig_WithOptions tests setting fields via Option pattern
 func TestNewClientConfig_WithOptions(t *testing.T) {
+	// Prevent real CI credentials from overriding WithOption values
+	for _, k := range []string{"TIGEROPEN_TIGER_ID", "TIGEROPEN_PRIVATE_KEY", "TIGEROPEN_ACCOUNT", "TIGEROPEN_TOKEN", "TIGEROPEN_TOKEN_FILE"} {
+		t.Setenv(k, "")
+	}
 	cfg, err := NewClientConfig(
 		WithTigerID("test_tiger_id"),
 		WithPrivateKey("test_private_key"),
@@ -81,6 +85,9 @@ func TestNewClientConfig_MissingTigerID(t *testing.T) {
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpHome)
 	defer os.Setenv("HOME", origHome)
+	// Clear CI credentials so the test can exercise the missing-tiger_id code path
+	t.Setenv("TIGEROPEN_TIGER_ID", "")
+	t.Setenv("TIGEROPEN_PRIVATE_KEY", "")
 
 	_, err := NewClientConfig(
 		WithPrivateKey("pk"),
@@ -97,6 +104,9 @@ func TestNewClientConfig_MissingPrivateKey(t *testing.T) {
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpHome)
 	defer os.Setenv("HOME", origHome)
+	// Clear CI credentials so the test can exercise the missing-private_key code path
+	t.Setenv("TIGEROPEN_TIGER_ID", "")
+	t.Setenv("TIGEROPEN_PRIVATE_KEY", "")
 
 	_, err := NewClientConfig(
 		WithTigerID("tid"),

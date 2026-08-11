@@ -435,7 +435,7 @@ func TestIntegSegmentFundAvailable(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
 
-	data, err := tc.SegmentFundAvailable(model.SegmentFundRequest{})
+	data, err := tc.SegmentFundAvailable(model.SegmentFundRequest{FromSegment: "SEC"})
 	if err != nil {
 		t.Fatalf("SegmentFundAvailable: %v", err)
 	}

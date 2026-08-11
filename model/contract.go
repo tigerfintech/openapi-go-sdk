@@ -15,8 +15,8 @@ type Contract struct {
 	Exchange string `json:"exchange,omitempty"`
 	// 到期日（期权/期货）
 	Expiry string `json:"expiry,omitempty"`
-	// 行权价（期权）
-	Strike float64 `json:"strike,omitempty"`
+	// 行权价（期权），服务端以字符串返回
+	Strike string `json:"strike,omitempty"`
 	// 看涨/看跌（PUT/CALL），保持 API 原始名 right，不改为 putCall
 	Right string `json:"right,omitempty"`
 	// 合约乘数
