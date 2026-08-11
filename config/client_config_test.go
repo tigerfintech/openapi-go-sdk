@@ -12,9 +12,15 @@ import (
 
 // TestNewClientConfig_WithOptions tests setting fields via Option pattern
 func TestNewClientConfig_WithOptions(t *testing.T) {
-	// Prevent real CI credentials from overriding WithOption values
+	// Isolate HOME so auto-discovery doesn't find a real config file
+	t.Setenv("HOME", t.TempDir())
+	// Unset CI credentials so WithOption values are not overridden
 	for _, k := range []string{"TIGEROPEN_TIGER_ID", "TIGEROPEN_PRIVATE_KEY", "TIGEROPEN_ACCOUNT", "TIGEROPEN_TOKEN", "TIGEROPEN_TOKEN_FILE"} {
-		t.Setenv(k, "")
+		prev, had := os.LookupEnv(k)
+		os.Unsetenv(k)
+		if had {
+			t.Cleanup(func() { os.Setenv(k, prev) })
+		}
 	}
 	cfg, err := NewClientConfig(
 		WithTigerID("test_tiger_id"),
@@ -81,13 +87,15 @@ func TestNewClientConfig_Defaults(t *testing.T) {
 // TestNewClientConfig_MissingTigerID tests error when tiger_id is missing
 func TestNewClientConfig_MissingTigerID(t *testing.T) {
 	// Use a temp HOME so auto-discovery doesn't find a real config file
-	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpHome)
-	defer os.Setenv("HOME", origHome)
-	// Clear CI credentials so the test can exercise the missing-tiger_id code path
-	t.Setenv("TIGEROPEN_TIGER_ID", "")
-	t.Setenv("TIGEROPEN_PRIVATE_KEY", "")
+	t.Setenv("HOME", t.TempDir())
+	// Unset CI credentials so the missing-tiger_id code path is exercised
+	for _, k := range []string{"TIGEROPEN_TIGER_ID", "TIGEROPEN_PRIVATE_KEY"} {
+		prev, had := os.LookupEnv(k)
+		os.Unsetenv(k)
+		if had {
+			t.Cleanup(func() { os.Setenv(k, prev) })
+		}
+	}
 
 	_, err := NewClientConfig(
 		WithPrivateKey("pk"),
@@ -100,13 +108,15 @@ func TestNewClientConfig_MissingTigerID(t *testing.T) {
 // TestNewClientConfig_MissingPrivateKey 测试缺少 private_key 时返回错误
 func TestNewClientConfig_MissingPrivateKey(t *testing.T) {
 	// Use a temp HOME so auto-discovery doesn't find a real config file
-	tmpHome := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpHome)
-	defer os.Setenv("HOME", origHome)
-	// Clear CI credentials so the test can exercise the missing-private_key code path
-	t.Setenv("TIGEROPEN_TIGER_ID", "")
-	t.Setenv("TIGEROPEN_PRIVATE_KEY", "")
+	t.Setenv("HOME", t.TempDir())
+	// Unset CI credentials so the missing-private_key code path is exercised
+	for _, k := range []string{"TIGEROPEN_TIGER_ID", "TIGEROPEN_PRIVATE_KEY"} {
+		prev, had := os.LookupEnv(k)
+		os.Unsetenv(k)
+		if had {
+			t.Cleanup(func() { os.Setenv(k, prev) })
+		}
+	}
 
 	_, err := NewClientConfig(
 		WithTigerID("tid"),
