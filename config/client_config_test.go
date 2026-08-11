@@ -24,6 +24,7 @@ func requireIsolatedEnv(t *testing.T) {
 }
 
 func TestNewClientConfig_WithOptions(t *testing.T) {
+	requireIsolatedEnv(t)
 	cfg, err := NewClientConfig(
 		WithTigerID("test_tiger_id"),
 		WithPrivateKey("test_private_key"),
