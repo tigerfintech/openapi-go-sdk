@@ -60,9 +60,10 @@ unit:go:
   script:
     - |
       mkdir -p test-results
-      echo "GOCACHE=$(go env GOCACHE)"
-      export GOCACHE=/tmp/go-build-fresh
+      # Clean actual GOCACHE first, then redirect to a temp dir to prevent
+      # runner-level volume mounts from persisting stale test binaries
       go clean -cache
+      export GOCACHE="$(mktemp -d)"
       echo "--- config test functions ---"
       grep "^func Test" config/client_config_test.go || echo "(none)"
       echo "--- end ---"
