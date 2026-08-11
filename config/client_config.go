@@ -225,9 +225,9 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 	var defaultPaths []string
 	if !cfg.explicitPropertiesFile {
 		defaultPaths = append(defaultPaths, "tiger_openapi_config.properties")
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		defaultPaths = append(defaultPaths, filepath.Join(home, ".tigeropen", "tiger_openapi_config.properties"))
+		if home, err := os.UserHomeDir(); err == nil {
+			defaultPaths = append(defaultPaths, filepath.Join(home, ".tigeropen", "tiger_openapi_config.properties"))
+		}
 	}
 	for _, p := range defaultPaths {
 		if _, err := os.Stat(p); err == nil {
