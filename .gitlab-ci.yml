@@ -60,6 +60,7 @@ unit:go:
   script:
     - |
       mkdir -p test-results
+      go clean -testcache
       go vet ./...
       go install github.com/jstemmer/go-junit-report/v2@latest 2>/dev/null || true
       go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... > test-results/unit.txt 2>&1; TEST_EXIT=$?
