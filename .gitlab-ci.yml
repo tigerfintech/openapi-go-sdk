@@ -60,12 +60,10 @@ unit:go:
   script:
     - |
       mkdir -p test-results
-      # Clean actual GOCACHE first, then redirect to a temp dir to prevent
-      # runner-level volume mounts from persisting stale test binaries
       go clean -cache
       export GOCACHE="$(mktemp -d)"
-      echo "--- config test functions ---"
-      grep "^func Test" config/client_config_test.go || echo "(none)"
+      echo "--- config tests in binary ---"
+      go test -list ".*" ./config/ 2>&1 | grep "^Test" || echo "(none)"
       echo "--- end ---"
       go vet ./...
       go install github.com/jstemmer/go-junit-report/v2@latest 2>/dev/null || true
