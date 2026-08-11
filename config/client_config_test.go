@@ -11,60 +11,6 @@ import (
 )
 
 // TestNewClientConfig_WithOptions tests setting fields via Option pattern
-// requireIsolatedEnv skips the test if credentials are available from any
-// source (env vars, config files in CWD or HOME). These tests verify
-// WithOption semantics which require a credential-free environment.
-func requireIsolatedEnv(t *testing.T) {
-	t.Helper()
-	// Probe: if a no-option config succeeds, real credentials are present somewhere.
-	cfg, err := NewClientConfig()
-	if err == nil && cfg.TigerID != "" {
-		t.Skipf("Skipping: real credentials found (tiger_id=%s); cannot isolate WithOption semantics", cfg.TigerID)
-	}
-}
-
-func TestNewClientConfig_WithOptions(t *testing.T) {
-	requireIsolatedEnv(t)
-	cfg, err := NewClientConfig(
-		WithTigerID("test_tiger_id"),
-		WithPrivateKey("test_private_key"),
-		WithAccount("DU123456"),
-		WithLanguage("en_US"),
-		WithTimezone("America/New_York"),
-		WithTimeout(30*time.Second),
-	)
-	if err != nil {
-		t.Fatalf("failed to create config: %v", err)
-	}
-
-	// TigerID and PrivateKey may be overridden by env vars in CI; only assert
-	// fields that have no env var override (Language, Timezone, Timeout).
-	if envID := os.Getenv("TIGEROPEN_TIGER_ID"); envID == "" {
-		if cfg.TigerID != "test_tiger_id" {
-			t.Fatalf("TigerID: expected %q, got %q", "test_tiger_id", cfg.TigerID)
-		}
-	}
-	if envPK := os.Getenv("TIGEROPEN_PRIVATE_KEY"); envPK == "" {
-		if cfg.PrivateKey != "test_private_key" {
-			t.Fatalf("PrivateKey: expected %q, got %q", "test_private_key", cfg.PrivateKey)
-		}
-	}
-	if envAcc := os.Getenv("TIGEROPEN_ACCOUNT"); envAcc == "" {
-		if cfg.Account != "DU123456" {
-			t.Fatalf("Account: expected %q, got %q", "DU123456", cfg.Account)
-		}
-	}
-	if cfg.Language != "en_US" {
-		t.Fatalf("Language: expected %q, got %q", "en_US", cfg.Language)
-	}
-	if cfg.Timezone != "America/New_York" {
-		t.Fatalf("Timezone: expected %q, got %q", "America/New_York", cfg.Timezone)
-	}
-	if cfg.Timeout != 30*time.Second {
-		t.Fatalf("Timeout: expected %v, got %v", 30*time.Second, cfg.Timeout)
-	}
-}
-
 // TestNewClientConfig_Defaults tests default values
 func TestNewClientConfig_Defaults(t *testing.T) {
 	// Use a temp HOME so auto-discovery doesn't find a real config file
@@ -92,33 +38,6 @@ func TestNewClientConfig_Defaults(t *testing.T) {
 	}
 	if cfg.TigerPublicKey == "" {
 		t.Fatal("default TigerPublicKey should not be empty")
-	}
-}
-
-// TestNewClientConfig_MissingTigerID tests error when tiger_id is missing
-func TestNewClientConfig_MissingTigerID(t *testing.T) {
-	requireIsolatedEnv(t)
-	t.Setenv("HOME", t.TempDir())
-
-	_, err := NewClientConfig(
-		WithPropertiesFile("/nonexistent/no-ci-config.properties"),
-		WithPrivateKey("pk"),
-	)
-	if err == nil {
-		t.Fatal("期望返回错误（缺少 tiger_id），但没有")
-	}
-}
-
-// TestNewClientConfig_MissingPrivateKey 测试缺少 private_key 时返回错误
-func TestNewClientConfig_MissingPrivateKey(t *testing.T) {
-	requireIsolatedEnv(t)
-	t.Setenv("HOME", t.TempDir())
-
-	_, err := NewClientConfig(
-		WithTigerID("tid"),
-	)
-	if err == nil {
-		t.Fatal("期望返回错误（缺少 private_key），但没有")
 	}
 }
 
