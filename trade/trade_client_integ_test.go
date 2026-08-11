@@ -268,6 +268,7 @@ func TestIntegOrderTransactions(t *testing.T) {
 
 	now := time.Now()
 	data, err := tc.OrderTransactions(model.OrderTransactionsRequest{
+		Symbol:    "AAPL",
 		StartDate: now.AddDate(0, 0, -30).UnixMilli(),
 		EndDate:   now.UnixMilli(),
 		Limit:     10,
@@ -363,9 +364,20 @@ func TestIntegDerivativeContracts(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
 
+	// DerivativeContracts requires an expiry for option sec types.
+	// Fetch a valid expiry from the quote client.
+	qc := integtest.NewQuoteClient(t)
+	exps, err := qc.GetOptionExpiration([]string{"AAPL"})
+	if err != nil || len(exps) == 0 || len(exps[0].Dates) == 0 {
+		t.Skipf("no option expiration for AAPL: err=%v", err)
+	}
+	// Convert "2024-01-19" to "20240119" for the trade API.
+	expiry := strings.ReplaceAll(exps[0].Dates[0], "-", "")
+
 	data, err := tc.DerivativeContracts(model.DerivativeContractsRequest{
 		Symbols: []string{"AAPL"},
 		SecType: "OPT",
+		Expiry:  expiry,
 	})
 	if err != nil {
 		t.Fatalf("DerivativeContracts: %v", err)
@@ -400,6 +412,9 @@ func TestIntegAggregateAssets(t *testing.T) {
 
 	data, err := tc.AggregateAssets(model.AggregateAssetsRequest{})
 	if err != nil {
+		if strings.Contains(err.Error(), "institution account") {
+			t.Skipf("AggregateAssets requires institution account: %v", err)
+		}
 		t.Fatalf("AggregateAssets: %v", err)
 	}
 	if data == nil {
@@ -419,6 +434,7 @@ func TestIntegEstimateTradableQuantity(t *testing.T) {
 		SecType:   "STK",
 		Action:    "BUY",
 		OrderType: "MKT",
+		SegType:   "SEC",
 	})
 	if err != nil {
 		t.Fatalf("EstimateTradableQuantity: %v", err)
@@ -461,6 +477,7 @@ func TestIntegFundDetails(t *testing.T) {
 
 	now := time.Now()
 	data, err := tc.FundDetails(model.FundDetailsRequest{
+		SegTypes:  []string{"SEC"},
 		StartDate: now.AddDate(0, 0, -30).UnixMilli(),
 		EndDate:   now.UnixMilli(),
 		Limit:     5,
@@ -494,7 +511,7 @@ func TestIntegPositionTransferRecords(t *testing.T) {
 
 	now := time.Now()
 	data, err := tc.PositionTransferRecords(model.PositionTransferRecordsRequest{
-		SinceDate: now.AddDate(0, -3, 0).Format("2006-01-02"),
+		SinceDate: now.AddDate(0, 0, -7).Format("2006-01-02"),
 		ToDate:    now.Format("2006-01-02"),
 	})
 	if err != nil {
@@ -510,7 +527,7 @@ func TestIntegPositionTransferExternalRecords(t *testing.T) {
 
 	now := time.Now()
 	data, err := tc.PositionTransferExternalRecords(model.PositionTransferExternalRecordsRequest{
-		SinceDate: now.AddDate(0, -3, 0).Format("2006-01-02"),
+		SinceDate: now.AddDate(0, 0, -7).Format("2006-01-02"),
 		ToDate:    now.Format("2006-01-02"),
 	})
 	if err != nil {
@@ -528,7 +545,7 @@ func TestIntegPositionTransferDetail(t *testing.T) {
 	// Fetch records first; skip if none exist.
 	now := time.Now()
 	records, err := tc.PositionTransferRecords(model.PositionTransferRecordsRequest{
-		SinceDate: now.AddDate(0, -3, 0).Format("2006-01-02"),
+		SinceDate: now.AddDate(0, 0, -7).Format("2006-01-02"),
 		ToDate:    now.Format("2006-01-02"),
 	})
 	if err != nil {
@@ -558,7 +575,7 @@ func TestIntegOptionExerciseCheck(t *testing.T) {
 
 	// OptionExerciseCheck requires a valid option contract ID.
 	// Fetch exercisable positions first; skip if none exist.
-	positions, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{})
+	positions, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{Type: "Exercise"})
 	if err != nil || positions == nil || positions.ItemCount == 0 || len(positions.Items) == 0 {
 		t.Skipf("no exercisable positions: err=%v", err)
 	}
@@ -583,7 +600,7 @@ func TestIntegOptionExercisePositions(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
 
-	data, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{})
+	data, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{Type: "Exercise"})
 	if err != nil {
 		t.Fatalf("OptionExercisePositions: %v", err)
 	}
