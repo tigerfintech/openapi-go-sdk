@@ -12,8 +12,11 @@ import (
 
 // TestNewClientConfig_WithOptions tests setting fields via Option pattern
 func TestNewClientConfig_WithOptions(t *testing.T) {
-	// Isolate HOME so auto-discovery doesn't find a real config file
+	// Isolate from CI config files in both current dir and HOME
 	t.Setenv("HOME", t.TempDir())
+	origDir, _ := os.Getwd()
+	os.Chdir(t.TempDir())
+	t.Cleanup(func() { os.Chdir(origDir) })
 	// Unset CI credentials so WithOption values are not overridden
 	for _, k := range []string{"TIGEROPEN_TIGER_ID", "TIGEROPEN_PRIVATE_KEY", "TIGEROPEN_ACCOUNT", "TIGEROPEN_TOKEN", "TIGEROPEN_TOKEN_FILE"} {
 		prev, had := os.LookupEnv(k)
@@ -86,8 +89,11 @@ func TestNewClientConfig_Defaults(t *testing.T) {
 
 // TestNewClientConfig_MissingTigerID tests error when tiger_id is missing
 func TestNewClientConfig_MissingTigerID(t *testing.T) {
-	// Use a temp HOME so auto-discovery doesn't find a real config file
+	// Isolate from CI config files in both current dir and HOME
 	t.Setenv("HOME", t.TempDir())
+	origDir, _ := os.Getwd()
+	os.Chdir(t.TempDir())
+	t.Cleanup(func() { os.Chdir(origDir) })
 	// Unset CI credentials so the missing-tiger_id code path is exercised
 	for _, k := range []string{"TIGEROPEN_TIGER_ID", "TIGEROPEN_PRIVATE_KEY"} {
 		prev, had := os.LookupEnv(k)
@@ -107,8 +113,11 @@ func TestNewClientConfig_MissingTigerID(t *testing.T) {
 
 // TestNewClientConfig_MissingPrivateKey 测试缺少 private_key 时返回错误
 func TestNewClientConfig_MissingPrivateKey(t *testing.T) {
-	// Use a temp HOME so auto-discovery doesn't find a real config file
+	// Isolate from CI config files in both current dir and HOME
 	t.Setenv("HOME", t.TempDir())
+	origDir, _ := os.Getwd()
+	os.Chdir(t.TempDir())
+	t.Cleanup(func() { os.Chdir(origDir) })
 	// Unset CI credentials so the missing-private_key code path is exercised
 	for _, k := range []string{"TIGEROPEN_TIGER_ID", "TIGEROPEN_PRIVATE_KEY"} {
 		prev, had := os.LookupEnv(k)
