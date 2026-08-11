@@ -60,9 +60,11 @@ unit:go:
   script:
     - |
       mkdir -p test-results
+      echo "GOCACHE=$(go env GOCACHE)"
+      export GOCACHE=/tmp/go-build-fresh
       go clean -cache
       echo "--- config test functions ---"
-      grep "^func Test" config/client_config_test.go || true
+      grep "^func Test" config/client_config_test.go || echo "(none)"
       echo "--- end ---"
       go vet ./...
       go install github.com/jstemmer/go-junit-report/v2@latest 2>/dev/null || true
