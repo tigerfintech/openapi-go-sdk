@@ -60,14 +60,12 @@ unit:go:
   script:
     - |
       mkdir -p test-results
+      echo "# PIPELINE=${CI_PIPELINE_ID} JOB=${CI_JOB_ID} $(date -Iseconds)" > test-results/unit.txt
       go clean -cache
       export GOCACHE="$(mktemp -d)"
-      echo "--- config tests in binary ---"
-      go test -list ".*" ./config/ 2>&1 | grep "^Test" || echo "(none)"
-      echo "--- end ---"
       go vet ./...
       go install github.com/jstemmer/go-junit-report/v2@latest 2>/dev/null || true
-      go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... > test-results/unit.txt 2>&1; TEST_EXIT=$?
+      go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... >> test-results/unit.txt 2>&1; TEST_EXIT=$?
       cat test-results/unit.txt
       go tool cover -func=coverage.out | tail -1
       exit $TEST_EXIT
