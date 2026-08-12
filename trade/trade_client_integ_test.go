@@ -665,9 +665,9 @@ func TestIntegAssetsNumericConstraints(t *testing.T) {
 }
 
 // TestIntegPositionsNumericConstraints 验证持仓数值业务约束（有持仓时）：
-//   - Quantity != 0
-//   - AverageCost > 0
-//   - MarketValue 与 Quantity 同号
+//   - Position != 0（持仓数量不应为 0，否则不应出现在列表中）
+//   - AverageCost > 0（成本价必须 > 0）
+//   - MarketValue 与 Position 同号（多仓为正，空仓为负）
 func TestIntegPositionsNumericConstraints(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
@@ -680,19 +680,19 @@ func TestIntegPositionsNumericConstraints(t *testing.T) {
 		t.Skip("no positions to validate (empty account)")
 	}
 	for i, p := range data {
-		if p.Quantity == 0 {
-			t.Errorf("Position[%d](%s): Quantity = 0, want != 0", i, p.Symbol)
+		if p.Position == 0 {
+			t.Errorf("Position[%d](%s): Position = 0, want != 0", i, p.Symbol)
 		}
 		if p.AverageCost <= 0 {
 			t.Errorf("Position[%d](%s): AverageCost = %v, want > 0", i, p.Symbol, p.AverageCost)
 		}
-		if p.Quantity > 0 && p.MarketValue < 0 {
-			t.Errorf("Position[%d](%s): Quantity=%v > 0 but MarketValue=%v < 0",
-				i, p.Symbol, p.Quantity, p.MarketValue)
+		if p.Position > 0 && p.MarketValue < 0 {
+			t.Errorf("Position[%d](%s): Position=%v > 0 but MarketValue=%v < 0",
+				i, p.Symbol, p.Position, p.MarketValue)
 		}
-		if p.Quantity < 0 && p.MarketValue > 0 {
-			t.Errorf("Position[%d](%s): Quantity=%v < 0 but MarketValue=%v > 0",
-				i, p.Symbol, p.Quantity, p.MarketValue)
+		if p.Position < 0 && p.MarketValue > 0 {
+			t.Errorf("Position[%d](%s): Position=%v < 0 but MarketValue=%v > 0",
+				i, p.Symbol, p.Position, p.MarketValue)
 		}
 	}
 }
