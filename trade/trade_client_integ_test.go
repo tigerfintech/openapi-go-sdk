@@ -665,9 +665,9 @@ func TestIntegAssetsNumericConstraints(t *testing.T) {
 }
 
 // TestIntegPositionsNumericConstraints 验证持仓数值业务约束（有持仓时）：
-//   - Position != 0（持仓数量不应为 0，否则不应出现在列表中）
+//   - Position(int64) 或 PositionQty(float64) 至少有一个非零（兼容整数股和碎股）
 //   - AverageCost > 0（成本价必须 > 0）
-//   - MarketValue 与 Position 同号（多仓为正，空仓为负）
+//   - MarketValue 与有效持仓量同号（多仓为正，空仓为负）
 func TestIntegPositionsNumericConstraints(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
@@ -680,19 +680,25 @@ func TestIntegPositionsNumericConstraints(t *testing.T) {
 		t.Skip("no positions to validate (empty account)")
 	}
 	for i, p := range data {
-		if p.Position == 0 {
-			t.Errorf("Position[%d](%s): Position = 0, want != 0", i, p.Symbol)
+		// Position(int64) 用于整数股，PositionQty(float64) 用于碎股；两者均为 0 才算异常
+		if p.Position == 0 && p.PositionQty == 0 {
+			t.Errorf("Position[%d](%s): both Position and PositionQty are 0, want at least one non-zero", i, p.Symbol)
 		}
 		if p.AverageCost <= 0 {
 			t.Errorf("Position[%d](%s): AverageCost = %v, want > 0", i, p.Symbol, p.AverageCost)
 		}
-		if p.Position > 0 && p.MarketValue < 0 {
-			t.Errorf("Position[%d](%s): Position=%v > 0 but MarketValue=%v < 0",
-				i, p.Symbol, p.Position, p.MarketValue)
+		// MarketValue 同号校验：优先用 Position，碎股用 PositionQty
+		qty := float64(p.Position)
+		if qty == 0 {
+			qty = p.PositionQty
 		}
-		if p.Position < 0 && p.MarketValue > 0 {
-			t.Errorf("Position[%d](%s): Position=%v < 0 but MarketValue=%v > 0",
-				i, p.Symbol, p.Position, p.MarketValue)
+		if qty > 0 && p.MarketValue < 0 {
+			t.Errorf("Position[%d](%s): qty=%v > 0 but MarketValue=%v < 0",
+				i, p.Symbol, qty, p.MarketValue)
+		}
+		if qty < 0 && p.MarketValue > 0 {
+			t.Errorf("Position[%d](%s): qty=%v < 0 but MarketValue=%v > 0",
+				i, p.Symbol, qty, p.MarketValue)
 		}
 	}
 }
