@@ -1900,24 +1900,32 @@ func TestIntegOptionChainGreeksAndStrikeConsistency(t *testing.T) {
 			break // 检查前10条有 Greeks 的记录即可
 		}
 	}
+	// 如果整条链 delta 全为 0（市场休市），Greeks 校验实际未执行，跳过而非误报通过
+	if greeksChecked == 0 {
+		t.Skip("all option rows have delta=0 (market closed?), Greeks not validated")
+	}
 }
 
 // TestIntegKlineRightAdjustment 验证复权参数效果：
-// 对于有分红/拆股历史的标的（AAPL），前复权(br)的历史价格应与不复权不同。
-// 如果两者完全相同，可能是服务端未区分或没有复权数据（skip而非fail）。
+// 使用包含 AAPL 2020-08-31 四拆一分拆的固定时间窗口，确保不复权与前复权价格必然不同。
+// 该窗口是确定性的，不依赖账户状态，不受当前时间影响。
 func TestIntegKlineRightAdjustment(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
-	end := time.Now().UnixMilli()
-	begin := time.Now().AddDate(-2, 0, 0).UnixMilli() // 2年前，AAPL 期间有分红
+	// AAPL 在 2020-08-31 执行了 4:1 股票分拆；
+	// 取 2020-07-01 ~ 2020-09-30 这段窗口：
+	//   - 不复权价格 ~400 USD（分拆前）
+	//   - 前复权价格 ~100 USD（还原为分拆后价格）
+	// 两者必然不同，窗口固定，不依赖 Limit 截取最近 N 根。
+	begin := time.Date(2020, 7, 1, 0, 0, 0, 0, time.UTC).UnixMilli()
+	end := time.Date(2020, 9, 30, 0, 0, 0, 0, time.UTC).UnixMilli()
 
 	unadj, err := qc.GetKline(model.KlineRequest{
 		Symbols:   []string{"AAPL"},
 		Period:    "day",
 		BeginTime: begin,
 		EndTime:   end,
-		Limit:     30,
 	})
 	if err != nil || len(unadj) == 0 || len(unadj[0].Items) == 0 {
 		t.Skipf("GetKline (unadjusted): %v", err)
@@ -1928,7 +1936,6 @@ func TestIntegKlineRightAdjustment(t *testing.T) {
 		Period:    "day",
 		BeginTime: begin,
 		EndTime:   end,
-		Limit:     30,
 		Right:     "br", // 前复权
 	})
 	if err != nil || len(adj) == 0 || len(adj[0].Items) == 0 {
