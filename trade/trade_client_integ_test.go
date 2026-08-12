@@ -633,3 +633,102 @@ func TestIntegOptionExerciseRecords(t *testing.T) {
 		}
 	}
 }
+
+// TestIntegAssetsNumericConstraints 验证账户资产的数值业务约束：
+//   - BuyingPower >= 0
+//   - NetLiquidation >= 0
+//   - Segments[].Category 非空
+func TestIntegAssetsNumericConstraints(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.Assets(model.AssetsRequest{})
+	if err != nil {
+		t.Fatalf("Assets: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("Assets returned empty")
+	}
+	for i, asset := range data {
+		if asset.BuyingPower < 0 {
+			t.Errorf("Asset[%d].BuyingPower = %v, want >= 0", i, asset.BuyingPower)
+		}
+		if asset.NetLiquidation < 0 {
+			t.Errorf("Asset[%d].NetLiquidation = %v, want >= 0", i, asset.NetLiquidation)
+		}
+		for j, seg := range asset.Segments {
+			if seg.Category == "" {
+				t.Errorf("Asset[%d].Segments[%d].Category is empty", i, j)
+			}
+		}
+	}
+}
+
+// TestIntegPositionsNumericConstraints 验证持仓数值业务约束（有持仓时）：
+//   - Quantity != 0
+//   - AverageCost > 0
+//   - MarketValue 与 Quantity 同号
+func TestIntegPositionsNumericConstraints(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.Positions(model.PositionsRequest{})
+	if err != nil {
+		t.Fatalf("Positions: %v", err)
+	}
+	if len(data) == 0 {
+		t.Skip("no positions to validate (empty account)")
+	}
+	for i, p := range data {
+		if p.Quantity == 0 {
+			t.Errorf("Position[%d](%s): Quantity = 0, want != 0", i, p.Symbol)
+		}
+		if p.AverageCost <= 0 {
+			t.Errorf("Position[%d](%s): AverageCost = %v, want > 0", i, p.Symbol, p.AverageCost)
+		}
+		if p.Quantity > 0 && p.MarketValue < 0 {
+			t.Errorf("Position[%d](%s): Quantity=%v > 0 but MarketValue=%v < 0",
+				i, p.Symbol, p.Quantity, p.MarketValue)
+		}
+		if p.Quantity < 0 && p.MarketValue > 0 {
+			t.Errorf("Position[%d](%s): Quantity=%v < 0 but MarketValue=%v > 0",
+				i, p.Symbol, p.Quantity, p.MarketValue)
+		}
+	}
+}
+
+// TestIntegPreviewOrderFields 验证 PreviewOrder 返回的费用/保证金字段存在：
+//   - Commission >= 0，CommissionCurrency 非空
+//   - InitMargin >= 0，MaintMargin >= 0
+func TestIntegPreviewOrderFields(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	result, err := tc.PreviewOrder(model.OrderRequest{
+		Symbol:        "AAPL",
+		SecType:       "STK",
+		Action:        "BUY",
+		OrderType:     "MKT",
+		TotalQuantity: 1,
+		Currency:      "USD",
+		Market:        "US",
+	})
+	if err != nil {
+		t.Fatalf("PreviewOrder: %v", err)
+	}
+	if result == nil {
+		t.Fatal("PreviewOrder returned nil")
+	}
+	if result.Commission < 0 {
+		t.Errorf("PreviewResult.Commission = %v, want >= 0", result.Commission)
+	}
+	if result.CommissionCurrency == "" {
+		t.Errorf("PreviewResult.CommissionCurrency is empty, want non-empty")
+	}
+	if result.InitMargin < 0 {
+		t.Errorf("PreviewResult.InitMargin = %v, want >= 0", result.InitMargin)
+	}
+	if result.MaintMargin < 0 {
+		t.Errorf("PreviewResult.MaintMargin = %v, want >= 0", result.MaintMargin)
+	}
+}
