@@ -1971,11 +1971,12 @@ func TestIntegKlineRightAdjustment(t *testing.T) {
 	}
 }
 
-// TestIntegFutureKlineOHLCAndAscending 验证期货K线的完整业务约束：
-//   - 时间戳严格升序
+// TestIntegFutureKlineOHLC 验证期货K线的完整业务约束：
+//   - 30天窗口内条数 >= 5
+//   - 时间戳唯一（服务端不保证升序，但不应有重复）
 //   - 每根 High >= max(Open,Close) >= min(Open,Close) >= Low
 //   - Volume >= 0，Close > 0
-func TestIntegFutureKlineOHLCAndAscending(t *testing.T) {
+func TestIntegFutureKlineOHLC(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
@@ -1997,11 +1998,13 @@ func TestIntegFutureKlineOHLCAndAscending(t *testing.T) {
 	if len(items) < 5 {
 		t.Errorf("FutureKline(%s): got %d bars in 30-day window, want >= 5", code, len(items))
 	}
-	for i := 1; i < len(items); i++ {
-		if items[i].Time <= items[i-1].Time {
-			t.Errorf("FutureKline(%s): items[%d].Time not ascending", code, i)
-			break
+	// 时间戳唯一性（不要求升序，服务端可能降序或乱序）
+	seen := make(map[int64]bool)
+	for i, item := range items {
+		if seen[item.Time] {
+			t.Errorf("FutureKline(%s): duplicate timestamp at items[%d].Time=%d", code, i, item.Time)
 		}
+		seen[item.Time] = true
 	}
 	for i, item := range items {
 		if item.Close <= 0 {
