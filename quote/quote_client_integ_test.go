@@ -1558,3 +1558,282 @@ func TestIntegGetCorporateIPO(t *testing.T) {
 		t.Errorf("CorporateIPO.Symbol is empty, want non-empty")
 	}
 }
+
+// ===========================================================================
+// Enhanced coverage: K线时间范围、条数、OHLC约束；盘口价格合理性；US+HK双市场
+// ===========================================================================
+
+// TestIntegGetKlineTimeRangeAndOHLC 用固定30天窗口请求日K线，验证：
+//  - 返回条数 >= 15（30个自然日至少含15个交易日）
+//  - 时间戳严格升序
+//  - 每根K线 High >= max(Open,Close) >= min(Open,Close) >= Low
+//  - Volume >= 0
+//  同时覆盖美股(AAPL)和港股(00700)
+func TestIntegGetKlineTimeRangeAndOHLC(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	end := time.Now().UnixMilli()
+	begin := time.Now().AddDate(0, 0, -30).UnixMilli()
+
+	cases := []string{"AAPL", "00700"}
+	for _, sym := range cases {
+		sym := sym
+		t.Run(sym, func(t *testing.T) {
+			data, err := qc.GetKline(model.KlineRequest{
+				Symbols:   []string{sym},
+				Period:    "day",
+				BeginTime: begin,
+				EndTime:   end,
+			})
+			if err != nil {
+				t.Fatalf("GetKline(%s): %v", sym, err)
+			}
+			if len(data) == 0 {
+				t.Fatalf("GetKline(%s): returned empty", sym)
+			}
+			items := data[0].Items
+			// 30天窗口至少应有15根交易日K线
+			if len(items) < 15 {
+				t.Errorf("GetKline(%s): got %d bars in 30-day window, want >= 15", sym, len(items))
+			}
+			// 时间戳严格升序
+			for i := 1; i < len(items); i++ {
+				if items[i].Time <= items[i-1].Time {
+					t.Errorf("GetKline(%s): items[%d].Time=%d <= items[%d].Time=%d (not ascending)",
+						sym, i, items[i].Time, i-1, items[i-1].Time)
+					break
+				}
+			}
+			// OHLC约束
+			for i, item := range items {
+				if item.Close <= 0 {
+					t.Errorf("GetKline(%s) item[%d]: Close=%v, want > 0", sym, i, item.Close)
+				}
+				if item.High < item.Low {
+					t.Errorf("GetKline(%s) item[%d]: High(%v) < Low(%v)", sym, i, item.High, item.Low)
+				}
+				if item.High < item.Open {
+					t.Errorf("GetKline(%s) item[%d]: High(%v) < Open(%v)", sym, i, item.High, item.Open)
+				}
+				if item.High < item.Close {
+					t.Errorf("GetKline(%s) item[%d]: High(%v) < Close(%v)", sym, i, item.High, item.Close)
+				}
+				if item.Low > item.Open {
+					t.Errorf("GetKline(%s) item[%d]: Low(%v) > Open(%v)", sym, i, item.Low, item.Open)
+				}
+				if item.Low > item.Close {
+					t.Errorf("GetKline(%s) item[%d]: Low(%v) > Close(%v)", sym, i, item.Low, item.Close)
+				}
+				if item.Volume < 0 {
+					t.Errorf("GetKline(%s) item[%d]: Volume=%d, want >= 0", sym, i, item.Volume)
+				}
+			}
+		})
+	}
+}
+
+// TestIntegGetKlineIntraday 验证60分钟K线：时序升序、OHLC约束，覆盖US+HK
+func TestIntegGetKlineIntraday(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	end := time.Now().UnixMilli()
+	begin := time.Now().AddDate(0, 0, -5).UnixMilli()
+
+	cases := []string{"AAPL", "00700"}
+	for _, sym := range cases {
+		sym := sym
+		t.Run(sym, func(t *testing.T) {
+			data, err := qc.GetKline(model.KlineRequest{
+				Symbols:   []string{sym},
+				Period:    "60min",
+				BeginTime: begin,
+				EndTime:   end,
+			})
+			if err != nil {
+				t.Skipf("GetKline(%s 60min): %v", sym, err)
+			}
+			if len(data) == 0 || len(data[0].Items) == 0 {
+				t.Skipf("GetKline(%s 60min): no bars in 5-day window (holiday?)", sym)
+			}
+			items := data[0].Items
+			// 5天应有至少5根60分钟K线
+			if len(items) < 5 {
+				t.Errorf("GetKline(%s 60min): got %d bars in 5-day window, want >= 5", sym, len(items))
+			}
+			for i := 1; i < len(items); i++ {
+				if items[i].Time <= items[i-1].Time {
+					t.Errorf("GetKline(%s 60min): items[%d].Time not ascending", sym, i)
+					break
+				}
+			}
+			for i, item := range items {
+				if item.High < item.Low {
+					t.Errorf("GetKline(%s 60min) item[%d]: High(%v) < Low(%v)", sym, i, item.High, item.Low)
+				}
+			}
+		})
+	}
+}
+
+// TestIntegGetKlineByPageTimeRange 分页K线：指定时间窗口、验证条数和OHLC，覆盖US+HK
+func TestIntegGetKlineByPageTimeRange(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	end := time.Now().UnixMilli()
+	begin := time.Now().AddDate(0, 0, -30).UnixMilli()
+
+	cases := []string{"AAPL", "00700"}
+	for _, sym := range cases {
+		sym := sym
+		t.Run(sym, func(t *testing.T) {
+			data, err := qc.GetKlineByPage(model.KlineByPageRequest{
+				Symbol:    sym,
+				Period:    "day",
+				BeginTime: begin,
+				EndTime:   end,
+				TotalSize: 20,
+				PageSize:  10,
+			})
+			if err != nil {
+				t.Fatalf("GetKlineByPage(%s): %v", sym, err)
+			}
+			if len(data) < 10 {
+				t.Errorf("GetKlineByPage(%s): got %d bars in 30-day window, want >= 10", sym, len(data))
+			}
+			for i := 1; i < len(data); i++ {
+				if data[i].Time <= data[i-1].Time {
+					t.Errorf("GetKlineByPage(%s): items[%d].Time not ascending", sym, i)
+					break
+				}
+			}
+			for i, item := range data {
+				if item.High < item.Low {
+					t.Errorf("GetKlineByPage(%s) item[%d]: High(%v) < Low(%v)", sym, i, item.High, item.Low)
+				}
+				if item.Close <= 0 {
+					t.Errorf("GetKlineByPage(%s) item[%d]: Close=%v, want > 0", sym, i, item.Close)
+				}
+			}
+		})
+	}
+}
+
+// TestIntegGetQuoteDepthOrdering 验证盘口价格合理性：
+//  - asks 按价格升序（最优卖价在前）
+//  - bids 按价格降序（最优买价在前）
+//  - 最低卖价 >= 最高买价（spread >= 0，非倒挂）
+//  - 所有价格 > 0
+//  覆盖 US(AAPL) 和 HK(00700)
+func TestIntegGetQuoteDepthOrdering(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	cases := []struct{ sym, market string }{
+		{"AAPL", "US"},
+		{"00700", "HK"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.sym, func(t *testing.T) {
+			data, err := qc.GetQuoteDepth(model.DepthQuoteRequest{
+				Symbols: []string{tc.sym},
+				Market:  tc.market,
+			})
+			if err != nil {
+				t.Skipf("GetQuoteDepth(%s): %v", tc.sym, err)
+			}
+			if len(data) == 0 {
+				t.Skipf("GetQuoteDepth(%s): empty (outside trading hours?)", tc.sym)
+			}
+			depth := data[0]
+			if depth.Symbol != tc.sym {
+				t.Errorf("Depth.Symbol = %q, want %q", depth.Symbol, tc.sym)
+			}
+			// asks升序
+			for i := 1; i < len(depth.Asks); i++ {
+				if depth.Asks[i].Price < depth.Asks[i-1].Price {
+					t.Errorf("%s: asks[%d].Price(%v) < asks[%d].Price(%v): not ascending",
+						tc.sym, i, depth.Asks[i].Price, i-1, depth.Asks[i-1].Price)
+					break
+				}
+			}
+			// bids降序
+			for i := 1; i < len(depth.Bids); i++ {
+				if depth.Bids[i].Price > depth.Bids[i-1].Price {
+					t.Errorf("%s: bids[%d].Price(%v) > bids[%d].Price(%v): not descending",
+						tc.sym, i, depth.Bids[i].Price, i-1, depth.Bids[i-1].Price)
+					break
+				}
+			}
+			// spread非倒挂：最低卖价 >= 最高买价
+			if len(depth.Asks) > 0 && len(depth.Bids) > 0 {
+				if depth.Asks[0].Price < depth.Bids[0].Price {
+					t.Errorf("%s: spread inverted: lowestAsk(%v) < highestBid(%v)",
+						tc.sym, depth.Asks[0].Price, depth.Bids[0].Price)
+				}
+			}
+			// 所有价格必须 > 0
+			for i, a := range depth.Asks {
+				if a.Price <= 0 {
+					t.Errorf("%s: asks[%d].Price = %v, want > 0", tc.sym, i, a.Price)
+				}
+			}
+			for i, b := range depth.Bids {
+				if b.Price <= 0 {
+					t.Errorf("%s: bids[%d].Price = %v, want > 0", tc.sym, i, b.Price)
+				}
+			}
+		})
+	}
+}
+
+// TestIntegGetBriefMultiMarket 验证US+HK实时行情：价格>0、OHLC约束、ask>=bid
+func TestIntegGetBriefMultiMarket(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	cases := []string{"AAPL", "00700", "09988"}
+	for _, sym := range cases {
+		sym := sym
+		t.Run(sym, func(t *testing.T) {
+			data, err := qc.GetBrief(model.BriefRequest{Symbols: []string{sym}})
+			if err != nil {
+				t.Skipf("GetBrief(%s): %v", sym, err)
+			}
+			if len(data) == 0 {
+				t.Fatalf("GetBrief(%s): returned empty", sym)
+			}
+			q := data[0]
+			if q.Symbol != sym {
+				t.Errorf("Brief.Symbol = %q, want %q", q.Symbol, sym)
+			}
+			if q.LatestPrice <= 0 {
+				t.Errorf("%s LatestPrice = %v, want > 0", sym, q.LatestPrice)
+			}
+			// OHLC约束（日内价格有值时检查）
+			if q.High > 0 && q.Low > 0 {
+				if q.High < q.Low {
+					t.Errorf("%s: High(%v) < Low(%v)", sym, q.High, q.Low)
+				}
+				if q.Open > 0 {
+					if q.High < q.Open {
+						t.Errorf("%s: High(%v) < Open(%v)", sym, q.High, q.Open)
+					}
+					if q.Low > q.Open {
+						t.Errorf("%s: Low(%v) > Open(%v)", sym, q.Low, q.Open)
+					}
+				}
+			}
+			// ask >= bid（spread非倒挂）
+			if q.AskPrice > 0 && q.BidPrice > 0 {
+				if q.AskPrice < q.BidPrice {
+					t.Errorf("%s: AskPrice(%v) < BidPrice(%v): inverted spread",
+						sym, q.AskPrice, q.BidPrice)
+				}
+			}
+		})
+	}
+}
