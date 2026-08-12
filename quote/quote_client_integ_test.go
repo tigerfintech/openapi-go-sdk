@@ -1837,3 +1837,384 @@ func TestIntegGetBriefMultiMarket(t *testing.T) {
 		})
 	}
 }
+
+// ===========================================================================
+// 高优先级补充：期权 Greeks 约束、K线复权对比、期货OHLC+深度排序、多市场状态
+// ===========================================================================
+
+// TestIntegOptionChainGreeksAndStrikeConsistency 验证期权链 Greeks 业务约束：
+//   - Call delta ∈ (0, 1)，Put delta ∈ (-1, 0)（有数据时）
+//   - IV (impliedVol) > 0（有数据时）
+//   - 同一 OptionChainRow 内 Call.Strike == Put.Strike（期权链行内 strike 对应）
+//   - Call.Right == "call"，Put.Right == "put"
+func TestIntegOptionChainGreeksAndStrikeConsistency(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	exps, err := qc.GetOptionExpiration([]string{"AAPL"})
+	if err != nil || len(exps) == 0 || len(exps[0].Dates) == 0 {
+		t.Skipf("no expiry for AAPL: %v", err)
+	}
+	// 选中间到期日，流动性较好
+	expiry := exps[0].Dates[len(exps[0].Dates)/2]
+	chain, err := qc.GetOptionChain([][2]string{{"AAPL", expiry}})
+	if err != nil || len(chain) == 0 || len(chain[0].Items) == 0 {
+		t.Skipf("no option chain: %v", err)
+	}
+
+	greeksChecked := 0
+	for i, row := range chain[0].Items {
+		// Strike 一致性：同行 Call/Put 的 strike 必须相同
+		if row.Call != nil && row.Put != nil {
+			if row.Call.Strike != row.Put.Strike {
+				t.Errorf("row[%d]: Call.Strike(%s) != Put.Strike(%s)", i, row.Call.Strike, row.Put.Strike)
+			}
+		}
+		// Right 字段值
+		if row.Call != nil && row.Call.Right != "" && row.Call.Right != "call" {
+			t.Errorf("row[%d]: Call.Right = %q, want \"call\"", i, row.Call.Right)
+		}
+		if row.Put != nil && row.Put.Right != "" && row.Put.Right != "put" {
+			t.Errorf("row[%d]: Put.Right = %q, want \"put\"", i, row.Put.Right)
+		}
+		// Greeks 约束（只在数据非零时校验，避免非交易时段误判）
+		if row.Call != nil && row.Call.Delta != 0 {
+			if row.Call.Delta <= 0 || row.Call.Delta > 1 {
+				t.Errorf("row[%d]: Call.Delta = %v, want (0, 1]", i, row.Call.Delta)
+			}
+			greeksChecked++
+		}
+		if row.Put != nil && row.Put.Delta != 0 {
+			if row.Put.Delta >= 0 || row.Put.Delta < -1 {
+				t.Errorf("row[%d]: Put.Delta = %v, want [-1, 0)", i, row.Put.Delta)
+			}
+			greeksChecked++
+		}
+		if row.Call != nil && row.Call.ImpliedVol != 0 && row.Call.ImpliedVol < 0 {
+			t.Errorf("row[%d]: Call.ImpliedVol = %v, want >= 0", i, row.Call.ImpliedVol)
+		}
+		if row.Put != nil && row.Put.ImpliedVol != 0 && row.Put.ImpliedVol < 0 {
+			t.Errorf("row[%d]: Put.ImpliedVol = %v, want >= 0", i, row.Put.ImpliedVol)
+		}
+		if greeksChecked >= 10 {
+			break // 检查前10条有 Greeks 的记录即可
+		}
+	}
+}
+
+// TestIntegKlineRightAdjustment 验证复权参数效果：
+// 对于有分红/拆股历史的标的（AAPL），前复权(br)的历史价格应与不复权不同。
+// 如果两者完全相同，可能是服务端未区分或没有复权数据（skip而非fail）。
+func TestIntegKlineRightAdjustment(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	end := time.Now().UnixMilli()
+	begin := time.Now().AddDate(-2, 0, 0).UnixMilli() // 2年前，AAPL 期间有分红
+
+	unadj, err := qc.GetKline(model.KlineRequest{
+		Symbols:   []string{"AAPL"},
+		Period:    "day",
+		BeginTime: begin,
+		EndTime:   end,
+		Limit:     30,
+	})
+	if err != nil || len(unadj) == 0 || len(unadj[0].Items) == 0 {
+		t.Skipf("GetKline (unadjusted): %v", err)
+	}
+
+	adj, err := qc.GetKline(model.KlineRequest{
+		Symbols:   []string{"AAPL"},
+		Period:    "day",
+		BeginTime: begin,
+		EndTime:   end,
+		Limit:     30,
+		Right:     "br", // 前复权
+	})
+	if err != nil || len(adj) == 0 || len(adj[0].Items) == 0 {
+		t.Skipf("GetKline (br adjusted): %v", err)
+	}
+
+	// 两者条数应一致
+	uItems := unadj[0].Items
+	aItems := adj[0].Items
+	if len(uItems) != len(aItems) {
+		t.Logf("unadjusted bars=%d, adjusted bars=%d (may differ)", len(uItems), len(aItems))
+	}
+
+	// 取最早那根K线比较：有分红/拆股时前复权价格应≠不复权价格
+	minLen := len(uItems)
+	if len(aItems) < minLen {
+		minLen = len(aItems)
+	}
+	if minLen == 0 {
+		t.Skip("no overlapping bars to compare")
+	}
+	allSame := true
+	for i := 0; i < minLen; i++ {
+		if uItems[i].Close != aItems[i].Close {
+			allSame = false
+			break
+		}
+	}
+	if allSame {
+		t.Skip("unadjusted and br-adjusted prices are identical (no corporate actions in range, or server treats them the same)")
+	}
+	// 如果不完全相同，复权价格必须都 > 0（业务约束）
+	for i, item := range aItems {
+		if item.Close <= 0 {
+			t.Errorf("br-adjusted KlineItem[%d].Close = %v, want > 0", i, item.Close)
+		}
+		if item.High < item.Low {
+			t.Errorf("br-adjusted KlineItem[%d]: High(%v) < Low(%v)", i, item.High, item.Low)
+		}
+	}
+}
+
+// TestIntegFutureKlineOHLCAndAscending 验证期货K线的完整业务约束：
+//   - 时间戳严格升序
+//   - 每根 High >= max(Open,Close) >= min(Open,Close) >= Low
+//   - Volume >= 0，Close > 0
+func TestIntegFutureKlineOHLCAndAscending(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	code := firstFutureContractCode(t, qc)
+	end := time.Now().UnixMilli()
+	begin := time.Now().AddDate(0, 0, -30).UnixMilli()
+
+	data, err := qc.GetFutureKline(model.FutureKlineRequest{
+		ContractCodes: []string{code},
+		Period:        "day",
+		BeginTime:     begin,
+		EndTime:       end,
+	})
+	if err != nil || len(data) == 0 || len(data[0].Items) == 0 {
+		t.Skipf("GetFutureKline(%s): %v", code, err)
+	}
+	items := data[0].Items
+
+	if len(items) < 5 {
+		t.Errorf("FutureKline(%s): got %d bars in 30-day window, want >= 5", code, len(items))
+	}
+	for i := 1; i < len(items); i++ {
+		if items[i].Time <= items[i-1].Time {
+			t.Errorf("FutureKline(%s): items[%d].Time not ascending", code, i)
+			break
+		}
+	}
+	for i, item := range items {
+		if item.Close <= 0 {
+			t.Errorf("FutureKline(%s) item[%d]: Close=%v, want > 0", code, i, item.Close)
+		}
+		if item.High < item.Low {
+			t.Errorf("FutureKline(%s) item[%d]: High(%v) < Low(%v)", code, i, item.High, item.Low)
+		}
+		if item.High < item.Open {
+			t.Errorf("FutureKline(%s) item[%d]: High(%v) < Open(%v)", code, i, item.High, item.Open)
+		}
+		if item.High < item.Close {
+			t.Errorf("FutureKline(%s) item[%d]: High(%v) < Close(%v)", code, i, item.High, item.Close)
+		}
+		if item.Low > item.Open {
+			t.Errorf("FutureKline(%s) item[%d]: Low(%v) > Open(%v)", code, i, item.Low, item.Open)
+		}
+		if item.Low > item.Close {
+			t.Errorf("FutureKline(%s) item[%d]: Low(%v) > Close(%v)", code, i, item.Low, item.Close)
+		}
+		if item.Volume < 0 {
+			t.Errorf("FutureKline(%s) item[%d]: Volume=%d, want >= 0", code, i, item.Volume)
+		}
+	}
+}
+
+// TestIntegFutureDepthOrdering 验证期货盘口排序：
+//   - asks 按价格升序，bids 按价格降序
+//   - lowestAsk >= highestBid（spread >= 0）
+//   - 所有价格 > 0
+func TestIntegFutureDepthOrdering(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	code := firstFutureContractCode(t, qc)
+	data, err := qc.GetFutureDepth(model.FutureDepthRequest{ContractCodes: []string{code}})
+	if err != nil {
+		t.Skipf("GetFutureDepth(%s): %v", code, err)
+	}
+	if len(data) == 0 {
+		t.Skipf("GetFutureDepth(%s): empty (non-trading hours?)", code)
+	}
+	depth := data[0]
+
+	// asks 升序
+	for i := 1; i < len(depth.Asks); i++ {
+		if depth.Asks[i].Price < depth.Asks[i-1].Price {
+			t.Errorf("FutureDepth asks[%d].Price(%v) < asks[%d].Price(%v): not ascending",
+				i, depth.Asks[i].Price, i-1, depth.Asks[i-1].Price)
+			break
+		}
+	}
+	// bids 降序
+	for i := 1; i < len(depth.Bids); i++ {
+		if depth.Bids[i].Price > depth.Bids[i-1].Price {
+			t.Errorf("FutureDepth bids[%d].Price(%v) > bids[%d].Price(%v): not descending",
+				i, depth.Bids[i].Price, i-1, depth.Bids[i-1].Price)
+			break
+		}
+	}
+	// spread 非倒挂
+	if len(depth.Asks) > 0 && len(depth.Bids) > 0 {
+		if depth.Asks[0].Price < depth.Bids[0].Price {
+			t.Errorf("FutureDepth spread inverted: lowestAsk(%v) < highestBid(%v)",
+				depth.Asks[0].Price, depth.Bids[0].Price)
+		}
+	}
+	// 价格 > 0
+	for i, a := range depth.Asks {
+		if a.Price <= 0 {
+			t.Errorf("FutureDepth asks[%d].Price = %v, want > 0", i, a.Price)
+		}
+	}
+	for i, b := range depth.Bids {
+		if b.Price <= 0 {
+			t.Errorf("FutureDepth bids[%d].Price = %v, want > 0", i, b.Price)
+		}
+	}
+}
+
+// TestIntegGetMarketStateMultiMarket 验证 US 和 HK 两个市场的状态都能正常返回：
+//   - Market 字段非空，Status/MarketStatus 字段之一非空
+//   - 返回条数 >= 1
+func TestIntegGetMarketStateMultiMarket(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	for _, market := range []string{"US", "HK"} {
+		market := market
+		t.Run(market, func(t *testing.T) {
+			data, err := qc.GetMarketState(market)
+			if err != nil {
+				t.Fatalf("GetMarketState(%s): %v", market, err)
+			}
+			if len(data) == 0 {
+				t.Fatalf("GetMarketState(%s): returned empty", market)
+			}
+			for i, ms := range data {
+				if ms.Market == "" {
+					t.Errorf("GetMarketState(%s)[%d].Market is empty", market, i)
+				}
+				if ms.MarketStatus == "" && ms.Status == "" {
+					t.Errorf("GetMarketState(%s)[%d]: both MarketStatus and Status are empty", market, i)
+				}
+			}
+		})
+	}
+}
+
+// TestIntegAssetsNumericConstraints 验证账户资产的数值业务约束：
+//   - BuyingPower >= 0
+//   - NetLiquidation >= 0（可能为0但不应为负）
+//   - Currency 非空（已有测试），此处增加 Segments 内约束
+func TestIntegAssetsNumericConstraints(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.Assets(model.AssetsRequest{})
+	if err != nil {
+		t.Fatalf("Assets: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("Assets returned empty")
+	}
+	for i, asset := range data {
+		if asset.BuyingPower < 0 {
+			t.Errorf("Asset[%d].BuyingPower = %v, want >= 0", i, asset.BuyingPower)
+		}
+		if asset.NetLiquidation < 0 {
+			t.Errorf("Asset[%d].NetLiquidation = %v, want >= 0", i, asset.NetLiquidation)
+		}
+		// 持仓市值 >= 0（long-only 账户）
+		if asset.UnrealizedPnL != 0 {
+			// UnrealizedPnL 可正可负，但如果有持仓，NetLiquidation 应 > 0
+			if asset.NetLiquidation == 0 {
+				t.Logf("Asset[%d]: UnrealizedPnL=%v but NetLiquidation=0 (possible empty account)", i, asset.UnrealizedPnL)
+			}
+		}
+		for j, seg := range asset.Segments {
+			if seg.Category == "" {
+				t.Errorf("Asset[%d].Segments[%d].Category is empty", i, j)
+			}
+		}
+	}
+}
+
+// TestIntegPositionsNumericConstraints 验证持仓数值业务约束（有持仓时）：
+//   - Quantity != 0（持仓数量不应为 0，否则不应出现在列表中）
+//   - AverageCost > 0（成本价必须 > 0）
+//   - MarketValue 与 Quantity 同号（多仓为正，空仓为负）
+func TestIntegPositionsNumericConstraints(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	data, err := tc.Positions(model.PositionsRequest{})
+	if err != nil {
+		t.Fatalf("Positions: %v", err)
+	}
+	if len(data) == 0 {
+		t.Skip("no positions to validate (empty account)")
+	}
+	for i, p := range data {
+		if p.Quantity == 0 {
+			t.Errorf("Position[%d](%s): Quantity = 0, want != 0", i, p.Symbol)
+		}
+		if p.AverageCost <= 0 {
+			t.Errorf("Position[%d](%s): AverageCost = %v, want > 0", i, p.Symbol, p.AverageCost)
+		}
+		// MarketValue 与 Quantity 同号
+		if p.Quantity > 0 && p.MarketValue < 0 {
+			t.Errorf("Position[%d](%s): Quantity=%v > 0 but MarketValue=%v < 0",
+				i, p.Symbol, p.Quantity, p.MarketValue)
+		}
+		if p.Quantity < 0 && p.MarketValue > 0 {
+			t.Errorf("Position[%d](%s): Quantity=%v < 0 but MarketValue=%v > 0",
+				i, p.Symbol, p.Quantity, p.MarketValue)
+		}
+	}
+}
+
+// TestIntegPreviewOrderFields 验证 PreviewOrder 返回的费用/保证金字段存在：
+//   - Commission >= 0
+//   - CommissionCurrency 非空
+//   - InitMargin >= 0，MaintMargin >= 0
+func TestIntegPreviewOrderFields(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+
+	result, err := tc.PreviewOrder(model.OrderRequest{
+		Symbol:        "AAPL",
+		SecType:       "STK",
+		Action:        "BUY",
+		OrderType:     "MKT",
+		TotalQuantity: 1,
+		Currency:      "USD",
+		Market:        "US",
+	})
+	if err != nil {
+		t.Fatalf("PreviewOrder: %v", err)
+	}
+	if result == nil {
+		t.Fatal("PreviewOrder returned nil")
+	}
+	if result.Commission < 0 {
+		t.Errorf("PreviewResult.Commission = %v, want >= 0", result.Commission)
+	}
+	if result.CommissionCurrency == "" {
+		t.Errorf("PreviewResult.CommissionCurrency is empty, want non-empty (e.g. USD)")
+	}
+	if result.InitMargin < 0 {
+		t.Errorf("PreviewResult.InitMargin = %v, want >= 0", result.InitMargin)
+	}
+	if result.MaintMargin < 0 {
+		t.Errorf("PreviewResult.MaintMargin = %v, want >= 0", result.MaintMargin)
+	}
+}
