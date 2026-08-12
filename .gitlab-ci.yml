@@ -63,9 +63,12 @@ unit:go:
       go clean -cache
       export GOCACHE="$(mktemp -d)"
       go vet ./...
-      go install github.com/jstemmer/go-junit-report/v2@latest 2>/dev/null || true
+      # go install requires network access and must not inherit -mod=readonly
+      GOFLAGS="" go install github.com/jstemmer/go-junit-report/v2@latest
       go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... > test-results/unit.txt 2>&1; TEST_EXIT=$?
       cat test-results/unit.txt
+      # Convert verbose test output to JUnit XML for GitLab test report
+      go-junit-report -in test-results/unit.txt -out test-results/unit.xml -set-exit-code || true
       go tool cover -func=coverage.out | tail -1
       exit $TEST_EXIT
   coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
