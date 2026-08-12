@@ -13,3 +13,10 @@
 //
 // 版本号唯一来源：client.SDKVersion（client/http_client.go）
 package tigeropen
+
+// Version is the SDK version string.
+//
+// Deprecated: Use client.SDKVersion instead. This constant is kept for
+// backwards compatibility and will be removed in a future major release.
+// Callers that reference tigeropen.Version will continue to compile.
+const Version = "0.4.2"
