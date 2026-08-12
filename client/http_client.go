@@ -449,9 +449,10 @@ func (c *HttpClient) RefreshToken(tokenManager *config.TokenManager) error {
 func (c *HttpClient) StartTokenAutoRefresh(tokenManager *config.TokenManager, opts ...config.TokenManagerOption) *config.TokenManager {
 	if tokenManager == nil {
 		tokenManager = config.NewTokenManager(opts...)
-		// 从 config.Token 同步当前 token，使 ShouldTokenRefresh 能正确判断
-		if c.config.Token != "" {
-			_ = tokenManager.SetToken(c.config.Token)
+		// 从 atomicToken 同步当前 token，使 ShouldTokenRefresh 能正确判断
+		// 使用 getToken() 而非 config.Token，以反映历次刷新后的最新值
+		if currentToken := c.getToken(); currentToken != "" {
+			_ = tokenManager.SetToken(currentToken)
 		}
 	}
 	tokenManager.StartAutoRefresh(func() (string, error) {

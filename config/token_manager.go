@@ -239,6 +239,8 @@ func (m *TokenManager) refreshLoopWith(stopCh <-chan struct{}) {
 					_ = m.SetToken(newToken)
 				} else if err != nil {
 					log.Printf("[token_manager] auto-refresh failed: %v", err)
+				} else if newToken == "" {
+					log.Printf("[token_manager] token refresh returned empty token with no error — keeping current token")
 				}
 			}
 		}
