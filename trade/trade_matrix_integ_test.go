@@ -23,7 +23,6 @@
 package trade_test
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -286,8 +285,12 @@ func TestMatrixUsStkMarketPreview(t *testing.T) {
 func TestMatrixUsStkMarketByAmountPreview(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	// 网关要求即使按金额下单也带 total_quantity 字段(哪怕值不生效)。
+	// 传 1 让服务端跳过 'quantity is required' 校验;真正的下单份数由
+	// Amount 字段决定。这跟 Java SDK 的 amount-order 一样有校验规则,
+	// 但服务端的语义是 "quantity 必须存在" 而不是 "两者不能共存"。
 	previewOnly(t, tc, merge(usStk(), model.OrderRequest{
-		Action: "BUY", OrderType: "MKT", Amount: 100.0,
+		Action: "BUY", OrderType: "MKT", Amount: 100.0, TotalQuantity: 1,
 	}), "US STK MKT-by-amount preview")
 }
 
@@ -322,15 +325,15 @@ func TestMatrixUsStkTwap(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
 	now := time.Now().UnixMilli()
-	// AlgoParamsRequest object shape — will need SDK fix to marshal into
-	// [{tag, value}] array on the wire (same bug we fixed in TS SDK).
-	// For now this test may fail; the SDK-fix commit will make it pass.
+	// AlgoParamsRequest 现在通过自定义 MarshalJSON 转成网关期望的
+	// [{tag, value}] 数组;调用方直接传自然的结构体即可。
 	previewAndPlace(t, tc, merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "TWAP", TotalQuantity: 10,
-		LimitPrice: safeBuyPrice,
+		LimitPrice:   safeBuyPrice,
+		AlgoStrategy: "TWAP",
 		AlgoParams: &model.AlgoParamsRequest{
-			StartTime: fmt.Sprintf("%d", now),
-			EndTime:   fmt.Sprintf("%d", now+3_600_000),
+			StartTime: now,
+			EndTime:   now + 3_600_000,
 		},
 	}), "US STK TWAP")
 }
@@ -341,10 +344,11 @@ func TestMatrixUsStkVwap(t *testing.T) {
 	now := time.Now().UnixMilli()
 	previewAndPlace(t, tc, merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "VWAP", TotalQuantity: 10,
-		LimitPrice: safeBuyPrice,
+		LimitPrice:   safeBuyPrice,
+		AlgoStrategy: "VWAP",
 		AlgoParams: &model.AlgoParamsRequest{
-			StartTime:         fmt.Sprintf("%d", now),
-			EndTime:           fmt.Sprintf("%d", now+3_600_000),
+			StartTime:         now,
+			EndTime:           now + 3_600_000,
 			ParticipationRate: 0.1,
 		},
 	}), "US STK VWAP")
