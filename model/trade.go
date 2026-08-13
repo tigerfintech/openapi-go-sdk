@@ -247,8 +247,13 @@ type EstimateTradableQuantity struct {
 }
 
 // ForexOrderResult 外汇下单返回结果。
+//
+// 注意: ID 字段的服务端类型是 number(与 PlaceOrderResult 一致),不是 string。
+// 早期定义为 string 会让 encoding/json 反序列化 place_forex_order 响应时报
+// "cannot unmarshal number into Go struct field ForexOrderResult.id of type
+// string"。TS SDK 上同一处类型也是错的,只是 JS 松散没崩。
 type ForexOrderResult struct {
-	ID             string  `json:"id,omitempty"`
+	ID             int64   `json:"id,omitempty"`
 	Status         string  `json:"status,omitempty"`
 	SourceCurrency string  `json:"sourceCurrency,omitempty"`
 	TargetCurrency string  `json:"targetCurrency,omitempty"`

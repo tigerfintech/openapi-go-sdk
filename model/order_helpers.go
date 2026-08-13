@@ -99,7 +99,9 @@ func AuctionMarketOrder(account, symbol, secType, action string, quantity int64)
 	}
 }
 
-// AlgoOrder 构造算法订单（TWAP/VWAP）
+// AlgoOrder 构造算法订单（TWAP/VWAP）。
+// algoType 会同时写入 OrderRequest.OrderType 和 OrderRequest.AlgoStrategy
+// —— 后者是网关期望的顶层策略字段,不在 algo_params 里。
 func AlgoOrder(account, symbol, secType, action string, quantity int64, limitPrice float64, algoType string, params AlgoParamsRequest) OrderRequest {
 	return OrderRequest{
 		Account:       account,
@@ -107,6 +109,7 @@ func AlgoOrder(account, symbol, secType, action string, quantity int64, limitPri
 		SecType:       secType,
 		Action:        action,
 		OrderType:     algoType,
+		AlgoStrategy:  algoType,
 		TotalQuantity: quantity,
 		LimitPrice:    limitPrice,
 		AlgoParams:    &params,
