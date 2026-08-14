@@ -58,6 +58,7 @@ var permissionErrorPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)only limit orders can be placed`),
 	regexp.MustCompile(`(?i)only limit, stop or stop-limit orders are allowed`),
 	regexp.MustCompile(`(?i)at non-trading hour`),
+	regexp.MustCompile(`(?i)time range for the order.*needs to be between`),
 	regexp.MustCompile(`(?i)orders cannot be placed at this moment`),
 	regexp.MustCompile(`(?i)auction order is not allowed at this moment`),
 	regexp.MustCompile(`(?i)does not support stock (long|short)`),
