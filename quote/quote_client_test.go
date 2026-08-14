@@ -49,6 +49,28 @@ func mockServer(t *testing.T, expectedMethod string, data interface{}) *httptest
 	}))
 }
 
+// mockServerCapture is like mockServer but writes the received biz_content
+// field into *capturedBiz so tests can assert wire-shape / default values.
+func mockServerCapture(t *testing.T, expectedMethod string, data interface{}, capturedBiz *string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if biz, ok := body["biz_content"].(string); ok {
+			*capturedBiz = biz
+		}
+		dataBytes, _ := json.Marshal(data)
+		resp := map[string]interface{}{
+			"code":      0,
+			"message":   "success",
+			"data":      json.RawMessage(dataBytes),
+			"timestamp": 1700000000,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+}
+
 // mockErrorServer 创建一个返回错误的 mock HTTP 服务器
 func mockErrorServer(t *testing.T, code int, message string) *httptest.Server {
 	t.Helper()
@@ -397,12 +419,14 @@ func TestGetCorporateAction(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
+	begin := int64(1704067200000) // 2024-01-01 UTC
+	end := int64(1735603200000)   // 2024-12-31 UTC
 	data, err := qc.GetCorporateAction(model.CorporateActionRequest{
 		Symbols:    []string{"AAPL"},
 		Market:     "US",
 		ActionType: "DIVIDEND",
-		BeginDate:  "2024-01-01",
-		EndDate:    "2024-12-31",
+		BeginDate:  &begin,
+		EndDate:    &end,
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateAction 失败: %v", err)
@@ -421,11 +445,13 @@ func TestGetCorporateSymbolChange(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
+	begin := int64(1640995200000) // 2022-01-01 UTC
+	end := int64(1672531200000)   // 2023-01-01 UTC
 	data, err := qc.GetCorporateSymbolChange(model.CorporateActionRequest{
 		Symbols:   []string{"META"},
 		Market:    "US",
-		BeginDate: "2022-01-01",
-		EndDate:   "2023-01-01",
+		BeginDate: &begin,
+		EndDate:   &end,
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateSymbolChange 失败: %v", err)
@@ -447,11 +473,13 @@ func TestGetCorporateDelisting(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
+	begin := int64(1640995200000) // 2022-01-01 UTC
+	end := int64(1672531200000)   // 2023-01-01 UTC
 	data, err := qc.GetCorporateDelisting(model.CorporateActionRequest{
 		Symbols:   []string{"TWTR"},
 		Market:    "US",
-		BeginDate: "2022-01-01",
-		EndDate:   "2023-01-01",
+		BeginDate: &begin,
+		EndDate:   &end,
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateDelisting 失败: %v", err)
@@ -480,11 +508,13 @@ func TestGetCorporateIPO(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
+	begin := int64(1609459200000) // 2021-01-01 UTC
+	end := int64(1640995200000)   // 2022-01-01 UTC
 	data, err := qc.GetCorporateIPO(model.CorporateActionRequest{
 		Symbols:   []string{"RIVN"},
 		Market:    "US",
-		BeginDate: "2021-01-01",
-		EndDate:   "2022-01-01",
+		BeginDate: &begin,
+		EndDate:   &end,
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateIPO 失败: %v", err)

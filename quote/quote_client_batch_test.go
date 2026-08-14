@@ -396,6 +396,47 @@ func TestGetOptionTradeTicks(t *testing.T) {
 	}
 }
 
+// TestOptionTradeTicksRequest_WireShape locks in the wire contract: the
+// gateway requires the biz_content to be a top-level JSON array, not an
+// object with a "contracts" key. See Java BatchApiModel and Python
+// MultipleContractParams for reference.
+func TestOptionTradeTicksRequest_WireShape(t *testing.T) {
+	req := model.OptionTradeTicksRequest{
+		Contracts: []model.OptionQueryItem{
+			{Symbol: "AAPL", Expiry: 1705640400000, Right: "CALL", Strike: "150"},
+		},
+		Lang: "en_US", // must be ignored
+	}
+	raw, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	got := string(raw)
+	if !strings.HasPrefix(got, "[") || !strings.HasSuffix(got, "]") {
+		t.Fatalf("expected top-level JSON array, got: %s", got)
+	}
+	if strings.Contains(got, `"contracts"`) {
+		t.Errorf("wire must not contain \"contracts\" key, got: %s", got)
+	}
+	if strings.Contains(got, `"lang"`) {
+		t.Errorf("wire must not contain \"lang\" key, got: %s", got)
+	}
+	if !strings.Contains(got, `"symbol":"AAPL"`) {
+		t.Errorf("expected symbol AAPL in wire, got: %s", got)
+	}
+}
+
+// TestOptionTradeTicksRequest_Empty ensures nil contracts serialize as [].
+func TestOptionTradeTicksRequest_Empty(t *testing.T) {
+	raw, err := json.Marshal(model.OptionTradeTicksRequest{})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(raw) != "[]" {
+		t.Errorf("expected [], got %s", string(raw))
+	}
+}
+
 func TestGetOptionTimeline(t *testing.T) {
 	server := mockServer(t, "option_timeline", []map[string]interface{}{
 		{"symbol": "AAPL"},
@@ -793,17 +834,70 @@ func TestGetWarrantFilter(t *testing.T) {
 
 func TestGetIndustryList(t *testing.T) {
 	server := mockServer(t, "industry_list", []map[string]interface{}{
-		{"id": "1", "name": "Technology"},
+		{"id": "1", "nameEN": "Technology", "nameCN": "科技", "industryLevel": "GSECTOR"},
 	})
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetIndustryList(model.IndustryListRequest{IndustryLevel: "level1"})
+	data, err := qc.GetIndustryList(model.IndustryListRequest{IndustryLevel: "GSECTOR"})
 	if err != nil {
 		t.Fatalf("GetIndustryList 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetIndustryList 返回 nil")
+	if len(data) != 1 {
+		t.Fatalf("期望 1 条，实际 %d", len(data))
+	}
+	if data[0].ID != "1" {
+		t.Errorf("IndustryItem.ID = %q, want 1", data[0].ID)
+	}
+	if data[0].NameEN != "Technology" {
+		t.Errorf("IndustryItem.NameEN = %q, want Technology", data[0].NameEN)
+	}
+	if data[0].NameCN != "科技" {
+		t.Errorf("IndustryItem.NameCN = %q, want 科技", data[0].NameCN)
+	}
+	if data[0].Level != "GSECTOR" {
+		t.Errorf("IndustryItem.Level = %q, want GSECTOR", data[0].Level)
+	}
+	// Name compat field prefers NameEN.
+	if data[0].Name != "Technology" {
+		t.Errorf("IndustryItem.Name = %q, want Technology (hydrated from NameEN)", data[0].Name)
+	}
+}
+
+// TestGetIndustryList_DefaultLevel verifies GetIndustryList defaults
+// IndustryLevel to GGROUP when caller leaves it empty (matches Python SDK).
+func TestGetIndustryList_DefaultLevel(t *testing.T) {
+	var gotBiz string
+	server := mockServerCapture(t, "industry_list", []map[string]interface{}{
+		{"id": "1", "nameEN": "Semiconductors", "industryLevel": "GGROUP"},
+	}, &gotBiz)
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	_, err := qc.GetIndustryList(model.IndustryListRequest{}) // no level provided
+	if err != nil {
+		t.Fatalf("GetIndustryList 失败: %v", err)
+	}
+	if !strings.Contains(gotBiz, `"industry_level":"GGROUP"`) {
+		t.Errorf("expected industry_level defaulted to GGROUP in biz_content, got %s", gotBiz)
+	}
+}
+
+// TestGetIndustryList_NameFallbackToCN verifies Name falls back to NameCN
+// when NameEN is empty.
+func TestGetIndustryList_NameFallbackToCN(t *testing.T) {
+	server := mockServer(t, "industry_list", []map[string]interface{}{
+		{"id": "2", "nameCN": "金融", "industryLevel": "GSECTOR"},
+	})
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	data, err := qc.GetIndustryList(model.IndustryListRequest{IndustryLevel: "GSECTOR"})
+	if err != nil {
+		t.Fatalf("GetIndustryList 失败: %v", err)
+	}
+	if len(data) != 1 || data[0].Name != "金融" {
+		t.Errorf("expected Name to fall back to NameCN, got %+v", data)
 	}
 }
 
@@ -832,11 +926,13 @@ func TestGetCorporateSplit(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
+	begin := int64(1704067200000) // 2024-01-01 UTC
+	end := int64(1735603200000)   // 2024-12-31 UTC
 	data, err := qc.GetCorporateSplit(model.CorporateActionRequest{
 		Symbols:   []string{"AAPL"},
 		Market:    "US",
-		BeginDate: "2024-01-01",
-		EndDate:   "2024-12-31",
+		BeginDate: &begin,
+		EndDate:   &end,
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateSplit 失败: %v", err)
@@ -855,11 +951,13 @@ func TestGetCorporateDividend(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
+	begin := int64(1704067200000) // 2024-01-01 UTC
+	end := int64(1735603200000)   // 2024-12-31 UTC
 	data, err := qc.GetCorporateDividend(model.CorporateActionRequest{
 		Symbols:   []string{"AAPL"},
 		Market:    "US",
-		BeginDate: "2024-01-01",
-		EndDate:   "2024-12-31",
+		BeginDate: &begin,
+		EndDate:   &end,
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateDividend 失败: %v", err)
@@ -878,11 +976,13 @@ func TestGetCorporateEarningsCalendar(t *testing.T) {
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
+	begin := int64(1704067200000) // 2024-01-01 UTC
+	end := int64(1735603200000)   // 2024-12-31 UTC
 	data, err := qc.GetCorporateEarningsCalendar(model.CorporateActionRequest{
 		Symbols:   []string{"AAPL"},
 		Market:    "US",
-		BeginDate: "2024-01-01",
-		EndDate:   "2024-12-31",
+		BeginDate: &begin,
+		EndDate:   &end,
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateEarningsCalendar 失败: %v", err)

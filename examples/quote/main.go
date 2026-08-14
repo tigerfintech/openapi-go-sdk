@@ -319,7 +319,7 @@ func main() {
 
 	if items, err := qc.GetCorporateAction(model.CorporateActionRequest{
 		Symbols: []string{"AAPL"}, Market: "US", ActionType: "DIVIDEND",
-		BeginDate: "2024-01-01", EndDate: "2024-12-31",
+		BeginDate: msDate("2024-01-01"), EndDate: msDate("2024-12-31"),
 	}); err != nil {
 		fail("GetCorporateAction(AAPL)", err)
 	} else {
@@ -560,7 +560,7 @@ func main() {
 	}
 
 	if items, err := qc.GetCorporateSplit(model.CorporateActionRequest{
-		Symbols: []string{"AAPL"}, Market: "US", BeginDate: "2020-01-01", EndDate: "2024-12-31",
+		Symbols: []string{"AAPL"}, Market: "US", BeginDate: msDate("2020-01-01"), EndDate: msDate("2024-12-31"),
 	}); err != nil {
 		fail("GetCorporateSplit(AAPL)", err)
 	} else {
@@ -568,28 +568,28 @@ func main() {
 	}
 
 	if items, err := qc.GetCorporateDividend(model.CorporateActionRequest{
-		Symbols: []string{"AAPL"}, Market: "US", BeginDate: "2024-01-01", EndDate: "2024-12-31",
+		Symbols: []string{"AAPL"}, Market: "US", BeginDate: msDate("2024-01-01"), EndDate: msDate("2024-12-31"),
 	}); err != nil {
 		fail("GetCorporateDividend(AAPL)", err)
 	} else {
 		ok("GetCorporateDividend(AAPL)", fmt.Sprintf("rows=%d", len(items)))
 	}
 	if items, err := qc.GetCorporateSymbolChange(model.CorporateActionRequest{
-		Symbols: []string{"META"}, Market: "US", BeginDate: "2022-01-01", EndDate: "2023-01-01",
+		Symbols: []string{"META"}, Market: "US", BeginDate: msDate("2022-01-01"), EndDate: msDate("2023-01-01"),
 	}); err != nil {
 		fail("GetCorporateSymbolChange(META)", err)
 	} else {
 		ok("GetCorporateSymbolChange(META)", fmt.Sprintf("rows=%d", len(items)))
 	}
 	if items, err := qc.GetCorporateDelisting(model.CorporateActionRequest{
-		Symbols: []string{"TWTR"}, Market: "US", BeginDate: "2022-01-01", EndDate: "2023-01-01",
+		Symbols: []string{"TWTR"}, Market: "US", BeginDate: msDate("2022-01-01"), EndDate: msDate("2023-01-01"),
 	}); err != nil {
 		fail("GetCorporateDelisting(TWTR)", err)
 	} else {
 		ok("GetCorporateDelisting(TWTR)", fmt.Sprintf("rows=%d", len(items)))
 	}
 	if items, err := qc.GetCorporateIPO(model.CorporateActionRequest{
-		Symbols: []string{"RIVN"}, Market: "US", BeginDate: "2021-01-01", EndDate: "2022-01-01",
+		Symbols: []string{"RIVN"}, Market: "US", BeginDate: msDate("2021-01-01"), EndDate: msDate("2022-01-01"),
 	}); err != nil {
 		fail("GetCorporateIPO(RIVN)", err)
 	} else {
@@ -655,4 +655,15 @@ func firstOrEmpty(xs []string) string {
 		return ""
 	}
 	return xs[0]
+}
+
+// msDate parses "YYYY-MM-DD" (UTC) into a *int64 epoch-ms pointer for
+// FinancialReportRequest / CorporateActionRequest wire fields.
+func msDate(s string) *int64 {
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		log.Fatalf("msDate(%q): %v", s, err)
+	}
+	v := t.UnixMilli()
+	return &v
 }

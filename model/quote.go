@@ -631,11 +631,23 @@ type WarrantFilterResult struct {
 	Page     int            `json:"page,omitempty"`
 }
 
-// IndustryItem 行业列表条目。
+// IndustryItem 行业列表条目 (industry_list)。
+//
+// Wire field mapping (0.5): 服务端返回 nameCN / nameEN / industryLevel，
+// 不是 name / level。此前的 struct 字段名会导致 IndustryItem.Name 永远为空
+// (Python SDK 也是把两者都拿出来放到 name_cn / name_en 里)。新字段
+// NameCN / NameEN 分别映射到 nameCN / nameEN，Level 映射到 industryLevel。
+//
+// 兼容性：老字段 Name 仍保留 (json:"-"，不参与反序列化)，由 SDK 在解码后
+// 赋值为 NameEN 或 NameCN (优先英文) 以最小化调用方改动。
 type IndustryItem struct {
-	ID    string `json:"id,omitempty"`
-	Name  string `json:"name,omitempty"`
-	Level string `json:"level,omitempty"`
+	ID     string `json:"id,omitempty"`
+	NameCN string `json:"nameCN,omitempty"`
+	NameEN string `json:"nameEN,omitempty"`
+	Level  string `json:"industryLevel,omitempty"`
+	// Name 兼容字段：优先英文名，英文空则回退中文。反序列化时不从 wire 读取；
+	// 由 QuoteClient.GetIndustryList 在返回前 hydrate。
+	Name string `json:"-"`
 }
 
 // IndustryStock 行业归属股票条目。
