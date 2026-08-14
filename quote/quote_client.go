@@ -876,10 +876,29 @@ func (c *QuoteClient) GetWarrantFilter(req model.WarrantFilterRequest) (*model.W
 }
 
 // GetIndustryList 行业列表。wire: industry_list
+//
+// IndustryLevel 服务端必填——缺省时会返回
+// `biz param error(industry level error, all supported is: [GSECTOR, GGROUP, GIND, GSUBIND])`。
+// 未指定时默认 GGROUP，与 Python SDK (IndustryLevel.GGROUP) 一致。
+//
+// 返回的每个 IndustryItem 会自动填充兼容字段 Name (优先 NameEN，空则回退
+// NameCN)，保留 NameCN / NameEN / Level 完整数据。
 func (c *QuoteClient) GetIndustryList(req model.IndustryListRequest) ([]model.IndustryItem, error) {
+	if req.IndustryLevel == "" {
+		req.IndustryLevel = string(model.IndustryLevelGGroup)
+	}
 	var out []model.IndustryItem
-	err := c.callInto("industry_list", req, &out)
-	return out, err
+	if err := c.callInto("industry_list", req, &out); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if out[i].NameEN != "" {
+			out[i].Name = out[i].NameEN
+		} else if out[i].NameCN != "" {
+			out[i].Name = out[i].NameCN
+		}
+	}
+	return out, nil
 }
 
 // GetIndustryStocks 行业下股票列表。wire: industry_stock_list

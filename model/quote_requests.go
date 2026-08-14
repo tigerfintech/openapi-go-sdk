@@ -1,5 +1,7 @@
 package model
 
+import "encoding/json"
+
 // FinancialDailyRequest 日级财务数据请求
 type FinancialDailyRequest struct {
 	Symbols   []string `json:"symbols"`
@@ -9,23 +11,35 @@ type FinancialDailyRequest struct {
 	EndDate   string   `json:"end_date"`
 }
 
-// FinancialReportRequest 财报数据请求
+// FinancialReportRequest 财报数据请求。
+//
+// Breaking change (0.5): BeginDate / EndDate 由 string 改为 *int64 epoch-ms。
+// 服务端要求日期字段为毫秒时间戳；早期版本发字符串会被网关拒
+// (`biz param error(failed to parse parameters in 'biz_content')`)。
+// 与 Python `date_str_to_timestamp` / Rust `Option<i64>` / Java `Long` 保持一致。
 type FinancialReportRequest struct {
 	Symbols    []string `json:"symbols"`
 	Market     string   `json:"market"`
 	Fields     []string `json:"fields"`
 	PeriodType string   `json:"period_type"`
-	BeginDate  string   `json:"begin_date,omitempty"`
-	EndDate    string   `json:"end_date,omitempty"`
+	// BeginDate epoch-ms 起始时间。
+	BeginDate *int64 `json:"begin_date,omitempty"`
+	// EndDate epoch-ms 结束时间。
+	EndDate *int64 `json:"end_date,omitempty"`
 }
 
-// CorporateActionRequest 公司行动请求
+// CorporateActionRequest 公司行动请求。
+//
+// Breaking change (0.5): BeginDate / EndDate 由 string 改为 *int64 epoch-ms，
+// 与 FinancialReportRequest 保持一致。服务端要求毫秒时间戳。
 type CorporateActionRequest struct {
 	Symbols    []string `json:"symbols"`
 	Market     string   `json:"market"`
 	ActionType string   `json:"action_type"`
-	BeginDate  string   `json:"begin_date,omitempty"`
-	EndDate    string   `json:"end_date,omitempty"`
+	// BeginDate epoch-ms 起始时间。
+	BeginDate *int64 `json:"begin_date,omitempty"`
+	// EndDate epoch-ms 结束时间。
+	EndDate *int64 `json:"end_date,omitempty"`
 }
 
 // FutureKlineRequest 期货 K 线请求
@@ -225,9 +239,32 @@ type OptionQueryItem struct {
 }
 
 // OptionTradeTicksRequest 期权逐笔。wire: option_trade_tick
+//
+// Wire contract: 服务端要求的 biz_content 是**顶层数组**
+// ([{symbol, expiry, ...}, ...])，而非 {"contracts": [...]} 对象形式。
+// 这与 Java BatchApiModel (items 直接 JSON 序列化为顶层数组) 及 Python
+// MultipleContractParams.to_openapi_dict 一致。
+//
+// 早期版本按对象形式发送导致
+// `biz param error(failed to parse parameters in 'biz_content')`，
+// 现通过自定义 MarshalJSON 让 biz_content 直接是 Contracts 数组的 JSON。
+// Lang 字段在此路径下被 SDK 忽略——网关本方法无 lang 入参。
 type OptionTradeTicksRequest struct {
-	Contracts []OptionQueryItem `json:"contracts,omitempty"`
-	Lang      string            `json:"lang,omitempty"`
+	Contracts []OptionQueryItem `json:"-"`
+	// Lang 保留字段：此接口 biz_content 是顶层数组，lang 无处安放，
+	// 序列化时会被忽略。保留字段让 API 与其他 request 结构体一致，方便调用方使用。
+	Lang string `json:"-"`
+}
+
+// MarshalJSON emits Contracts as a top-level JSON array so the gateway
+// receives `[{...}, ...]` rather than `{"contracts": [...]}`.
+// Empty/nil Contracts serializes as `[]` for a well-formed request.
+func (o OptionTradeTicksRequest) MarshalJSON() ([]byte, error) {
+	items := o.Contracts
+	if items == nil {
+		items = []OptionQueryItem{}
+	}
+	return json.Marshal(items)
 }
 
 // OptionTimelineRequest 期权分时。wire: option_timeline

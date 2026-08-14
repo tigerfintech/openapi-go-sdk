@@ -20,6 +20,18 @@ import (
 	"github.com/tigerfintech/openapi-go-sdk/quote"
 )
 
+// ms parses a "YYYY-MM-DD" date in UTC and returns its epoch-ms timestamp
+// as *int64, matching the wire type expected by FinancialReportRequest /
+// CorporateActionRequest. Panics on malformed input (test-only helper).
+func ms(date string) *int64 {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		panic(err)
+	}
+	v := t.UnixMilli()
+	return &v
+}
+
 func TestIntegGetMarketState(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
@@ -207,8 +219,8 @@ func TestIntegGetCorporateAction(t *testing.T) {
 		Symbols:    []string{"AAPL"},
 		Market:     "US",
 		ActionType: "DIVIDEND",
-		BeginDate:  "2024-01-01",
-		EndDate:    "2025-12-31",
+		BeginDate:  ms("2024-01-01"),
+		EndDate:    ms("2025-12-31"),
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateAction: %v", err)
@@ -737,6 +749,8 @@ func TestIntegGetFinancialReport(t *testing.T) {
 		Market:     "US",
 		Fields:     []string{"total_revenue"},
 		PeriodType: "Annual",
+		BeginDate:  ms("2024-01-01"),
+		EndDate:    ms("2024-06-30"),
 	})
 	if err != nil {
 		t.Fatalf("GetFinancialReport: %v", err)
@@ -1447,8 +1461,8 @@ func TestIntegGetCorporateSplit(t *testing.T) {
 	data, err := qc.GetCorporateSplit(model.CorporateActionRequest{
 		Symbols:   []string{"AAPL"},
 		Market:    "US",
-		BeginDate: "2020-01-01",
-		EndDate:   "2025-12-31",
+		BeginDate: ms("2020-01-01"),
+		EndDate:   ms("2025-12-31"),
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateSplit: %v", err)
@@ -1469,8 +1483,8 @@ func TestIntegGetCorporateDividend(t *testing.T) {
 	data, err := qc.GetCorporateDividend(model.CorporateActionRequest{
 		Symbols:   []string{"AAPL"},
 		Market:    "US",
-		BeginDate: "2024-01-01",
-		EndDate:   "2025-12-31",
+		BeginDate: ms("2024-01-01"),
+		EndDate:   ms("2025-12-31"),
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateDividend: %v", err)
@@ -1490,8 +1504,8 @@ func TestIntegGetCorporateEarningsCalendar(t *testing.T) {
 	data, err := qc.GetCorporateEarningsCalendar(model.CorporateActionRequest{
 		Symbols:   []string{"AAPL"},
 		Market:    "US",
-		BeginDate: "2024-01-01",
-		EndDate:   "2024-01-31",
+		BeginDate: ms("2024-01-01"),
+		EndDate:   ms("2024-01-31"),
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateEarningsCalendar: %v", err)
@@ -1511,8 +1525,8 @@ func TestIntegGetCorporateSymbolChange(t *testing.T) {
 	data, err := qc.GetCorporateSymbolChange(model.CorporateActionRequest{
 		Symbols:   []string{"AAPL"},
 		Market:    "US",
-		BeginDate: "2020-01-01",
-		EndDate:   "2025-12-31",
+		BeginDate: ms("2020-01-01"),
+		EndDate:   ms("2025-12-31"),
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateSymbolChange: %v", err)
@@ -1528,8 +1542,8 @@ func TestIntegGetCorporateDelisting(t *testing.T) {
 	data, err := qc.GetCorporateDelisting(model.CorporateActionRequest{
 		Symbols:   []string{"AAPL"},
 		Market:    "US",
-		BeginDate: "2020-01-01",
-		EndDate:   "2025-12-31",
+		BeginDate: ms("2020-01-01"),
+		EndDate:   ms("2025-12-31"),
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateDelisting: %v", err)
@@ -1545,8 +1559,8 @@ func TestIntegGetCorporateIPO(t *testing.T) {
 	data, err := qc.GetCorporateIPO(model.CorporateActionRequest{
 		Symbols:   []string{"AAPL"},
 		Market:    "US",
-		BeginDate: "2024-01-01",
-		EndDate:   "2025-12-31",
+		BeginDate: ms("2024-01-01"),
+		EndDate:   ms("2025-12-31"),
 	})
 	if err != nil {
 		t.Fatalf("GetCorporateIPO: %v", err)
