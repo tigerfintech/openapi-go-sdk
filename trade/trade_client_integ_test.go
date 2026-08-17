@@ -247,7 +247,7 @@ func TestIntegGetOrder(t *testing.T) {
 		t.Fatalf("Orders prerequisite: %v", err)
 	}
 	if len(orders) == 0 {
-		t.Skip("no orders in last 30 days to test GetOrder")
+		t.Skip("skip: no orders in last 30 days to fetch by ID (account has no order history)")
 	}
 
 	order, err := tc.GetOrder(model.GetOrderRequest{Id: orders[0].ID})
@@ -296,7 +296,7 @@ func TestIntegPrimeAssets(t *testing.T) {
 		t.Fatalf("PrimeAssets: %v", err)
 	}
 	if data == nil {
-		t.Skip("PrimeAssets returned nil (may not be a prime account)")
+		t.Skip("skip: PrimeAssets returned nil (account is not a prime account)")
 	}
 	if data.AccountID == "" {
 		t.Errorf("PrimeAsset.AccountID is empty, want non-empty")
@@ -413,12 +413,12 @@ func TestIntegAggregateAssets(t *testing.T) {
 	data, err := tc.AggregateAssets(model.AggregateAssetsRequest{})
 	if err != nil {
 		if strings.Contains(err.Error(), "institution account") {
-			t.Skipf("AggregateAssets requires institution account: %v", err)
+			t.Skipf("skip: AggregateAssets requires an institution account (this is a retail account): %v", err)
 		}
 		t.Fatalf("AggregateAssets: %v", err)
 	}
 	if data == nil {
-		t.Skip("AggregateAssets returned nil")
+		t.Skip("skip: AggregateAssets returned nil (institution-only endpoint)")
 	}
 	if data.AccountID == "" {
 		t.Errorf("AggregateAssets.AccountID is empty, want non-empty")
@@ -442,8 +442,11 @@ func TestIntegEstimateTradableQuantity(t *testing.T) {
 	if data == nil {
 		t.Fatal("EstimateTradableQuantity returned nil")
 	}
+	// Currency is account-dependent — some accounts do not receive it. Log
+	// rather than skip so the primary contract (nil-check, no error) is
+	// still enforced.
 	if data.Currency == "" {
-		t.Skip("EstimateTradableQuantity.Currency is empty (may not be returned for this account)")
+		t.Logf("EstimateTradableQuantity.Currency is empty (account-dependent payload)")
 	}
 }
 
@@ -485,10 +488,12 @@ func TestIntegFundDetails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FundDetails: %v", err)
 	}
-	// May be empty.
+	// Account is account-dependent (institutional payloads populate it,
+	// individual paper accounts often omit it). Log rather than skip so we
+	// still validate that the call succeeds and decodes.
 	for i, f := range data {
 		if f.Account == "" {
-			t.Skipf("FundDetails[%d].Account is empty (may not be returned for this account)", i)
+			t.Logf("FundDetails[%d].Account is empty (account-dependent payload)", i)
 		}
 	}
 }
@@ -552,7 +557,7 @@ func TestIntegPositionTransferDetail(t *testing.T) {
 		t.Fatalf("PositionTransferRecords prerequisite: %v", err)
 	}
 	if len(records) == 0 {
-		t.Skip("no position transfer records to test PositionTransferDetail")
+		t.Skip("skip: no position transfer records to look up (account has no transfer history)")
 	}
 	detail, err := tc.PositionTransferDetail(model.PositionTransferDetailRequest{
 		ID:        records[0].ID,
@@ -573,11 +578,15 @@ func TestIntegOptionExerciseCheck(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
 
-	// OptionExerciseCheck requires a valid option contract ID.
-	// Fetch exercisable positions first; skip if none exist.
+	// OptionExerciseCheck requires a valid option contract ID. Test account
+	// must hold an exercisable option position to exercise this endpoint;
+	// otherwise there is nothing to validate.
 	positions, err := tc.OptionExercisePositions(model.OptionExercisePositionRequest{Type: "Exercise"})
-	if err != nil || positions == nil || positions.ItemCount == 0 || len(positions.Items) == 0 {
-		t.Skipf("no exercisable positions: err=%v", err)
+	if err != nil {
+		t.Fatalf("OptionExercisePositions prerequisite: %v", err)
+	}
+	if positions == nil || positions.ItemCount == 0 || len(positions.Items) == 0 {
+		t.Skip("skip: no exercisable positions on this account (endpoint requires an open option position)")
 	}
 	contractId := positions.Items[0].ContractId
 	result, err := tc.OptionExerciseCheck(model.OptionExerciseCheckRequest{
@@ -677,7 +686,7 @@ func TestIntegPositionsNumericConstraints(t *testing.T) {
 		t.Fatalf("Positions: %v", err)
 	}
 	if len(data) == 0 {
-		t.Skip("no positions to validate (empty account)")
+		t.Skip("skip: no positions on this account (nothing to validate)")
 	}
 	for i, p := range data {
 		// Position(int64) 用于整数股，PositionQty(float64) 用于碎股；两者均为 0 才算异常
