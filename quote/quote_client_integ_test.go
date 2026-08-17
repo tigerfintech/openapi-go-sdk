@@ -1422,13 +1422,14 @@ func TestIntegGetWarrantFilter(t *testing.T) {
 	if data == nil {
 		t.Fatal("GetWarrantFilter returned nil")
 	}
-	// Warrant entitlements are HK-market-gated. A zero Total means the
-	// account cannot query warrants — legitimate skip.
-	if data.Total == 0 {
-		t.Skip("skip: GetWarrantFilter returned 0 warrants for 00700 (account lacks HK warrant entitlement)")
-	}
+	// Wire shape: server returns a bare array of warrant items with no
+	// {total, page, pageSize} wrapper — SDK models keep those fields at
+	// their zero defaults. So `Total` is not authoritative; only `Items`
+	// carries the answer. During HK trading 00700 must yield warrants;
+	// out-of-hours empty is legitimate and we early-return without asserting.
 	if len(data.Items) == 0 {
-		t.Fatal("GetWarrantFilter has Total > 0 but no items")
+		integtest.AssertNonEmptyDuringTrading(t, qc, "HK", "GetWarrantFilter(00700) returned no items")
+		return
 	}
 	if data.Items[0].Symbol == "" {
 		t.Errorf("WarrantBrief.Symbol is empty, want non-empty")
