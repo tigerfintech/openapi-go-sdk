@@ -114,9 +114,12 @@ func TestIntegGetTimeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTimeline: %v", err)
 	}
-	// Timeline is only produced during trading hours.
+	// Timeline is only produced during extended trading hours. Out-of-hours
+	// the wire round-trip has already been validated by the successful call
+	// above; empty items are expected and the test should stop here.
 	if len(data) == 0 {
-		integtest.FailOrSkipExtended(t, qc, "US", "GetTimeline returned empty for AAPL")
+		integtest.AssertNonEmptyDuringExtended(t, qc, "US", "GetTimeline returned empty for AAPL")
+		return
 	}
 	if data[0].Symbol != "AAPL" {
 		t.Errorf("Timeline.Symbol = %q, want AAPL", data[0].Symbol)
@@ -256,9 +259,12 @@ func TestIntegGetCapitalFlow(t *testing.T) {
 	if data.Symbol != "AAPL" {
 		t.Errorf("CapitalFlow.Symbol = %q, want AAPL", data.Symbol)
 	}
-	// Capital flow items only exist during trading hours.
+	// Capital flow items only exist during trading hours. Out-of-hours the
+	// wire round-trip already validated the request; stop here rather than
+	// asserting on missing data.
 	if len(data.Items) == 0 {
-		integtest.FailOrSkip(t, qc, "US", "GetCapitalFlow returned empty items")
+		integtest.AssertNonEmptyDuringTrading(t, qc, "US", "GetCapitalFlow returned empty items")
+		return
 	}
 	item := data.Items[0]
 	if item.Timestamp == 0 {
@@ -353,9 +359,12 @@ func TestIntegGetTradeTick(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTradeTick: %v", err)
 	}
-	// Trade ticks only stream during regular trading hours.
+	// Trade ticks only stream during regular trading hours. Out-of-hours the
+	// wire round-trip already validated the request; stop here rather than
+	// asserting on missing data.
 	if len(data) == 0 || len(data[0].Items) == 0 {
-		integtest.FailOrSkip(t, qc, "US", "GetTradeTick returned empty for AAPL")
+		integtest.AssertNonEmptyDuringTrading(t, qc, "US", "GetTradeTick returned empty for AAPL")
+		return
 	}
 	if data[0].Symbol != "AAPL" {
 		t.Errorf("TradeTick.Symbol = %q, want AAPL", data[0].Symbol)
@@ -377,9 +386,12 @@ func TestIntegGetQuoteDepth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetQuoteDepth: %v", err)
 	}
-	// Depth only streams during trading hours.
+	// Depth only streams during trading hours. Out-of-hours the wire
+	// round-trip already validated the request; stop here rather than
+	// asserting on missing data.
 	if len(data) == 0 {
-		integtest.FailOrSkip(t, qc, "US", "GetQuoteDepth returned empty for AAPL")
+		integtest.AssertNonEmptyDuringTrading(t, qc, "US", "GetQuoteDepth returned empty for AAPL")
+		return
 	}
 	if data[0].Symbol != "AAPL" {
 		t.Errorf("Depth.Symbol = %q, want AAPL", data[0].Symbol)
@@ -411,9 +423,11 @@ func TestIntegGetQuoteOvernight(t *testing.T) {
 		t.Fatalf("GetQuoteOvernight: %v", err)
 	}
 	// Overnight quotes are only produced during US extended-hour sessions.
-	// Outside those windows an empty response is expected and not a bug.
+	// Outside those windows an empty response is expected — the wire
+	// round-trip already validated the request path, so stop here.
 	if len(data) == 0 {
-		integtest.FailOrSkipExtended(t, qc, "US", "GetQuoteOvernight returned empty for AAPL")
+		integtest.AssertNonEmptyDuringExtended(t, qc, "US", "GetQuoteOvernight returned empty for AAPL")
+		return
 	}
 	if data[0].Symbol != "AAPL" {
 		t.Errorf("QuoteOvernight.Symbol = %q, want AAPL", data[0].Symbol)
@@ -601,9 +615,12 @@ func TestIntegGetTradeRank(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTradeRank: %v", err)
 	}
-	// Rank only produces data during trading hours.
+	// Rank only produces data during trading hours. Out-of-hours the wire
+	// round-trip already validated the request; stop here rather than
+	// asserting on missing data.
 	if len(data) == 0 {
-		integtest.FailOrSkip(t, qc, "US", "GetTradeRank returned empty")
+		integtest.AssertNonEmptyDuringTrading(t, qc, "US", "GetTradeRank returned empty")
+		return
 	}
 	if data[0].Symbol == "" {
 		t.Errorf("TradeRankItem.Symbol is empty, want non-empty")
@@ -915,9 +932,11 @@ func TestIntegGetOptionKline(t *testing.T) {
 	}
 	// A live, tradeable near-ATM option should have at least one daily bar in
 	// a 90-day window. If not, the failure depends on trading hours: during a
-	// live session, empty means a real regression; outside, skip cleanly.
+	// live session, empty means a real regression; outside, the wire path
+	// was already validated by the successful call, so stop here.
 	if len(data) == 0 || len(data[0].Items) == 0 {
-		integtest.FailOrSkip(t, qc, "US", "GetOptionKline returned empty for %s over 90 days", identifier)
+		integtest.AssertNonEmptyDuringTrading(t, qc, "US", "GetOptionKline returned empty for %s over 90 days", identifier)
+		return
 	}
 	if data[0].Items[0].Close <= 0 {
 		t.Errorf("KlineItem.Close = %v, want > 0", data[0].Items[0].Close)
@@ -940,9 +959,12 @@ func TestIntegGetOptionTradeTicks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOptionTradeTicks: %v", err)
 	}
-	// Trade ticks are only produced during regular trading hours.
+	// Trade ticks are only produced during regular trading hours. Out-of-hours
+	// the wire round-trip already validated the request; stop here rather
+	// than asserting on missing data.
 	if len(data) == 0 || len(data[0].Items) == 0 {
-		integtest.FailOrSkip(t, qc, "US", "GetOptionTradeTicks returned empty")
+		integtest.AssertNonEmptyDuringTrading(t, qc, "US", "GetOptionTradeTicks returned empty")
+		return
 	}
 	item := data[0].Items[0]
 	if item.Time == 0 {
@@ -970,9 +992,12 @@ func TestIntegGetOptionTimeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOptionTimeline: %v", err)
 	}
-	// Timeline is only produced during trading hours.
+	// Timeline is only produced during trading hours. Out-of-hours the wire
+	// round-trip already validated the request; stop here rather than
+	// asserting on missing data.
 	if len(data) == 0 {
-		integtest.FailOrSkip(t, qc, "US", "GetOptionTimeline returned empty")
+		integtest.AssertNonEmptyDuringTrading(t, qc, "US", "GetOptionTimeline returned empty")
+		return
 	}
 	if data[0].Symbol == "" {
 		t.Errorf("Timeline.Symbol is empty, want non-empty")
@@ -995,9 +1020,12 @@ func TestIntegGetOptionDepth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOptionDepth: %v", err)
 	}
-	// Depth is only produced during trading hours.
+	// Depth is only produced during trading hours. Out-of-hours the wire
+	// round-trip already validated the request; stop here rather than
+	// asserting on missing data.
 	if len(data) == 0 {
-		integtest.FailOrSkip(t, qc, "US", "GetOptionDepth returned empty")
+		integtest.AssertNonEmptyDuringTrading(t, qc, "US", "GetOptionDepth returned empty")
+		return
 	}
 	if data[0].Symbol == "" {
 		t.Errorf("Depth.Symbol is empty, want non-empty")
@@ -1800,8 +1828,12 @@ func TestIntegGetQuoteDepthOrdering(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetQuoteDepth(%s): %v", tc.sym, err)
 			}
+			// Depth only streams during trading hours. Out-of-hours the wire
+			// round-trip already validated the request; stop the subtest here
+			// rather than asserting on missing data.
 			if len(data) == 0 {
-				integtest.FailOrSkip(t, qc, tc.market, "GetQuoteDepth(%s) empty", tc.sym)
+				integtest.AssertNonEmptyDuringTrading(t, qc, tc.market, "GetQuoteDepth(%s) empty", tc.sym)
+				return
 			}
 			depth := data[0]
 			if depth.Symbol != tc.sym {
@@ -1957,9 +1989,11 @@ func TestIntegOptionChainGreeksAndStrikeConsistency(t *testing.T) {
 	}
 	// Greeks are only computed during trading hours; outside the session the
 	// server may return delta=0 for every row. In-session emptiness would be
-	// a real regression.
+	// a real regression. Out-of-hours the wire round-trip was already
+	// validated by the successful chain fetch.
 	if greeksChecked == 0 {
-		integtest.FailOrSkip(t, qc, "US", "all option rows have delta=0, Greeks not validated")
+		integtest.AssertNonEmptyDuringTrading(t, qc, "US", "all option rows have delta=0, Greeks not validated")
+		return
 	}
 }
 

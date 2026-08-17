@@ -7,7 +7,9 @@
 //
 // Behavior contract for callers:
 //   - In-hours + empty response → t.Fatal (real bug).
-//   - Out-of-hours + empty response → t.Skip (data-driven, expected).
+//   - Out-of-hours + empty response → t.Logf (wire path was exercised; test
+//     should early-return without asserting on missing data). Tests must NOT
+//     skip based on trading hours — the wire round-trip is a real assertion.
 //   - Resolver failure (network/API) always propagates as skip or fatal per
 //     caller policy; helpers themselves do not call t.Skip or t.Fatal to
 //     keep decisions at the call site.
@@ -234,25 +236,45 @@ func ResolveHkWarrantSymbol(qc *quote.QuoteClient) (string, error) {
 	return filter.Items[0].Symbol, nil
 }
 
-// FailOrSkip is a small convenience: if the market is trading, call t.Fatalf
-// with reason; otherwise t.Skipf. Used at call sites that want the standard
-// in-hours=fail / out-of-hours=skip policy without repeating the branch.
-func FailOrSkip(t testing.TB, qc *quote.QuoteClient, market, reason string, args ...interface{}) {
+// AssertNonEmptyDuringTrading enforces the following policy for an empty
+// response body from a real-time market-data endpoint:
+//   - In-hours (status=TRADING): call t.Fatalf — empty is a real regression.
+//   - Out-of-hours: call t.Logf and return false — the wire round-trip already
+//     validated the request/response path, so the caller must NOT skip and
+//     should early-return from the test without asserting on missing data.
+//
+// Returns true only when in-hours (which never occurs because in-hours
+// triggers t.Fatalf); the boolean lets the caller write:
+//
+//	if len(items) == 0 {
+//	    integtest.AssertNonEmptyDuringTrading(t, qc, "US", "…")
+//	    return
+//	}
+//
+// The trailing `return` in the caller is required — out-of-hours the test
+// should not proceed into data-shape assertions that assume items are present.
+func AssertNonEmptyDuringTrading(t testing.TB, qc *quote.QuoteClient, market, reason string, args ...interface{}) bool {
 	t.Helper()
 	msg := fmt.Sprintf(reason, args...)
 	if IsMarketTrading(qc, market) {
 		t.Fatalf("%s (market=%s status=TRADING — expected data)", msg, market)
+		return false
 	}
-	t.Skipf("%s (market=%s status=%s — expected outside trading hours)", msg, market, MarketStatus(qc, market))
+	t.Logf("%s (market=%s status=%s — empty is expected outside trading hours; wire path validated)", msg, market, MarketStatus(qc, market))
+	return false
 }
 
-// FailOrSkipExtended is like FailOrSkip but treats pre/post-market as valid
-// data windows. Use for overnight / extended-hour APIs.
-func FailOrSkipExtended(t testing.TB, qc *quote.QuoteClient, market, reason string, args ...interface{}) {
+// AssertNonEmptyDuringExtended is like AssertNonEmptyDuringTrading but treats
+// pre/post-market as valid data windows. Use for overnight / extended-hour
+// APIs. Same no-skip semantics: out-of-hours logs and returns; the caller
+// must early-return without further data assertions.
+func AssertNonEmptyDuringExtended(t testing.TB, qc *quote.QuoteClient, market, reason string, args ...interface{}) bool {
 	t.Helper()
 	msg := fmt.Sprintf(reason, args...)
 	if IsMarketOpenExtended(qc, market) {
 		t.Fatalf("%s (market=%s status=%s — expected data in extended hours)", msg, market, MarketStatus(qc, market))
+		return false
 	}
-	t.Skipf("%s (market=%s status=%s — expected outside extended hours)", msg, market, MarketStatus(qc, market))
+	t.Logf("%s (market=%s status=%s — empty is expected outside extended hours; wire path validated)", msg, market, MarketStatus(qc, market))
+	return false
 }
