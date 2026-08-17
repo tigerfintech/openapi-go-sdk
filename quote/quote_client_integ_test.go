@@ -21,8 +21,10 @@ import (
 )
 
 // ms parses a "YYYY-MM-DD" date in UTC and returns its epoch-ms timestamp
+// ms converts a "YYYY-MM-DD" date string to an epoch-ms *int64 pointer,
 // as *int64, matching the wire type expected by FinancialReportRequest /
 // CorporateActionRequest. Panics on malformed input (test-only helper).
+// Production callers should use model.DateToEpochMs which returns nil on error.
 func ms(date string) *int64 {
 	t, err := time.Parse("2006-01-02", date)
 	if err != nil {
@@ -733,7 +735,11 @@ func TestIntegGetFinancialDaily(t *testing.T) {
 		t.Fatalf("GetFinancialDaily: %v", err)
 	}
 	if len(data) == 0 {
-		t.Skip("GetFinancialDaily returned empty for AAPL")
+		// Financial daily data is only published after market close; during
+		// trading hours a temporarily empty response is expected. Use the
+		// same market-hours guard as other quote tests for consistency.
+		integtest.AssertNonEmptyDuringTrading(t, qc, "US", "GetFinancialDaily(AAPL) returned empty")
+		return
 	}
 	if data[0].Symbol != "AAPL" {
 		t.Errorf("FinancialDailyItem.Symbol = %q, want AAPL", data[0].Symbol)
@@ -1622,8 +1628,11 @@ func TestIntegGetCorporateIPO(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
+	// Do NOT filter by Symbols here: AAPL had its IPO in 1980 and would
+	// never appear in a 2024-2025 window, making the symbol assertion below
+	// unreachable. Query the market broadly and skip if the account subscription
+	// does not include IPO event data.
 	data, err := qc.GetCorporateIPO(model.CorporateActionRequest{
-		Symbols:   []string{"AAPL"},
 		Market:    "US",
 		BeginDate: ms("2024-01-01"),
 		EndDate:   ms("2025-12-31"),
@@ -1631,10 +1640,8 @@ func TestIntegGetCorporateIPO(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetCorporateIPO: %v", err)
 	}
-	// The IPO endpoint's coverage varies by account subscription, symbol filter
-	// semantics (querying AAPL for IPO events is unusual), and server-side data
-	// availability. Empty here is a data-boundary issue rather than an SDK bug,
-	// so demote to Skip while still asserting field shape when data is present.
+	// IPO event coverage depends on account subscription tier; empty is a
+	// data-boundary issue rather than an SDK bug.
 	if len(data) == 0 {
 		t.Skip("GetCorporateIPO returned empty for US 2024-2025 — data-boundary (subscription/coverage), not an SDK bug")
 	}
@@ -2058,13 +2065,13 @@ func TestIntegKlineRightAdjustment(t *testing.T) {
 	}
 	// The 2020-07-01..2020-09-30 window brackets AAPL's 2020-08-31 4:1 split.
 	// If unadjusted and br-adjusted prices are identical here, the server is
-	// not applying the adjustment for this account/window. This is a data
-	// contract we cannot control from the SDK — account tier may not include
-	// historical adjusted kline, or the API may treat the flag differently.
-	// Demote to Skip with context; still verify field integrity when we do get
-	// differing series.
+	// not applying the adjustment for this account/window. AAPL had a 4:1
+	// stock split on 2020-08-31 — unadjusted and front-adjusted close prices
+	// MUST differ across the 2020-07..09 window. If they are identical, the
+	// server-side adjustment is broken (or the account tier does not include
+	// historical adjusted kline), which is a real SDK/data regression.
 	if allSame {
-		t.Skip("unadjusted and br-adjusted prices identical across AAPL 2020-07..09 window — account tier may not support historical adjusted kline; skipping (not an SDK bug)")
+		t.Fatal("unadjusted and br-adjusted prices identical across AAPL 2020-07..09 window — server-side right-adjustment is not applied; this is a data regression, not a skip-worthy condition")
 	}
 	// 如果不完全相同，复权价格必须都 > 0（业务约束）
 	for i, item := range aItems {

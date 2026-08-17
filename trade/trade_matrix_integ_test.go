@@ -24,7 +24,6 @@ package trade_test
 
 import (
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -165,6 +164,9 @@ func merge(base, overlay model.OrderRequest) model.OrderRequest {
 	}
 	if overlay.Amount != 0 {
 		base.Amount = overlay.Amount
+	}
+	if overlay.AlgoStrategy != "" {
+		base.AlgoStrategy = overlay.AlgoStrategy
 	}
 	if overlay.AlgoParams != nil {
 		base.AlgoParams = overlay.AlgoParams
@@ -418,6 +420,11 @@ func TestMatrixUsFutLimit(t *testing.T) {
 func TestMatrixForexSecSegment(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	// WARNING: PlaceForexOrder is a real, irreversible FX conversion (USD→HKD).
+	// Unlike most order tests (preview→place→cancel), forex conversions cannot
+	// be cancelled after execution. Amount is kept at the minimum (1.0 USD) to
+	// limit financial impact. Only run this test when you explicitly intend a
+	// live FX conversion.
 	_, err := tc.PlaceForexOrder(model.ForexOrderRequest{
 		SegType:        "SEC",
 		SourceCurrency: "USD",
@@ -546,6 +553,9 @@ func TestMatrixUsStkIcebergModify(t *testing.T) {
 		}
 		t.Fatalf("US STK ICEBERG modify: place failed: %v", err)
 	}
+	if placeRes == nil {
+		t.Fatalf("US STK ICEBERG modify: PlaceOrder returned nil result")
+	}
 	orderID := placeRes.ID
 	if orderID == 0 {
 		orderID = placeRes.OrderID
@@ -570,6 +580,3 @@ func TestMatrixUsStkSellShortPreview(t *testing.T) {
 		LimitPrice: safeSellPrice,
 	}), "US STK SELL SHORT preview")
 }
-
-// Ensure `strings` import stays used even when tests trim the surface.
-var _ = strings.Contains

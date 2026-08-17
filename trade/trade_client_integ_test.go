@@ -21,6 +21,12 @@ import (
 	"github.com/tigerfintech/openapi-go-sdk/model"
 )
 
+// errMsgInstitutionAccount is the error substring returned by the gateway when
+// an endpoint requires an institutional account. Kept as a constant to avoid
+// silent breakage if the string is misspelled; update this if the server-side
+// message changes.
+const errMsgInstitutionAccount = "institution account"
+
 func TestIntegGetContract(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
@@ -371,8 +377,11 @@ func TestIntegDerivativeContracts(t *testing.T) {
 	if err != nil || len(exps) == 0 || len(exps[0].Dates) == 0 {
 		t.Skipf("no option expiration for AAPL: err=%v", err)
 	}
+	// Use a mid-range expiry to avoid same-day expiry edge cases where the
+	// nearest contract may already have expired, causing empty or error responses.
+	idx := len(exps[0].Dates) / 2
 	// Convert "2024-01-19" to "20240119" for the trade API.
-	expiry := strings.ReplaceAll(exps[0].Dates[0], "-", "")
+	expiry := strings.ReplaceAll(exps[0].Dates[idx], "-", "")
 
 	data, err := tc.DerivativeContracts(model.DerivativeContractsRequest{
 		Symbols: []string{"AAPL"},
@@ -412,7 +421,7 @@ func TestIntegAggregateAssets(t *testing.T) {
 
 	data, err := tc.AggregateAssets(model.AggregateAssetsRequest{})
 	if err != nil {
-		if strings.Contains(err.Error(), "institution account") {
+		if strings.Contains(err.Error(), errMsgInstitutionAccount) {
 			t.Skipf("skip: AggregateAssets requires an institution account (this is a retail account): %v", err)
 		}
 		t.Fatalf("AggregateAssets: %v", err)

@@ -1,7 +1,28 @@
 package model
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
+// DateToEpochMs converts a UTC date string in "YYYY-MM-DD" format to an
+// epoch millisecond timestamp (*int64) suitable for *int64 date fields such
+// as FinancialReportRequest.BeginDate and CorporateActionRequest.BeginDate.
+//
+// Migration note (breaking change in 0.5): BeginDate/EndDate fields on
+// FinancialReportRequest and CorporateActionRequest changed from string to
+// *int64 epoch-ms. Use this helper to avoid timezone errors:
+//
+//	begin := model.DateToEpochMs("2024-01-01")
+//	req := model.FinancialReportRequest{BeginDate: begin, ...}
+func DateToEpochMs(date string) *int64 {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return nil
+	}
+	ms := t.UTC().UnixMilli()
+	return &ms
+}
 // FinancialDailyRequest 日级财务数据请求
 type FinancialDailyRequest struct {
 	Symbols   []string `json:"symbols"`
@@ -251,8 +272,11 @@ type OptionQueryItem struct {
 // Lang 字段在此路径下被 SDK 忽略——网关本方法无 lang 入参。
 type OptionTradeTicksRequest struct {
 	Contracts []OptionQueryItem `json:"-"`
-	// Lang 保留字段：此接口 biz_content 是顶层数组，lang 无处安放，
-	// 序列化时会被忽略。保留字段让 API 与其他 request 结构体一致，方便调用方使用。
+	// Lang is intentionally excluded from serialization (json:"-") because
+	// this endpoint's biz_content is a top-level JSON array; there is no
+	// enclosing object to place a "lang" key in. Setting Lang has no effect
+	// on the API response. The field is kept for API-surface consistency with
+	// other request structs; do not rely on it to control response language.
 	Lang string `json:"-"`
 }
 
