@@ -48,8 +48,13 @@ func getMarketStatus(qc *quote.QuoteClient, market string) (string, error) {
 	states, err := qc.GetMarketState(market)
 	if err != nil {
 		entry.err = err
+		// Do NOT cache error state — a transient gateway hiccup should not
+		// permanently poison the cache for the lifetime of the test process.
+		return entry.status, entry.err
 	} else if len(states) == 0 {
 		entry.err = fmt.Errorf("market_state returned empty for %s", market)
+		// Do NOT cache empty-response errors either — same transient reasoning.
+		return entry.status, entry.err
 	} else {
 		// Prefer `status` (e.g. TRADING); fall back to marketStatus which is
 		// the same value on newer gateway builds.
@@ -243,22 +248,25 @@ func ResolveHkWarrantSymbol(qc *quote.QuoteClient) (string, error) {
 //     validated the request/response path, so the caller must NOT skip and
 //     should early-return from the test without asserting on missing data.
 //
-// Returns true only when in-hours (which never occurs because in-hours
-// triggers t.Fatalf); the boolean lets the caller write:
+// AssertNonEmptyDuringTrading checks that an empty API response is only
+// acceptable outside trading hours. Call this when len(items) == 0.
+//
+//   - In-hours (status=TRADING): calls t.Fatalf — empty is a real regression.
+//   - Out-of-hours: logs the empty result and returns — the caller should
+//     early-return without asserting on missing data.
+//
+// The function never returns true; the bool return is retained for backward
+// compatibility with callers that use the idiomatic pattern:
 //
 //	if len(items) == 0 {
 //	    integtest.AssertNonEmptyDuringTrading(t, qc, "US", "…")
 //	    return
 //	}
-//
-// The trailing `return` in the caller is required — out-of-hours the test
-// should not proceed into data-shape assertions that assume items are present.
 func AssertNonEmptyDuringTrading(t testing.TB, qc *quote.QuoteClient, market, reason string, args ...interface{}) bool {
 	t.Helper()
 	msg := fmt.Sprintf(reason, args...)
 	if IsMarketTrading(qc, market) {
 		t.Fatalf("%s (market=%s status=TRADING — expected data)", msg, market)
-		return false
 	}
 	t.Logf("%s (market=%s status=%s — empty is expected outside trading hours; wire path validated)", msg, market, MarketStatus(qc, market))
 	return false
@@ -273,7 +281,6 @@ func AssertNonEmptyDuringExtended(t testing.TB, qc *quote.QuoteClient, market, r
 	msg := fmt.Sprintf(reason, args...)
 	if IsMarketOpenExtended(qc, market) {
 		t.Fatalf("%s (market=%s status=%s — expected data in extended hours)", msg, market, MarketStatus(qc, market))
-		return false
 	}
 	t.Logf("%s (market=%s status=%s — empty is expected outside extended hours; wire path validated)", msg, market, MarketStatus(qc, market))
 	return false

@@ -15,7 +15,13 @@ type Contract struct {
 	Exchange string `json:"exchange,omitempty"`
 	// 到期日（期权/期货）
 	Expiry string `json:"expiry,omitempty"`
-	// 行权价（期权），服务端以字符串返回
+	// 行权价（期权），服务端以字符串返回。
+	//
+	// Breaking change (0.5): Strike 由 float64 改为 string。
+	// 服务端原始返回即为字符串（如 "150.0"、"155"），旧 float64 会丢失精度并
+	// 无法表达服务端返回的原始格式。迁移：将所有 contract.Strike 的 float64
+	// 比较改为字符串比较，或先用 strconv.ParseFloat 转换后再比较。
+	// SDK 版本 < 0.5 的调用方需更新代码。
 	Strike string `json:"strike,omitempty"`
 	// 看涨/看跌（PUT/CALL），保持 API 原始名 right，不改为 putCall
 	Right string `json:"right,omitempty"`

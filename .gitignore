@@ -34,3 +34,6 @@ coverage.html
 !config/testdata/*.properties
 *.pem
 *.key
+
+# Claude Code session data
+.data/
