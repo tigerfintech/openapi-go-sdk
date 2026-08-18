@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -425,7 +424,7 @@ func (c *HttpClient) RefreshToken(tokenManager *config.TokenManager) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("[token] refreshed (len %d -> %d)", len(oldToken), len(newToken))
+	c.logger.Info("[token] refreshed (len %d -> %d)", len(oldToken), len(newToken))
 	c.setToken(newToken)
 	// Keep internal tokenManager in sync so ShouldTokenRefresh stays accurate.
 	if c.tokenManager != nil && tokenManager != c.tokenManager {
@@ -461,7 +460,7 @@ func (c *HttpClient) StartTokenAutoRefresh(tokenManager *config.TokenManager, op
 			return "", err
 		}
 		if newToken == "" {
-			log.Printf("[token] auto-refresh returned empty token, keeping old token")
+			c.logger.Warn("[token] auto-refresh returned empty token, keeping old token")
 			return "", nil
 		}
 		c.setToken(newToken)
