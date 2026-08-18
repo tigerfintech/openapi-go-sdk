@@ -460,6 +460,10 @@ func (c *HttpClient) StartTokenAutoRefresh(tokenManager *config.TokenManager, op
 		if err != nil {
 			return "", err
 		}
+		if newToken == "" {
+			log.Printf("[token] auto-refresh returned empty token, keeping old token")
+			return "", nil
+		}
 		c.setToken(newToken)
 		return newToken, nil
 	})
