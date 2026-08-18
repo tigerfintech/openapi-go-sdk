@@ -5,6 +5,15 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `TradeTickRequest.TradeSession`，支持通过 `GetTradeTick` 查询美股夜盘逐笔成交
+- `WithUseFullTick`，支持启用并分发完整逐笔推送到 `OnFullTick`
+
+### Fixed
+- 修正 `QuoteOvernight` 字段，使其与隔夜行情服务响应一致
+
 ## [0.5.0] - 2026-07-24
 
 ### Added

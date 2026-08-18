@@ -165,18 +165,22 @@ func TestGetTimeline(t *testing.T) {
 }
 
 func TestGetTradeTick(t *testing.T) {
-	server := mockServer(t, "trade_tick", []map[string]interface{}{
+	var captured string
+	server := mockServerCapture(t, "trade_tick", []map[string]interface{}{
 		{"symbol": "AAPL"},
-	})
+	}, &captured)
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetTradeTick(model.TradeTickRequest{Symbols: []string{"AAPL"}})
+	data, err := qc.GetTradeTick(model.TradeTickRequest{Symbols: []string{"AAPL"}, TradeSession: "OverNight"})
 	if err != nil {
 		t.Fatalf("GetTradeTick 失败: %v", err)
 	}
 	if data == nil {
 		t.Fatal("GetTradeTick 返回 nil data")
+	}
+	if !strings.Contains(captured, `"trade_session":"OverNight"`) {
+		t.Errorf("biz_content = %s, want overnight trade_session", captured)
 	}
 }
 
@@ -2052,7 +2056,12 @@ func TestGetMarketScannerTags(t *testing.T) {
 
 func TestGetQuoteOvernight(t *testing.T) {
 	server := mockServer(t, "quote_overnight", []map[string]interface{}{
-		{"symbol": "AAPL"},
+		{
+			"symbol": "AAPL", "latestPrice": 224.5, "askPrice": 224.6, "askSize": 12,
+			"bidPrice": 224.4, "bidSize": 8, "preClose": 220.0, "volume": 1000,
+			"amount": 224500.0, "timestamp": 1720000000000, "tradingStatus": 2,
+			"change": 4.5, "changeRate": 0.02045, "amplitude": 0.03,
+		},
 	})
 	defer server.Close()
 
@@ -2063,6 +2072,16 @@ func TestGetQuoteOvernight(t *testing.T) {
 	}
 	if data == nil {
 		t.Fatal("GetQuoteOvernight 返回 nil")
+	}
+	if len(data) != 1 {
+		t.Fatalf("len(data) = %d, want 1", len(data))
+	}
+	got := data[0]
+	if got.Symbol != "AAPL" || got.LatestPrice != 224.5 || got.AskPrice != 224.6 || got.AskSize != 12 ||
+		got.BidPrice != 224.4 || got.BidSize != 8 || got.PreClose != 220 || got.Volume != 1000 ||
+		got.Amount != 224500 || got.Timestamp != 1720000000000 || got.TradingStatus != 2 ||
+		got.Change != 4.5 || got.ChangeRate != 0.02045 || got.Amplitude != 0.03 {
+		t.Errorf("decoded QuoteOvernight = %+v", got)
 	}
 }
 

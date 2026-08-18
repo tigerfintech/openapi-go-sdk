@@ -120,3 +120,30 @@ func TestNewRangeInt_negative(t *testing.T) {
 		t.Errorf("Max = %d, want -1", *r.Max)
 	}
 }
+
+func TestOvernightRequestsJSON(t *testing.T) {
+	tests := []struct {
+		name string
+		req  interface{}
+	}{
+		{"kline", KlineRequest{Symbols: []string{"AAPL"}, Period: "1min", TradeSession: "OverNight"}},
+		{"depth", DepthQuoteRequest{Symbols: []string{"AAPL"}, Market: "US", TradeSession: "OverNight"}},
+		{"trade tick", TradeTickRequest{Symbols: []string{"AAPL"}, TradeSession: "OverNight"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.req)
+			if err != nil {
+				t.Fatalf("json.Marshal: %v", err)
+			}
+			var got map[string]interface{}
+			if err := json.Unmarshal(data, &got); err != nil {
+				t.Fatalf("json.Unmarshal: %v", err)
+			}
+			if got["trade_session"] != "OverNight" {
+				t.Errorf("trade_session = %v, want OverNight", got["trade_session"])
+			}
+		})
+	}
+}

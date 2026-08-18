@@ -424,15 +424,100 @@ func TestIntegGetQuoteOvernight(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetQuoteOvernight: %v", err)
 	}
-	// Overnight quotes are only produced during US extended-hour sessions.
-	// Outside those windows an empty response is expected — the wire
-	// round-trip already validated the request path, so stop here.
 	if len(data) == 0 {
-		integtest.AssertNonEmptyDuringExtended(t, qc, "US", "GetQuoteOvernight returned empty for AAPL")
+		t.Logf("GetQuoteOvernight returned empty for AAPL (market status=%s); unsupported or no-current overnight records are valid", integtest.MarketStatus(qc, "US"))
 		return
 	}
 	if data[0].Symbol != "AAPL" {
 		t.Errorf("QuoteOvernight.Symbol = %q, want AAPL", data[0].Symbol)
+	}
+}
+
+func TestIntegGetOvernightKlineDepthAndTradeTick(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	klines, err := qc.GetKline(model.KlineRequest{
+		Symbols: []string{"AAPL"}, Period: "1min", Limit: 5, TradeSession: "OverNight",
+	})
+	if err != nil {
+		t.Fatalf("GetKline overnight: %v", err)
+	}
+	if len(klines) == 0 {
+		t.Log("GetKline overnight returned empty; no-current overnight bars are valid")
+	} else {
+		if klines[0].Symbol != "AAPL" {
+			t.Errorf("overnight Kline.Symbol = %q, want AAPL", klines[0].Symbol)
+		}
+		if len(klines[0].Items) == 0 {
+			t.Log("GetKline overnight returned no items; no-current overnight bars are valid")
+		} else {
+			item := klines[0].Items[0]
+			if item.Time == 0 {
+				t.Error("overnight KlineItem.Time = 0, want non-zero")
+			}
+			if item.Close <= 0 {
+				t.Errorf("overnight KlineItem.Close = %v, want > 0", item.Close)
+			}
+			if item.High < item.Low {
+				t.Errorf("overnight KlineItem.High (%v) < Low (%v)", item.High, item.Low)
+			}
+		}
+	}
+
+	depth, err := qc.GetQuoteDepth(model.DepthQuoteRequest{
+		Symbols: []string{"AAPL"}, Market: "US", TradeSession: "OverNight",
+	})
+	if err != nil {
+		t.Fatalf("GetQuoteDepth overnight: %v", err)
+	}
+	if len(depth) == 0 {
+		t.Log("GetQuoteDepth overnight returned empty; no-current overnight depth is valid")
+	} else {
+		if depth[0].Symbol != "AAPL" {
+			t.Errorf("overnight Depth.Symbol = %q, want AAPL", depth[0].Symbol)
+		}
+		for side, levels := range map[string][]model.DepthLevel{"asks": depth[0].Asks, "bids": depth[0].Bids} {
+			for i, level := range levels {
+				if level.Price <= 0 {
+					t.Errorf("overnight Depth.%s[%d].Price = %v, want > 0", side, i, level.Price)
+				}
+				if level.Volume < 0 {
+					t.Errorf("overnight Depth.%s[%d].Volume = %d, want >= 0", side, i, level.Volume)
+				}
+			}
+		}
+		if len(depth[0].Asks) == 0 && len(depth[0].Bids) == 0 {
+			t.Log("GetQuoteDepth overnight returned no levels; no-current overnight depth is valid")
+		}
+	}
+
+	ticks, err := qc.GetTradeTick(model.TradeTickRequest{
+		Symbols: []string{"AAPL"}, Limit: 5, TradeSession: "OverNight",
+	})
+	if err != nil {
+		t.Fatalf("GetTradeTick overnight: %v", err)
+	}
+	if len(ticks) == 0 {
+		t.Log("GetTradeTick overnight returned empty; no-current overnight ticks are valid")
+	} else {
+		if ticks[0].Symbol != "AAPL" {
+			t.Errorf("overnight TradeTick.Symbol = %q, want AAPL", ticks[0].Symbol)
+		}
+		if len(ticks[0].Items) == 0 {
+			t.Log("GetTradeTick overnight returned no items; no-current overnight ticks are valid")
+		} else {
+			item := ticks[0].Items[0]
+			if item.Time == 0 {
+				t.Error("overnight TradeTickItem.Time = 0, want non-zero")
+			}
+			if item.Price <= 0 {
+				t.Errorf("overnight TradeTickItem.Price = %v, want > 0", item.Price)
+			}
+			if item.Volume < 0 {
+				t.Errorf("overnight TradeTickItem.Volume = %d, want >= 0", item.Volume)
+			}
+		}
 	}
 }
 

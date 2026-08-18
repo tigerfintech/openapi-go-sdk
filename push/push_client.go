@@ -73,6 +73,11 @@ func WithConnectTimeout(d time.Duration) PushClientOption {
 	return func(c *PushClient) { c.connectTimeout = d }
 }
 
+// WithUseFullTick enables full-tick payloads for trade-tick subscriptions.
+func WithUseFullTick(enable bool) PushClientOption {
+	return func(c *PushClient) { c.useFullTick = enable }
+}
+
 // PushClient TCP+TLS 推送客户端
 type PushClient struct {
 	config            *config.ClientConfig
@@ -81,6 +86,7 @@ type PushClient struct {
 	reconnectInterval time.Duration
 	connectTimeout    time.Duration
 	autoReconnect     bool
+	useFullTick       bool
 
 	// TCP 连接
 	conn  net.Conn
@@ -244,7 +250,7 @@ func (c *PushClient) authenticate() error {
 		acceptVersion,
 		defaultSendInterval,
 		defaultReceiveInterval,
-		false,
+		c.useFullTick,
 	)
 
 	return c.sendMessage(req)
@@ -585,6 +591,12 @@ func (c *PushClient) dispatchPushData(pushData *pb.PushData, cb *Callbacks) {
 			}
 		}
 	case pb.SocketCommon_TradeTick:
+		if cb.OnFullTick != nil {
+			if d := pushData.GetTickData(); d != nil {
+				cb.OnFullTick(d)
+				break
+			}
+		}
 		if cb.OnTick != nil {
 			if d := pushData.GetTradeTickData(); d != nil {
 				cb.OnTick(d)

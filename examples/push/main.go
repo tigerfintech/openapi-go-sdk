@@ -70,7 +70,7 @@ func main() {
 	fmt.Printf("tiger_id=%s account=%s\n\n", redact(cfg.TigerID), redact(cfg.Account))
 
 	var cnt counters
-	pc := push.NewPushClient(cfg)
+	pc := push.NewPushClient(cfg, push.WithUseFullTick(true))
 
 	pc.SetCallbacks(push.Callbacks{
 		OnConnect: func() {

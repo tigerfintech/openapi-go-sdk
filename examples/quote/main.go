@@ -179,7 +179,6 @@ func main() {
 			ok(fmt.Sprintf("GetOptionChain(%s)", expiryDate), "(empty items)")
 		}
 
-
 		if optIdentifier == "" {
 			skip("GetOptionQuote", "no identifier from chain")
 			skip("GetOptionKline", "no identifier from chain")
@@ -622,6 +621,28 @@ func main() {
 		fail("GetQuoteOvernight(AAPL)", err)
 	} else {
 		ok("GetQuoteOvernight(AAPL)", fmt.Sprintf("rows=%d", len(items)))
+	}
+
+	if items, err := qc.GetKline(model.KlineRequest{
+		Symbols: []string{"AAPL"}, Period: "1min", Limit: 10, TradeSession: "OverNight",
+	}); err != nil {
+		fail("GetKline(AAPL overnight)", err)
+	} else {
+		ok("GetKline(AAPL overnight)", fmt.Sprintf("rows=%d", len(items)))
+	}
+	if items, err := qc.GetQuoteDepth(model.DepthQuoteRequest{
+		Symbols: []string{"AAPL"}, Market: "US", TradeSession: "OverNight",
+	}); err != nil {
+		fail("GetQuoteDepth(AAPL overnight)", err)
+	} else {
+		ok("GetQuoteDepth(AAPL overnight)", fmt.Sprintf("rows=%d", len(items)))
+	}
+	if items, err := qc.GetTradeTick(model.TradeTickRequest{
+		Symbols: []string{"AAPL"}, Limit: 10, TradeSession: "OverNight",
+	}); err != nil {
+		fail("GetTradeTick(AAPL overnight)", err)
+	} else {
+		ok("GetTradeTick(AAPL overnight)", fmt.Sprintf("rows=%d", len(items)))
 	}
 
 	printSummary()
