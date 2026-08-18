@@ -684,18 +684,20 @@ type FinancialCurrency struct {
 
 // QuoteOvernight 隔夜行情。
 type QuoteOvernight struct {
-	Symbol     string  `json:"symbol,omitempty"`
-	PreClose   float64 `json:"preClose,omitempty"`
-	Open       float64 `json:"open,omitempty"`
-	Close      float64 `json:"close,omitempty"`
-	High       float64 `json:"high,omitempty"`
-	Low        float64 `json:"low,omitempty"`
-	Volume     int64   `json:"volume,omitempty"`
-	Amount     float64 `json:"amount,omitempty"`
-	Change     float64 `json:"change,omitempty"`
-	ChangeRate float64 `json:"changeRate,omitempty"`
-	BeginTime  int64   `json:"beginTime,omitempty"`
-	EndTime    int64   `json:"endTime,omitempty"`
+	Symbol        string  `json:"symbol,omitempty"`
+	LatestPrice   float64 `json:"latestPrice,omitempty"`
+	AskPrice      float64 `json:"askPrice,omitempty"`
+	AskSize       int64   `json:"askSize,omitempty"`
+	BidPrice      float64 `json:"bidPrice,omitempty"`
+	BidSize       int64   `json:"bidSize,omitempty"`
+	PreClose      float64 `json:"preClose,omitempty"`
+	Volume        int64   `json:"volume,omitempty"`
+	Amount        float64 `json:"amount,omitempty"`
+	Timestamp     int64   `json:"timestamp,omitempty"`
+	TradingStatus int     `json:"tradingStatus,omitempty"`
+	Change        float64 `json:"change,omitempty"`
+	ChangeRate    float64 `json:"changeRate,omitempty"`
+	Amplitude     float64 `json:"amplitude,omitempty"`
 }
 
 // MarketScannerTagGroup 扫描器标签分组（server 返回数组，每个元素一个 market/multiTagField 组合）。

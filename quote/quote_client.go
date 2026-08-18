@@ -136,7 +136,7 @@ func (c *QuoteClient) GetTimeline(symbols []string) ([]model.Timeline, error) {
 }
 
 // GetTradeTick returns tick-by-tick trade data with pagination support.
-// Wire method: trade_tick. Accepts TradeTickRequest for begin_index/end_index/limit/lang.
+// Wire method: trade_tick. Accepts TradeTickRequest for begin_index/end_index/limit/trade_session/lang.
 func (c *QuoteClient) GetTradeTick(req model.TradeTickRequest) ([]model.TradeTick, error) {
 	var out []model.TradeTick
 	err := c.callInto("trade_tick", req, &out)

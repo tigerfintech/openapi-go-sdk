@@ -27,6 +27,7 @@ func DateToEpochMs(date string) (*int64, error) {
 	ms := t.UTC().UnixMilli()
 	return &ms, nil
 }
+
 // FinancialDailyRequest 日级财务数据请求
 type FinancialDailyRequest struct {
 	Symbols   []string `json:"symbols"`
@@ -188,11 +189,12 @@ type TimelineHistoryRequest struct {
 
 // TradeTickRequest — 逐笔成交。wire: trade_tick
 type TradeTickRequest struct {
-	Symbols    []string `json:"symbols,omitempty"`
-	BeginIndex int      `json:"begin_index,omitempty"`
-	EndIndex   int      `json:"end_index,omitempty"`
-	Limit      int      `json:"limit,omitempty"`
-	Lang       string   `json:"lang,omitempty"`
+	Symbols      []string `json:"symbols,omitempty"`
+	BeginIndex   int      `json:"begin_index,omitempty"`
+	EndIndex     int      `json:"end_index,omitempty"`
+	Limit        int      `json:"limit,omitempty"`
+	TradeSession string   `json:"trade_session,omitempty"`
+	Lang         string   `json:"lang,omitempty"`
 }
 
 // TradeRankRequest — 成交榜单。wire: trade_rank

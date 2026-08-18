@@ -137,6 +137,24 @@ func TestDispatchPushData_TradeTick(t *testing.T) {
 	}
 }
 
+func TestDispatchPushData_FullTick(t *testing.T) {
+	client := NewPushClient(newTestConfig(t), WithUseFullTick(true))
+	if !client.useFullTick {
+		t.Fatal("WithUseFullTick(true) did not enable full ticks")
+	}
+
+	var received *pb.TickData
+	client.dispatchPushData(&pb.PushData{
+		DataType: pb.SocketCommon_TradeTick,
+		Body: &pb.PushData_TickData{
+			TickData: &pb.TickData{Symbol: "AAPL"},
+		},
+	}, &Callbacks{OnFullTick: func(d *pb.TickData) { received = d }})
+	if received == nil || received.GetSymbol() != "AAPL" {
+		t.Fatalf("OnFullTick received %v", received)
+	}
+}
+
 // TestDispatchPushData_Asset verifies Asset data type triggers OnAsset callback.
 func TestDispatchPushData_Asset(t *testing.T) {
 	cfg := newTestConfig(t)
