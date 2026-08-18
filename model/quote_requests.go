@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -9,19 +10,22 @@ import (
 // epoch millisecond timestamp (*int64) suitable for *int64 date fields such
 // as FinancialReportRequest.BeginDate and CorporateActionRequest.BeginDate.
 //
+// Returns (nil, error) on parse failure instead of silently returning nil,
+// so callers can detect malformed date strings early.
+//
 // Migration note (breaking change in 0.5): BeginDate/EndDate fields on
 // FinancialReportRequest and CorporateActionRequest changed from string to
 // *int64 epoch-ms. Use this helper to avoid timezone errors:
 //
-//	begin := model.DateToEpochMs("2024-01-01")
+//	begin, err := model.DateToEpochMs("2024-01-01")
 //	req := model.FinancialReportRequest{BeginDate: begin, ...}
-func DateToEpochMs(date string) *int64 {
+func DateToEpochMs(date string) (*int64, error) {
 	t, err := time.Parse("2006-01-02", date)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("DateToEpochMs: invalid date %q (expected YYYY-MM-DD): %w", date, err)
 	}
 	ms := t.UTC().UnixMilli()
-	return &ms
+	return &ms, nil
 }
 // FinancialDailyRequest 日级财务数据请求
 type FinancialDailyRequest struct {
