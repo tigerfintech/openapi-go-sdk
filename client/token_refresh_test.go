@@ -235,7 +235,8 @@ func TestNewHttpClient_AutoRefreshOnCreation(t *testing.T) {
 	cfg.TokenCheckInterval = 50 * time.Millisecond
 
 	// 直接 NewHttpClient，不手动调用 StartTokenAutoRefresh
-	NewHttpClient(cfg)
+	c := NewHttpClient(cfg)
+	defer c.Close()
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -261,7 +262,8 @@ func TestNewHttpClient_NoAutoRefreshWhenZero(t *testing.T) {
 	cfg.Token = makeExpiredToken(100)
 	// TokenRefreshDuration 为零，不应自动刷新
 
-	NewHttpClient(cfg)
+	c := NewHttpClient(cfg)
+	defer c.Close()
 	time.Sleep(200 * time.Millisecond)
 
 	if n := atomic.LoadInt64(&callCount); n != 0 {
@@ -289,7 +291,8 @@ func TestNewHttpClient_WithTokenWriter(t *testing.T) {
 		mu.Unlock()
 	}
 
-	NewHttpClient(cfg)
+	c := NewHttpClient(cfg)
+	defer c.Close()
 	time.Sleep(200 * time.Millisecond)
 
 	mu.Lock()

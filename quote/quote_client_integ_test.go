@@ -24,7 +24,7 @@ import (
 // ms converts a "YYYY-MM-DD" date string to an epoch-ms *int64 pointer,
 // as *int64, matching the wire type expected by FinancialReportRequest /
 // CorporateActionRequest. Panics on malformed input (test-only helper).
-// Production callers should use model.DateToEpochMs which returns nil on error.
+// Production callers should use model.DateToEpochMs which returns (*int64, error).
 func ms(date string) *int64 {
 	t, err := time.Parse("2006-01-02", date)
 	if err != nil {
