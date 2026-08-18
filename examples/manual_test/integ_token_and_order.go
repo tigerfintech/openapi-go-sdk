@@ -17,6 +17,14 @@ func pass(name, note string) { fmt.Printf("[ OK ] %-50s %s\n", name, note) }
 func fail(name, err string)  { fmt.Printf("[FAIL] %-50s %s\n", name, err); os.Exit(1) }
 func info(name, note string) { fmt.Printf("[INFO] %-50s %s\n", name, note) }
 
+// redact masks a sensitive string, showing only the first 4 chars followed by "****".
+func redact(s string) string {
+	if len(s) <= 4 {
+		return "****"
+	}
+	return s[:4] + "****"
+}
+
 func main() {
 	path := os.Getenv("TIGER_CONFIG_PATH")
 	if path == "" {
@@ -28,7 +36,7 @@ func main() {
 		fail("ClientConfig", err.Error())
 	}
 	fmt.Printf("tiger_id=%s  account=%s  secret_key=%s\n\n",
-		cfg.TigerID, cfg.Account,
+		redact(cfg.TigerID), redact(cfg.Account),
 		func() string {
 			if cfg.SecretKey != "" {
 				return "(set)"

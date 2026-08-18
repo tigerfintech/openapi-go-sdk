@@ -50,6 +50,14 @@ type counters struct {
 	transaction int32
 }
 
+// redact masks a sensitive string, showing only the first 4 chars followed by "****".
+func redact(s string) string {
+	if len(s) <= 4 {
+		return "****"
+	}
+	return s[:4] + "****"
+}
+
 func main() {
 	duration := flag.Int("duration", 30, "推送监听时长(秒)")
 	doTrade := flag.Bool("trade", true, "是否触发下单/撤单以产生账户类推送事件")
@@ -59,7 +67,7 @@ func main() {
 	if err != nil {
 		log.Fatal("load config failed: ", err)
 	}
-	fmt.Printf("tiger_id=%s account=%s\n\n", cfg.TigerID, cfg.Account)
+	fmt.Printf("tiger_id=%s account=%s\n\n", redact(cfg.TigerID), redact(cfg.Account))
 
 	var cnt counters
 	pc := push.NewPushClient(cfg)
