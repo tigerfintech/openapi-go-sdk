@@ -236,7 +236,9 @@ func (m *TokenManager) refreshLoopWith(stopCh <-chan struct{}) {
 			m.mu.RUnlock()
 			if fn != nil {
 				if newToken, err := fn(); err == nil && newToken != "" {
-					_ = m.SetToken(newToken)
+					if setErr := m.SetToken(newToken); setErr != nil {
+						log.Printf("[token_manager] persist token to file failed: %v", setErr)
+					}
 				} else if err != nil {
 					log.Printf("[token_manager] auto-refresh failed: %v", err)
 				} else if newToken == "" {

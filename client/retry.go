@@ -55,11 +55,11 @@ func (p *RetryPolicy) CalculateBackoff(retryCount int) time.Duration {
 	if retryCount < 0 {
 		return p.BaseDelay
 	}
-	delay := time.Duration(math.Pow(2, float64(retryCount))) * p.BaseDelay
-	if delay > p.MaxDelay {
-		delay = p.MaxDelay
-	}
-	return delay
+	// Cap in float domain before converting to time.Duration to prevent int64 overflow
+	// (2^34 * 1s exceeds int64 max, causing negative duration that bypasses MaxDelay).
+	maxSeconds := float64(p.MaxDelay) / float64(time.Second)
+	delaySeconds := math.Min(math.Pow(2, float64(retryCount))*float64(p.BaseDelay)/float64(time.Second), maxSeconds)
+	return time.Duration(delaySeconds * float64(time.Second))
 }
 
 // IsStaleConnectionError reports whether err is a stale keep-alive connection error
