@@ -93,6 +93,8 @@ func NewHttpClient(cfg *config.ClientConfig, opts ...ClientOption) *HttpClient {
 		pubKey, err := signer.LoadPublicKey(cfg.TigerPublicKey)
 		if err == nil {
 			hc.publicKey = pubKey
+		} else {
+			hc.logger.Error("load tiger public key failed, response signature verification disabled: %v", err)
 		}
 	}
 
@@ -167,7 +169,7 @@ func (c *HttpClient) buildCommonParams(apiMethod string, bizContent string, vers
 		"method":      apiMethod,
 		"charset":     DefaultCharset,
 		"sign_type":   DefaultSignType,
-		"timestamp":   time.Now().Format("2006-01-02 15:04:05"),
+		"timestamp":   time.Now().UTC().Format("2006-01-02 15:04:05"),
 		"version":     v,
 		"biz_content": bizContent,
 	}
@@ -466,10 +468,8 @@ func (c *HttpClient) StartTokenAutoRefresh(tokenManager *config.TokenManager, op
 		if err != nil {
 			return "", err
 		}
-		if newToken == "" {
-			c.logger.Warn("[token] auto-refresh returned empty token, keeping old token")
-			return "", nil
-		}
+		// QueryToken always returns a non-empty token when err == nil
+		// (it errors on empty server response), so the only path here is success.
 		c.setToken(newToken)
 		return newToken, nil
 	})

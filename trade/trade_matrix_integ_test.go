@@ -63,8 +63,7 @@ var permissionErrorPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)does not support stock (long|short)`),
 	regexp.MustCompile(`(?i)only trade cash order by market order`),
 	regexp.MustCompile(`(?i)cash order by market order`),
-	regexp.MustCompile(`(?i)^system error$`),
-	regexp.MustCompile(`(?i)bad_request:System error`),
+	regexp.MustCompile(`(?i)system error`),
 }
 
 // Order state race — cancel/modify may hit a terminal state during the test.
@@ -559,6 +558,9 @@ func TestMatrixUsStkIcebergModify(t *testing.T) {
 	orderID := placeRes.ID
 	if orderID == 0 {
 		orderID = placeRes.OrderID
+	}
+	if orderID == 0 {
+		t.Fatalf("US STK ICEBERG modify: PlaceOrder returned zero order id")
 	}
 	t.Logf("US STK ICEBERG modify: placed id=%d", orderID)
 

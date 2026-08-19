@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -260,6 +261,8 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 		} else if cfg.TokenLoader != nil {
 			if token, err := cfg.TokenLoader(); err == nil && token != "" {
 				cfg.Token = token
+			} else if err != nil {
+				log.Printf("[config] TokenLoader failed, token will be empty: %v", err)
 			}
 		} else {
 			tokenFilePath := os.Getenv(envTokenFile)
@@ -269,6 +272,8 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 			tm := NewTokenManager(WithTokenFilePath(tokenFilePath))
 			if token, err := tm.LoadToken(); err == nil && token != "" {
 				cfg.Token = token
+			} else if err != nil {
+				log.Printf("[config] load token from file %q failed, token will be empty: %v", tokenFilePath, err)
 			}
 		}
 	}
