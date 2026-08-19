@@ -99,10 +99,10 @@ func main() {
 		OnQuoteBBO: func(data *pb.QuoteData) {
 			atomic.AddInt32(&cnt.quoteBBO, 1)
 		},
-		OnTick: func(data *pb.TradeTickData) {
+		OnTick: func(data push.PushTradeTick) {
 			n := atomic.AddInt32(&cnt.tick, 1)
 			if n <= 3 {
-				fmt.Printf("[Tick] %s ticks=%d sn=%d\n", data.GetSymbol(), len(data.GetPrice()), data.GetSn())
+				fmt.Printf("[Tick] %s ticks=%d\n", data.Symbol, len(data.Ticks))
 			}
 		},
 		OnDepth: func(data *pb.QuoteDepthData) {

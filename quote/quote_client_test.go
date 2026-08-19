@@ -184,6 +184,48 @@ func TestGetTradeTick(t *testing.T) {
 	}
 }
 
+func TestGetTradeTick_PartCodeAndCondDecoding(t *testing.T) {
+	// Mock response contains partCode and cond fields that should be decoded
+	// into human-readable exchange names and condition strings.
+	server := mockServer(t, "trade_tick", []map[string]interface{}{
+		{
+			"symbol":     "AAPL",
+			"beginIndex": 0,
+			"endIndex":   2,
+			"items": []map[string]interface{}{
+				{"time": 1700000000000, "volume": 100, "price": 150.25, "type": "+", "partCode": "NYSE", "partName": "New York Stock Exchange, LLC (NYSE)"},
+				{"time": 1700000001000, "volume": 200, "price": 150.50, "type": "-", "partCode": "NSDQ", "partName": "NASDAQ Stock Market, LLC (NASDAQ)"},
+			},
+		},
+	})
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	data, err := qc.GetTradeTick(model.TradeTickRequest{Symbols: []string{"AAPL"}})
+	if err != nil {
+		t.Fatalf("GetTradeTick 失败: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("GetTradeTick 返回空")
+	}
+	items := data[0].Items
+	if len(items) != 2 {
+		t.Fatalf("items 长度 = %d, want 2", len(items))
+	}
+	if items[0].PartCode != "NYSE" {
+		t.Errorf("items[0].PartCode = %q, want NYSE", items[0].PartCode)
+	}
+	if items[0].PartName != "New York Stock Exchange, LLC (NYSE)" {
+		t.Errorf("items[0].PartName = %q", items[0].PartName)
+	}
+	if items[1].PartCode != "NSDQ" {
+		t.Errorf("items[1].PartCode = %q, want NSDQ", items[1].PartCode)
+	}
+	if items[1].PartName != "NASDAQ Stock Market, LLC (NASDAQ)" {
+		t.Errorf("items[1].PartName = %q", items[1].PartName)
+	}
+}
+
 func TestGetQuoteDepth(t *testing.T) {
 	server := mockServer(t, "quote_depth", []map[string]interface{}{
 		{"symbol": "AAPL"},

@@ -9,10 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.1] - 2026-08-19
 
+### Breaking
+- `Callbacks.OnTick` 回调参数类型由原始 `*pb.TradeTickData` 改为解码后的 `PushTradeTick`，每笔成交以 `PushTick` 结构体返回，包含 `Price`、`Volume`、`Cond`、`PartCode`、`PartName` 等字段
+
 ### Added
 - `OptionLeg` 新增 `MarkPrice`、`PreMarkPrice`、`MarkTimestamp`、`MidPrice`、`PreMidPrice`、`MidTimestamp` 字段
 - `TradeTickRequest.TradeSession`，支持通过 `GetTradeTick` 查询美股夜盘逐笔成交
 - `WithUseFullTick`，支持启用并分发完整逐笔推送到 `OnFullTick`
+- `PushTick.Cond` 字段，原始单字符代码已转换为可读字符串（如 `US_REGULAR_SALE`、`HK_AUTOMATCH_NORMAL`）
 
 ### Fixed
 - 修正 `QuoteOvernight` 字段，使其与隔夜行情服务响应一致

@@ -599,7 +599,7 @@ func (c *PushClient) dispatchPushData(pushData *pb.PushData, cb *Callbacks) {
 		}
 		if cb.OnTick != nil {
 			if d := pushData.GetTradeTickData(); d != nil {
-				cb.OnTick(d)
+				cb.OnTick(ConvertTradeTick(d))
 			}
 		}
 	case pb.SocketCommon_Asset:

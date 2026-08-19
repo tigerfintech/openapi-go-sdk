@@ -904,7 +904,7 @@ func TestPushClient_MultipleCallbacks(t *testing.T) {
 	var quoteCount, tickCount int32
 	client.SetCallbacks(Callbacks{
 		OnQuote: func(data *pb.QuoteData) { atomic.AddInt32(&quoteCount, 1) },
-		OnTick:  func(data *pb.TradeTickData) { atomic.AddInt32(&tickCount, 1) },
+		OnTick:  func(data PushTradeTick) { atomic.AddInt32(&tickCount, 1) },
 	})
 
 	client.Connect()

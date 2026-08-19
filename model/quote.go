@@ -94,6 +94,7 @@ type TradeTickItem struct {
 	Type      string  `json:"type"`
 	PartCode  string  `json:"partCode,omitempty"`
 	PartName  string  `json:"partName,omitempty"`
+	Cond      string  `json:"cond,omitempty"`
 }
 
 // Depth 深度报价(一个标的一组)
