@@ -88,10 +88,12 @@ type TradeTick struct {
 
 // TradeTickItem 单笔成交
 type TradeTickItem struct {
-	Time   int64   `json:"time"`
-	Volume int64   `json:"volume"`
-	Price  float64 `json:"price"`
-	Type   string  `json:"type"`
+	Time      int64   `json:"time"`
+	Volume    int64   `json:"volume"`
+	Price     float64 `json:"price"`
+	Type      string  `json:"type"`
+	PartCode  string  `json:"partCode,omitempty"`
+	PartName  string  `json:"partName,omitempty"`
 }
 
 // Depth 深度报价(一个标的一组)
@@ -152,6 +154,12 @@ type OptionLeg struct {
 	Theta         float64 `json:"theta,omitempty"`
 	Vega          float64 `json:"vega,omitempty"`
 	Rho           float64 `json:"rho,omitempty"`
+	MarkPrice     float64 `json:"markPrice,omitempty"`
+	PreMarkPrice  float64 `json:"preMarkPrice,omitempty"`
+	MarkTimestamp int64   `json:"markTimestamp,omitempty"`
+	MidPrice      float64 `json:"midPrice,omitempty"`
+	PreMidPrice   float64 `json:"preMidPrice,omitempty"`
+	MidTimestamp  int64   `json:"midTimestamp,omitempty"`
 }
 
 // FutureExchange 期货交易所
