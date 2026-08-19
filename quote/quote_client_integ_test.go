@@ -2090,69 +2090,69 @@ func TestIntegOptionChainGreeksAndStrikeConsistency(t *testing.T) {
 }
 
 // TestIntegKlineRightAdjustment 验证复权参数效果：
-// 使用包含 UVXY 2024-08-01 十合一反向拆股的固定时间窗口，确保不复权与前复权价格必然不同。
-// 该窗口是确定性的，不依赖账户状态，不受当前时间影响。
+// 使用包含 UVXY 2024-08-01 十合一反向拆股的固定时间窗口，确保 nr（不复权）与 br（前复权）价格必然不同。
+// 服务端默认返回前复权(br)；nr 不复权在反向拆股前的价格约为 $4，br 约为 $100+，两者差异显著。
 func TestIntegKlineRightAdjustment(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
 	// UVXY 在 2024-08-01 执行了 1:10 反向拆股；
 	// 取 2024-07-01 ~ 2024-08-31 这段窗口：
-	//   - 不复权价格 ~$4（反拆前）
-	//   - 前复权价格 ~$40（还原为反拆后价格）
-	// 两者必然不同，窗口固定，不依赖 Limit 截取最近 N 根。
+	//   - nr（不复权）价格 ~$4（反拆前原始价格）
+	//   - br（前复权）价格 ~$100+（还原为反拆后价格）
+	// 服务端默认即为 br，因此必须显式传 nr 与 br 做对比。
 	begin := time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC).UnixMilli()
 	end := time.Date(2024, 8, 31, 0, 0, 0, 0, time.UTC).UnixMilli()
 
-	unadj, err := qc.GetKline(model.KlineRequest{
+	nr, err := qc.GetKline(model.KlineRequest{
 		Symbols:   []string{"UVXY"},
 		Period:    "day",
 		BeginTime: begin,
 		EndTime:   end,
+		Right:     "nr", // 不复权
 	})
-	if err != nil || len(unadj) == 0 || len(unadj[0].Items) == 0 {
-		t.Skipf("GetKline (unadjusted): %v", err)
+	if err != nil || len(nr) == 0 || len(nr[0].Items) == 0 {
+		t.Skipf("GetKline (nr): %v", err)
 	}
 
-	adj, err := qc.GetKline(model.KlineRequest{
+	br, err := qc.GetKline(model.KlineRequest{
 		Symbols:   []string{"UVXY"},
 		Period:    "day",
 		BeginTime: begin,
 		EndTime:   end,
 		Right:     "br", // 前复权
 	})
-	if err != nil || len(adj) == 0 || len(adj[0].Items) == 0 {
-		t.Skipf("GetKline (br adjusted): %v", err)
+	if err != nil || len(br) == 0 || len(br[0].Items) == 0 {
+		t.Skipf("GetKline (br): %v", err)
 	}
 
-	uItems := unadj[0].Items
-	aItems := adj[0].Items
-	if len(uItems) != len(aItems) {
-		t.Logf("unadjusted bars=%d, adjusted bars=%d (may differ)", len(uItems), len(aItems))
-	}
+	nrItems := nr[0].Items
+	brItems := br[0].Items
+	t.Logf("nr bars=%d  br bars=%d  nr[0].Close=%.4f  br[0].Close=%.4f",
+		len(nrItems), len(brItems), nrItems[0].Close, brItems[0].Close)
 
-	minLen := len(uItems)
-	if len(aItems) < minLen {
-		minLen = len(aItems)
+	minLen := len(nrItems)
+	if len(brItems) < minLen {
+		minLen = len(brItems)
 	}
 	if minLen == 0 {
 		t.Skip("no overlapping bars to compare")
 	}
 	allSame := true
 	for i := 0; i < minLen; i++ {
-		if uItems[i].Close != aItems[i].Close {
+		if nrItems[i].Close != brItems[i].Close {
 			allSame = false
 			break
 		}
 	}
 	// The 2024-07-01..2024-08-31 window brackets UVXY's 2024-08-01 1:10 reverse split.
-	// Unadjusted close ~$4; br-adjusted close ~$40. They MUST differ.
-	// If identical, the account lacks historical adjusted-kline subscription.
+	// nr close ~$4 (pre-split raw price); br close ~$100+ (adjusted to post-split scale).
+	// They MUST differ — if identical the server ignored the right parameter.
 	if allSame {
-		t.Skip("unadjusted and br-adjusted prices identical across UVXY 2024-07..08 window — account lacks historical adjusted-kline subscription; wire path validated")
+		t.Fatalf("nr and br prices identical across UVXY 2024-07..08 window — server ignored the right parameter (nr[0].Close=%.4f br[0].Close=%.4f)", nrItems[0].Close, brItems[0].Close)
 	}
 	// 如果不完全相同，复权价格必须都 > 0（业务约束）
-	for i, item := range aItems {
+	for i, item := range brItems {
 		if item.Close <= 0 {
 			t.Errorf("br-adjusted KlineItem[%d].Close = %v, want > 0", i, item.Close)
 		}
