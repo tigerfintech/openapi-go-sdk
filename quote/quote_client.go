@@ -10,6 +10,7 @@ import (
 	"github.com/tigerfintech/openapi-go-sdk/client"
 	"github.com/tigerfintech/openapi-go-sdk/config"
 	"github.com/tigerfintech/openapi-go-sdk/model"
+	"github.com/tigerfintech/openapi-go-sdk/push"
 )
 
 // QuoteClient wraps all market data API calls.
@@ -140,7 +141,19 @@ func (c *QuoteClient) GetTimeline(symbols []string) ([]model.Timeline, error) {
 func (c *QuoteClient) GetTradeTick(req model.TradeTickRequest) ([]model.TradeTick, error) {
 	var out []model.TradeTick
 	err := c.callInto("trade_tick", req, &out)
-	return out, err
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		isUS := push.IsUsStockSymbol(out[i].Symbol)
+		for j := range out[i].Items {
+			raw := out[i].Items[j].Cond
+			if len(raw) > 0 {
+				out[i].Items[j].Cond = push.GetTradeCondByCode(isUS, rune(raw[0]))
+			}
+		}
+	}
+	return out, nil
 }
 
 // GetQuoteDepth returns order book depth data.

@@ -121,9 +121,9 @@ func TestDispatchPushData_TradeTick(t *testing.T) {
 	cfg := newTestConfig(t)
 	client := NewPushClient(cfg)
 
-	var received *pb.TradeTickData
+	var received *PushTradeTick
 	cb := &Callbacks{
-		OnTick: func(d *pb.TradeTickData) { received = d },
+		OnTick: func(d PushTradeTick) { received = &d },
 	}
 	pushData := &pb.PushData{
 		DataType: pb.SocketCommon_TradeTick,
@@ -1484,3 +1484,44 @@ func TestHeartbeatLoop_SendErrorExits(t *testing.T) {
 var _ = errors.New
 var _ = fmt.Sprintf
 var _ = net.Pipe
+
+func TestIsUsStockSymbol(t *testing.T) {
+	cases := []struct {
+		symbol string
+		want   bool
+	}{
+		{"AAPL", true},
+		{"TSLA", true},
+		{"AAPL.US", true},
+		{"00700", false}, // HK numeric symbol
+		{"09988", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		got := IsUsStockSymbol(c.symbol)
+		if got != c.want {
+			t.Errorf("IsUsStockSymbol(%q) = %v, want %v", c.symbol, got, c.want)
+		}
+	}
+}
+
+func TestHkCondConversion(t *testing.T) {
+	src := &pb.TradeTickData{
+		Symbol:      "00700",
+		SecType:     "STK",
+		QuoteLevel:  "L1",
+		Timestamp:   1700000000000,
+		Sn:          1,
+		PriceBase:   30000,
+		PriceOffset: 2,
+		Time:        []int64{500},
+		Price:       []int64{0},
+		Volume:      []int64{1000},
+		Cond:        " ",
+		Type:        "+",
+	}
+	out := ConvertTradeTick(src)
+	if out.Ticks[0].Cond != "HK_AUTOMATCH_NORMAL" {
+		t.Errorf("HK cond = %q, want HK_AUTOMATCH_NORMAL", out.Ticks[0].Cond)
+	}
+}
