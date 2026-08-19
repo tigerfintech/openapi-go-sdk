@@ -1732,6 +1732,24 @@ func TestIntegGetCorporateIPO(t *testing.T) {
 	if data[0].Symbol == "" {
 		t.Errorf("CorporateIPO.Symbol is empty, want non-empty")
 	}
+	// Verify the returned symbol is one of the requested IPO symbols.
+	found := false
+	for _, d := range data {
+		if d.Symbol == "RDDT" || d.Symbol == "ALAB" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("GetCorporateIPO: none of the returned symbols match RDDT or ALAB; got %v",
+			func() []string {
+				ss := make([]string, len(data))
+				for i, d := range data {
+					ss[i] = d.Symbol
+				}
+				return ss
+			}())
+	}
 }
 
 // ===========================================================================
