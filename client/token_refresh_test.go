@@ -153,7 +153,8 @@ func TestHttpClient_StartTokenAutoRefresh_NilManager(t *testing.T) {
 	defer server.Close()
 
 	cfg := newTestConfig(t, server.URL)
-	cfg.Token = makeExpiredToken(100) // 直接在代码里设置一个"已过期" token
+	expiredToken := makeExpiredToken(100) // 直接在代码里设置一个"已过期" token
+	cfg.Token = expiredToken
 	c := NewHttpClient(cfg)
 
 	var mu sync.Mutex
@@ -175,7 +176,7 @@ func TestHttpClient_StartTokenAutoRefresh_NilManager(t *testing.T) {
 	if n := atomic.LoadInt64(&callCount); n == 0 {
 		t.Error("nil tokenManager 场景：期望至少触发一次刷新，实际未触发")
 	}
-	if tok := c.getToken(); tok == "" || tok == makeExpiredToken(100) {
+	if tok := c.getToken(); tok == "" || tok == expiredToken {
 		t.Errorf("token 应已更新，实际=%s", tok)
 	}
 	// WithTokenWriter 通过 opts 注入时，SetToken 触发（初始同步那次），刷新后由 refreshFn 更新内存不走 SetToken

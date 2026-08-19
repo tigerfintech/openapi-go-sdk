@@ -150,12 +150,12 @@ func (m *TokenManager) SyncToken(token string) {
 func (m *TokenManager) saveTokenToFile(token string) error {
 	dir := filepath.Dir(m.filePath)
 	if dir != "." && dir != "" {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("创建目录失败: %w", err)
 		}
 	}
 	content := fmt.Sprintf("token=%s\n", token)
-	return os.WriteFile(m.filePath, []byte(content), 0644)
+	return os.WriteFile(m.filePath, []byte(content), 0600)
 }
 
 // ShouldTokenRefresh returns true when the token's gen_ts is older than refreshDuration.

@@ -245,6 +245,13 @@ func (c *HttpClient) Execute(request *ApiRequest) (*ApiResponse, error) {
 			continue
 		}
 
+		// Non-2xx: body was returned but httpErr is set. Surface the HTTP error.
+		if httpErr != nil {
+			c.logger.Error("api request failed method=%s err=%v body=%s",
+				method, httpErr, strings.TrimSpace(string(resp)))
+			return nil, httpErr
+		}
+
 		apiResp, parseErr := ParseApiResponse(resp)
 
 		if parseErr != nil {
@@ -467,14 +474,6 @@ func (c *HttpClient) StartTokenAutoRefresh(tokenManager *config.TokenManager, op
 		return newToken, nil
 	})
 	return tokenManager
-}
-
-func safePrefix(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n])
 }
 
 // NewQuoteHttpClient creates an HttpClient that uses the QuoteServerURL.

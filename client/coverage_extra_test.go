@@ -444,32 +444,6 @@ func TestExecuteRaw_RetrySuccess(t *testing.T) {
 	}
 }
 
-// TestSafePrefix verifies the safePrefix function.
-func TestSafePrefix(t *testing.T) {
-	tests := []struct {
-		name string
-		input string
-		n     int
-		want  string
-	}{
-		{"shorter than n", "abc", 10, "abc"},
-		{"exactly n", "abcde", 5, "abcde"},
-		{"longer than n", "abcdefg", 3, "abc"},
-		{"empty string", "", 5, ""},
-		{"n is zero", "abc", 0, ""},
-		{"unicode characters", "你好世界", 2, "你好"},
-		{"unicode shorter than n", "你好", 10, "你好"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := safePrefix(tt.input, tt.n)
-			if got != tt.want {
-				t.Errorf("safePrefix(%q, %d) = %q, want %q", tt.input, tt.n, got, tt.want)
-			}
-		})
-	}
-}
 
 // TestNewQuoteHttpClient_UsesQuoteServerURL verifies the quote client uses QuoteServerURL.
 func TestNewQuoteHttpClient_UsesQuoteServerURL(t *testing.T) {
