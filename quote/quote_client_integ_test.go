@@ -425,7 +425,7 @@ func TestIntegGetQuoteOvernight(t *testing.T) {
 		t.Fatalf("GetQuoteOvernight: %v", err)
 	}
 	if len(data) == 0 {
-		t.Logf("GetQuoteOvernight returned empty for AAPL (market status=%s); unsupported or no-current overnight records are valid", integtest.MarketStatus(qc, "US"))
+		integtest.AssertNonEmptyDuringExtended(t, qc, "US", "GetQuoteOvernight returned empty for AAPL")
 		return
 	}
 	if data[0].Symbol != "AAPL" {
@@ -2164,8 +2164,11 @@ func TestIntegKlineRightAdjustment(t *testing.T) {
 		}
 	}
 	// The 2024-07-01..2024-08-31 window brackets UVXY's 2024-08-01 1:10 reverse split.
-	// nr close ~$4 (pre-split raw price); br close ~$100+ (adjusted to post-split scale).
-	// They MUST differ — if identical the server ignored the right parameter.
+	// Pre-split bars (July): nr close ~$4 vs br close ~$100+ — these MUST differ.
+	// Post-split bars (August): nr and br are identical (~$40) because no adjustment is needed.
+	// If the server returns ONLY post-split bars, allSame will be true and this test will fail
+	// loudly, indicating that the time window or server behaviour needs investigation.
+	// This is intentional: a silent skip would hide a real regression in the right parameter.
 	if allSame {
 		t.Fatalf("nr and br prices identical across UVXY 2024-07..08 window — server ignored the right parameter (nr[0].Close=%.4f br[0].Close=%.4f)", nrItems[0].Close, brItems[0].Close)
 	}

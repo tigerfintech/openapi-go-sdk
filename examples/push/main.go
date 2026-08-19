@@ -50,12 +50,13 @@ type counters struct {
 	transaction int32
 }
 
-// redact masks a sensitive string, showing only the first 4 chars followed by "****".
+// redact masks a sensitive string for logging, showing only the last 4 chars preceded by "****".
+// Trailing chars are less identifying than leading chars for IDs/accounts.
 func redact(s string) string {
 	if len(s) <= 4 {
 		return "****"
 	}
-	return s[:4] + "****"
+	return "****" + s[len(s)-4:]
 }
 
 func main() {

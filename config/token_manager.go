@@ -15,6 +15,16 @@ import (
 const (
 	defaultTokenFileName        = "tiger_openapi_token.properties"
 	defaultTokenRefreshInterval = 24 * time.Hour
+
+	// tokenGenTsFieldLen is the length (in bytes) of the base64-decoded token prefix
+	// that contains the gen_ts field. Tiger tokens are base64-encoded strings whose
+	// first 27 bytes, when split by ",", yield [genTs, ...rest].
+	// Format: "<genTsMillis>,<expiry>,..." (base64-encoded, genTs is a 13-digit ms timestamp).
+	// This constant is intentionally unexported; callers should not depend on token internals.
+	tokenGenTsFieldLen = 27
+
+	// tokenFieldSep is the separator used in the decoded token content.
+	tokenFieldSep = ","
 )
 
 // TokenManager Token 管理器
@@ -173,11 +183,11 @@ func (m *TokenManager) ShouldTokenRefresh() bool {
 	if err != nil {
 		return false
 	}
-	if len(decoded) < 27 {
+	if len(decoded) < tokenGenTsFieldLen {
 		return false
 	}
 
-	parts := strings.SplitN(string(decoded[:27]), ",", 2)
+	parts := strings.SplitN(string(decoded[:tokenGenTsFieldLen]), tokenFieldSep, 2)
 	if len(parts) < 2 {
 		return false
 	}

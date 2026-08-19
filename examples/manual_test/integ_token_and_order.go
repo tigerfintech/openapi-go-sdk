@@ -17,12 +17,13 @@ func pass(name, note string) { fmt.Printf("[ OK ] %-50s %s\n", name, note) }
 func fail(name, err string)  { fmt.Printf("[FAIL] %-50s %s\n", name, err); os.Exit(1) }
 func info(name, note string) { fmt.Printf("[INFO] %-50s %s\n", name, note) }
 
-// redact masks a sensitive string, showing only the first 4 chars followed by "****".
+// redact masks a sensitive string for logging, showing only the last 4 chars preceded by "****".
+// Trailing chars are less identifying than leading chars for IDs/accounts.
 func redact(s string) string {
 	if len(s) <= 4 {
 		return "****"
 	}
-	return s[:4] + "****"
+	return "****" + s[len(s)-4:]
 }
 
 func main() {
