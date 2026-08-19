@@ -1713,25 +1713,21 @@ func TestIntegGetCorporateIPO(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
-	// Do NOT filter by Symbols here: AAPL had its IPO in 1980 and would
-	// never appear in a 2024-2025 window, making the symbol assertion below
-	// unreachable. Query the market broadly and skip if the account subscription
-	// does not include IPO event data.
+	// Use known 2024 IPO symbols (RDDT=Reddit 2024-03, ALAB=Astera Labs 2024-03).
 	data, err := qc.GetCorporateIPO(model.CorporateActionRequest{
+		Symbols:   []string{"RDDT", "ALAB"},
 		Market:    "US",
 		BeginDate: ms("2024-01-01"),
-		EndDate:   ms("2025-12-31"),
+		EndDate:   ms("2024-12-31"),
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "symbols cannot be empty") || strings.Contains(err.Error(), "does not support") {
-			t.Skipf("GetCorporateIPO: server requires symbols for this account tier: %v", err)
+		if strings.Contains(err.Error(), "does not support") {
+			t.Skipf("GetCorporateIPO: not supported on this account: %v", err)
 		}
 		t.Fatalf("GetCorporateIPO: %v", err)
 	}
-	// IPO event coverage depends on account subscription tier; empty is a
-	// data-boundary issue rather than an SDK bug.
 	if len(data) == 0 {
-		t.Skip("GetCorporateIPO returned empty for US 2024-2025 — data-boundary (subscription/coverage), not an SDK bug")
+		t.Skip("GetCorporateIPO returned empty for RDDT/ALAB 2024 — data-boundary (subscription/coverage), not an SDK bug")
 	}
 	if data[0].Symbol == "" {
 		t.Errorf("CorporateIPO.Symbol is empty, want non-empty")
