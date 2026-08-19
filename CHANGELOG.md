@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-19
+
 ### Added
+- `OptionLeg` 新增 `MarkPrice`、`PreMarkPrice`、`MarkTimestamp`、`MidPrice`、`PreMidPrice`、`MidTimestamp` 字段
 - `TradeTickRequest.TradeSession`，支持通过 `GetTradeTick` 查询美股夜盘逐笔成交
 - `WithUseFullTick`，支持启用并分发完整逐笔推送到 `OnFullTick`
 
