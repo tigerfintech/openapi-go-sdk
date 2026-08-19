@@ -21,7 +21,7 @@ func makeTestToken(genTsMs int64, expireTsMs int64) string {
 func TestTokenManager_LoadToken(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "token.properties")
-	os.WriteFile(path, []byte("token=test_token_123\n"), 0644)
+	os.WriteFile(path, []byte("token=test_token_123\n"), 0600)
 
 	m := NewTokenManager(WithTokenFilePath(path))
 	token, err := m.LoadToken()
@@ -47,7 +47,7 @@ func TestTokenManager_LoadToken_FileNotFound(t *testing.T) {
 func TestTokenManager_LoadToken_NoTokenField(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "token.properties")
-	os.WriteFile(path, []byte("other_key=value\n"), 0644)
+	os.WriteFile(path, []byte("other_key=value\n"), 0600)
 
 	m := NewTokenManager(WithTokenFilePath(path))
 	_, err := m.LoadToken()
@@ -233,7 +233,7 @@ func TestTokenManager_WithTokenLoader_EmptyReturnErrors(t *testing.T) {
 func TestTokenManager_WithTokenLoader_TakesPriorityOverFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "token.properties")
-	os.WriteFile(path, []byte("token=file_token\n"), 0644)
+	os.WriteFile(path, []byte("token=file_token\n"), 0600)
 
 	m := NewTokenManager(
 		WithTokenFilePath(path),
