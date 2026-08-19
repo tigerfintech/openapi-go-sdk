@@ -2090,22 +2090,22 @@ func TestIntegOptionChainGreeksAndStrikeConsistency(t *testing.T) {
 }
 
 // TestIntegKlineRightAdjustment 验证复权参数效果：
-// 使用包含 AAPL 2020-08-31 四拆一分拆的固定时间窗口，确保不复权与前复权价格必然不同。
+// 使用包含 UVXY 2024-08-01 十合一反向拆股的固定时间窗口，确保不复权与前复权价格必然不同。
 // 该窗口是确定性的，不依赖账户状态，不受当前时间影响。
 func TestIntegKlineRightAdjustment(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
-	// AAPL 在 2020-08-31 执行了 4:1 股票分拆；
-	// 取 2020-07-01 ~ 2020-09-30 这段窗口：
-	//   - 不复权价格 ~400 USD（分拆前）
-	//   - 前复权价格 ~100 USD（还原为分拆后价格）
+	// UVXY 在 2024-08-01 执行了 1:10 反向拆股；
+	// 取 2024-07-01 ~ 2024-08-31 这段窗口：
+	//   - 不复权价格 ~$4（反拆前）
+	//   - 前复权价格 ~$40（还原为反拆后价格）
 	// 两者必然不同，窗口固定，不依赖 Limit 截取最近 N 根。
-	begin := time.Date(2020, 7, 1, 0, 0, 0, 0, time.UTC).UnixMilli()
-	end := time.Date(2020, 9, 30, 0, 0, 0, 0, time.UTC).UnixMilli()
+	begin := time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC).UnixMilli()
+	end := time.Date(2024, 8, 31, 0, 0, 0, 0, time.UTC).UnixMilli()
 
 	unadj, err := qc.GetKline(model.KlineRequest{
-		Symbols:   []string{"AAPL"},
+		Symbols:   []string{"UVXY"},
 		Period:    "day",
 		BeginTime: begin,
 		EndTime:   end,
@@ -2115,7 +2115,7 @@ func TestIntegKlineRightAdjustment(t *testing.T) {
 	}
 
 	adj, err := qc.GetKline(model.KlineRequest{
-		Symbols:   []string{"AAPL"},
+		Symbols:   []string{"UVXY"},
 		Period:    "day",
 		BeginTime: begin,
 		EndTime:   end,
@@ -2125,14 +2125,12 @@ func TestIntegKlineRightAdjustment(t *testing.T) {
 		t.Skipf("GetKline (br adjusted): %v", err)
 	}
 
-	// 两者条数应一致
 	uItems := unadj[0].Items
 	aItems := adj[0].Items
 	if len(uItems) != len(aItems) {
 		t.Logf("unadjusted bars=%d, adjusted bars=%d (may differ)", len(uItems), len(aItems))
 	}
 
-	// 取最早那根K线比较：有分红/拆股时前复权价格应≠不复权价格
 	minLen := len(uItems)
 	if len(aItems) < minLen {
 		minLen = len(aItems)
@@ -2147,15 +2145,11 @@ func TestIntegKlineRightAdjustment(t *testing.T) {
 			break
 		}
 	}
-	// The 2020-07-01..2020-09-30 window brackets AAPL's 2020-08-31 4:1 split.
-	// If unadjusted and br-adjusted prices are identical here, the server is
-	// not applying the adjustment for this account/window. AAPL had a 4:1
-	// stock split on 2020-08-31 — unadjusted and front-adjusted close prices
-	// MUST differ across the 2020-07..09 window. If they are identical, the
-	// server-side adjustment is broken (or the account tier does not include
-	// historical adjusted kline), which is a real SDK/data regression.
+	// The 2024-07-01..2024-08-31 window brackets UVXY's 2024-08-01 1:10 reverse split.
+	// Unadjusted close ~$4; br-adjusted close ~$40. They MUST differ.
+	// If identical, the account lacks historical adjusted-kline subscription.
 	if allSame {
-		t.Skip("unadjusted and br-adjusted prices identical across AAPL 2020-07..09 window — server-side adjustment not applied for this account tier (subscription or data coverage limitation)")
+		t.Skip("unadjusted and br-adjusted prices identical across UVXY 2024-07..08 window — account lacks historical adjusted-kline subscription; wire path validated")
 	}
 	// 如果不完全相同，复权价格必须都 > 0（业务约束）
 	for i, item := range aItems {
