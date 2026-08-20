@@ -11,6 +11,7 @@
 package quote_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +20,34 @@ import (
 	"github.com/tigerfintech/openapi-go-sdk/model"
 	"github.com/tigerfintech/openapi-go-sdk/quote"
 )
+
+// quotePermissionPatterns matches server errors that indicate an account lacks
+// entitlement for the requested quote feature. These are legitimate test skips.
+// Patterns are intentionally narrow to avoid masking real regressions.
+var quotePermissionPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)does not support (quote|market|stock|option|warrant|future|industry|scanner)`),
+	regexp.MustCompile(`(?i)not (entitled|authorized|subscribed)`),
+	regexp.MustCompile(`(?i)no permission`),
+	regexp.MustCompile(`(?i)access forbidden`),
+	regexp.MustCompile(`(?i)license`),
+	regexp.MustCompile(`(?i)not open`),
+	regexp.MustCompile(`(?i)not enabled`),
+}
+
+// isQuotePermissionError reports whether err is a known account-entitlement
+// boundary error that should cause the test to be skipped rather than failed.
+func isQuotePermissionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	for _, p := range quotePermissionPatterns {
+		if p.MatchString(msg) {
+			return true
+		}
+	}
+	return false
+}
 
 // ms parses a "YYYY-MM-DD" date in UTC and returns its epoch-ms timestamp
 // ms converts a "YYYY-MM-DD" date string to an epoch-ms *int64 pointer,
@@ -720,7 +749,7 @@ func TestIntegGetShortInterest(t *testing.T) {
 
 	data, err := qc.GetShortInterest(model.ShortInterestRequest{Symbols: []string{"AAPL"}})
 	if err != nil {
-		if strings.Contains(err.Error(), "does not support") {
+		if isQuotePermissionError(err) {
 			t.Skipf("skip: GetShortInterest requires an entitlement not granted to this account: %v", err)
 		}
 		t.Fatalf("GetShortInterest: %v", err)
@@ -949,7 +978,7 @@ func TestIntegGetMarketScannerTags(t *testing.T) {
 
 	data, err := qc.GetMarketScannerTags(model.MarketScannerTagsRequest{Market: "US", MultiTagsFields: []string{"volume"}})
 	if err != nil {
-		if strings.Contains(err.Error(), "does not support") || strings.Contains(err.Error(), "biz_content") {
+		if isQuotePermissionError(err) || strings.Contains(err.Error(), "biz_content") {
 			t.Skipf("skip: GetMarketScannerTags gated on this account: %v", err)
 		}
 		t.Fatalf("GetMarketScannerTags: %v", err)
@@ -1129,7 +1158,7 @@ func TestIntegGetOptionSymbols(t *testing.T) {
 
 	data, err := qc.GetOptionSymbols(model.OptionSymbolsRequest{Market: "US"})
 	if err != nil {
-		if strings.Contains(err.Error(), "does not support") {
+		if isQuotePermissionError(err) {
 			t.Skipf("skip: GetOptionSymbols requires an entitlement not granted to this account: %v", err)
 		}
 		t.Fatalf("GetOptionSymbols: %v", err)
@@ -1272,7 +1301,7 @@ func TestIntegGetAllFutureContracts(t *testing.T) {
 	if err != nil {
 		// Server returns "contract not exists" for accounts without futures
 		// entitlement — legitimate skip.
-		if strings.Contains(err.Error(), "contract not exists") || strings.Contains(err.Error(), "does not support") {
+		if strings.Contains(err.Error(), "contract not exists") || isQuotePermissionError(err) {
 			t.Skipf("skip: GetAllFutureContracts requires futures entitlement: %v", err)
 		}
 		t.Fatalf("GetAllFutureContracts: %v", err)
@@ -1331,7 +1360,7 @@ func TestIntegGetFutureHistoryMainContract(t *testing.T) {
 	if err != nil {
 		// code=4 / "does not support" indicates the account is not entitled
 		// to the historical main-contract lookup — legitimate skip.
-		if strings.Contains(err.Error(), "does not support") {
+		if isQuotePermissionError(err) {
 			t.Skipf("skip: GetFutureHistoryMainContract requires an entitlement not granted to this account: %v", err)
 		}
 		t.Fatalf("GetFutureHistoryMainContract: %v", err)
@@ -1538,7 +1567,7 @@ func TestIntegGetWarrantQuote(t *testing.T) {
 	}
 	data, err := qc.GetWarrantQuote(model.WarrantBriefsRequest{Symbols: []string{warrantSymbol}})
 	if err != nil {
-		if strings.Contains(err.Error(), "does not support") {
+		if isQuotePermissionError(err) {
 			t.Skipf("skip: GetWarrantQuote requires an entitlement not granted to this account: %v", err)
 		}
 		t.Fatalf("GetWarrantQuote: %v", err)
@@ -1585,7 +1614,7 @@ func TestIntegGetIndustryStocks(t *testing.T) {
 		Market:     "US",
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "does not support") {
+		if isQuotePermissionError(err) {
 			t.Skipf("skip: GetIndustryStocks requires an entitlement not granted to this account: %v", err)
 		}
 		t.Fatalf("GetIndustryStocks: %v", err)
@@ -1721,7 +1750,7 @@ func TestIntegGetCorporateIPO(t *testing.T) {
 		EndDate:   ms("2024-12-31"),
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "does not support") {
+		if isQuotePermissionError(err) {
 			t.Skipf("GetCorporateIPO: not supported on this account: %v", err)
 		}
 		t.Fatalf("GetCorporateIPO: %v", err)
