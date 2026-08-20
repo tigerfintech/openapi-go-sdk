@@ -134,24 +134,38 @@ func TestGetRealTimeQuote(t *testing.T) {
 
 func TestGetKline(t *testing.T) {
 	server := mockServer(t, "kline", []map[string]interface{}{
-		{"symbol": "AAPL", "period": "day"},
+		{"symbol": "BTCUSD", "period": "day", "items": []map[string]interface{}{
+			{"time": 1700000000000, "volume": 0, "volumeDecimal": 1.25, "open": 1, "close": 1, "high": 1, "low": 1},
+			{"time": 1700000001000, "volume": 0, "open": 1, "close": 1, "high": 1, "low": 1},
+		}},
 	})
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
-	data, err := qc.GetKline(model.KlineRequest{Symbols: []string{"AAPL"}, Period: "day"})
+	data, err := qc.GetKline(model.KlineRequest{Symbols: []string{"BTCUSD"}, SecType: "CC", Period: "day"})
 	if err != nil {
 		t.Fatalf("GetKline 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetKline 返回 nil data")
+	if len(data) != 1 || len(data[0].Items) != 2 {
+		t.Fatalf("GetKline 返回数据错误: %+v", data)
+	}
+	if data[0].Items[0].VolumeDecimal == nil || *data[0].Items[0].VolumeDecimal != 1.25 {
+		t.Fatalf("volumeDecimal 解码错误: %+v", data[0].Items[0].VolumeDecimal)
+	}
+	if data[0].Items[1].VolumeDecimal != nil {
+		t.Fatalf("缺失的 volumeDecimal 应解码为 nil: %v", data[0].Items[1].VolumeDecimal)
 	}
 }
 
 func TestGetTimeline(t *testing.T) {
-	server := mockServer(t, "timeline", []map[string]interface{}{
-		{"symbol": "AAPL"},
-	})
+	var captured map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+			t.Errorf("请求解码失败: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":0,"message":"success","data":[{"symbol":"AAPL"}]}`))
+	}))
 	defer server.Close()
 
 	qc := newTestQuoteClient(server.URL)
@@ -159,8 +173,67 @@ func TestGetTimeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTimeline 失败: %v", err)
 	}
-	if data == nil {
-		t.Fatal("GetTimeline 返回 nil data")
+	if captured["version"] != "2.0" {
+		t.Fatalf("timeline version = %v, want 2.0", captured["version"])
+	}
+	if len(data) != 1 || data[0].Symbol != "AAPL" {
+		t.Fatalf("GetTimeline 返回数据错误: %+v", data)
+	}
+}
+
+func TestGetTimelineByReq(t *testing.T) {
+	var captured map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+			t.Errorf("请求解码失败: %v", err)
+		}
+		resp := `{"code":0,"message":"success","data":[{"symbol":"BTCUSD","intraday":{"items":[{"time":1700000000000,"volume":0,"volumeDecimal":0,"price":1,"avgPrice":1},{"time":1700000001000,"volume":0,"price":1,"avgPrice":1}]}}]}`
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(resp))
+	}))
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	data, err := qc.GetTimelineByReq(model.TimelineRequest{Symbols: []string{"BTCUSD"}, SecType: "CC"})
+	if err != nil {
+		t.Fatalf("GetTimelineByReq 失败: %v", err)
+	}
+	if captured["version"] != "3.0" {
+		t.Fatalf("timeline version = %v, want 3.0", captured["version"])
+	}
+	var biz map[string]interface{}
+	if err := json.Unmarshal([]byte(captured["biz_content"].(string)), &biz); err != nil {
+		t.Fatalf("biz_content 解码失败: %v", err)
+	}
+	if biz["sec_type"] != "CC" {
+		t.Fatalf("timeline sec_type = %v, want CC", biz["sec_type"])
+	}
+	if len(data) != 1 || data[0].Intraday == nil || len(data[0].Intraday.Items) != 2 {
+		t.Fatalf("GetTimelineByReq 返回数据错误: %+v", data)
+	}
+	items := data[0].Intraday.Items
+	if items[0].VolumeDecimal == nil || *items[0].VolumeDecimal != 0 {
+		t.Fatalf("显式零 volumeDecimal 应解码为非 nil 指针: %+v", items[0].VolumeDecimal)
+	}
+	if items[1].VolumeDecimal != nil {
+		t.Fatalf("缺失的 volumeDecimal 应解码为 nil: %v", items[1].VolumeDecimal)
+	}
+}
+
+func TestGetKlineByPagePropagatesSecType(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	qc := newTestQuoteClient(server.URL)
+	_, err := qc.GetKlineByPage(model.KlineByPageRequest{
+		Symbol: "BTCUSD", SecType: "CC", Period: "day", TotalSize: 1, PageSize: 1,
+	})
+	if err != nil {
+		t.Fatalf("GetKlineByPage 失败: %v", err)
+	}
+	if captured["sec_type"] != "CC" {
+		t.Fatalf("paginated kline sec_type = %v, want CC", captured["sec_type"])
 	}
 }
 
@@ -787,10 +860,10 @@ func TestGetOptionKlineMultiIdentifier(t *testing.T) {
 // 2024-01-19 00:00:00 Asia/HK    = 1705593600000 ms  (UTC+8)
 func TestParseOptionExpiryTimezone(t *testing.T) {
 	tests := []struct {
-		name     string
-		expiry   string
-		tz       string
-		wantMs   int64
+		name   string
+		expiry string
+		tz     string
+		wantMs int64
 	}{
 		{"us_ny", "2024-01-19", "America/New_York", 1705640400000},
 		{"hk", "2024-01-19", "Asia/Hong_Kong", 1705593600000},
@@ -913,10 +986,10 @@ func TestGetOptionChainWithFilter(t *testing.T) {
 	trueVal := true
 	qc := newTestQuoteClient(server.URL)
 	_, err := qc.GetOptionChainByReq(model.OptionChainRequest{
-		OptionBasic: []model.OptionQueryItem{{Symbol: "AAPL", Expiry: int64(1705640400000)}},
+		OptionBasic:      []model.OptionQueryItem{{Symbol: "AAPL", Expiry: int64(1705640400000)}},
 		ReturnGreekValue: &trueVal,
 		OptionFilter: &model.OptionChainFilter{
-			InTheMoney: &trueVal,
+			InTheMoney:        &trueVal,
 			ImpliedVolatility: model.NewRangeFloat64(0.1, 1.0),
 			Greeks: &model.OptionChainFilterGreeks{
 				Delta: model.NewRangeFloat64(0.0, 0.6),

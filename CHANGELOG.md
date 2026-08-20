@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `TradeTickRequest.TradeSession`，支持通过 `GetTradeTick` 查询美股夜盘逐笔成交
 - `WithUseFullTick`，支持启用并分发完整逐笔推送到 `OnFullTick`
 - `PushTick.Cond` 字段，原始单字符代码已转换为可读字符串（如 `US_REGULAR_SALE`、`HK_AUTOMATCH_NORMAL`）
+- `KlineItem` 和 `TimelineItem` 新增可空的 `VolumeDecimal` 字段，支持数字货币小数成交量
+- `GetTimelineByReq` 接受包含 `SecType` 的 `TimelineRequest`（数字货币使用 `"CC"`）并调用 3.0 版本 API；现有 `GetTimeline(symbols []string)` 保持 v2 行为
+- `KlineByPageRequest` 新增 `SecType` 字段，并在所有分页 K 线请求中传递该字段
 
 ### Fixed
 - 修正 `QuoteOvernight` 字段，使其与隔夜行情服务响应一致

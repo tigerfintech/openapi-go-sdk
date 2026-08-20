@@ -104,6 +104,15 @@ func main() {
 		ok("GetTimeline", "(empty)")
 	}
 
+	if crypto, err := qc.GetTimelineByReq(model.TimelineRequest{Symbols: []string{"BTC.USD"}, SecType: "CC"}); err != nil {
+		fail("GetTimelineByReq(BTC.USD CC)", err)
+	} else if len(crypto) > 0 && crypto[0].Intraday != nil && len(crypto[0].Intraday.Items) > 0 {
+		item := crypto[0].Intraday.Items[0]
+		ok("GetTimelineByReq(BTC.USD CC)", fmt.Sprintf("price=%.4f volumeDecimal=%v", item.Price, item.VolumeDecimal))
+	} else {
+		ok("GetTimelineByReq(BTC.USD CC)", "(empty)")
+	}
+
 	if tt, err := qc.GetTradeTick(model.TradeTickRequest{Symbols: []string{"AAPL"}}); err != nil {
 		fail("GetTradeTick", err)
 	} else if len(tt) > 0 {

@@ -168,6 +168,7 @@ type KlineRequest struct {
 // KlineByPageRequest — K 线分页查询（客户端分页包装）。
 type KlineByPageRequest struct {
 	Symbol       string `json:"symbol,omitempty"`
+	SecType      string `json:"sec_type,omitempty"`
 	Period       string `json:"period,omitempty"`
 	BeginTime    int64  `json:"begin_time,omitempty"`
 	EndTime      int64  `json:"end_time,omitempty"`
@@ -176,6 +177,12 @@ type KlineByPageRequest struct {
 	Right        string `json:"right,omitempty"`
 	Lang         string `json:"lang,omitempty"`
 	TradeSession string `json:"trade_session,omitempty"`
+}
+
+// TimelineRequest 分时请求。wire: timeline
+type TimelineRequest struct {
+	Symbols []string `json:"symbols,omitempty"`
+	SecType string   `json:"sec_type,omitempty"`
 }
 
 // TimelineHistoryRequest — 历史分时。wire: history_timeline
@@ -372,11 +379,11 @@ type OptionChainFilter struct {
 
 // OptionChainRequest 期权链请求（支持 option_filter 和 return_greek_value）
 type OptionChainRequest struct {
-	OptionBasic      []OptionQueryItem        `json:"option_basic,omitempty"`
-	ReturnGreekValue *bool                    `json:"return_greek_value,omitempty"`
-	OptionFilter     *OptionChainFilter       `json:"option_filter,omitempty"`
-	Market           string                   `json:"market,omitempty"`
-	Lang             string                   `json:"lang,omitempty"`
+	OptionBasic      []OptionQueryItem  `json:"option_basic,omitempty"`
+	ReturnGreekValue *bool              `json:"return_greek_value,omitempty"`
+	OptionFilter     *OptionChainFilter `json:"option_filter,omitempty"`
+	Market           string             `json:"market,omitempty"`
+	Lang             string             `json:"lang,omitempty"`
 }
 
 // FutureContractSingleRequest 按 contract_code/identifier 查询期货合约。wire: future_contract_by_contract_code / future_current_contract 等
