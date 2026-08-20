@@ -129,10 +129,17 @@ func (c *QuoteClient) GetBars(req model.KlineRequest) ([]model.Kline, error) {
 	return c.GetKline(req)
 }
 
-// GetTimeline returns intraday timeline data.
+// GetTimeline returns intraday timeline data using the legacy v2 API.
 func (c *QuoteClient) GetTimeline(symbols []string) ([]model.Timeline, error) {
 	var out []model.Timeline
 	err := c.callInto("timeline", map[string]interface{}{"symbols": symbols}, &out)
+	return out, err
+}
+
+// GetTimelineByReq returns intraday timeline data using v3, including crypto when SecType is "CC".
+func (c *QuoteClient) GetTimelineByReq(req model.TimelineRequest) ([]model.Timeline, error) {
+	var out []model.Timeline
+	err := c.callIntoVersioned("timeline", req, "3.0", &out)
 	return out, err
 }
 
@@ -574,6 +581,7 @@ func (c *QuoteClient) GetKlineByPage(req model.KlineByPageRequest) ([]model.Klin
 	for len(acc) < req.TotalSize {
 		sub := model.KlineRequest{
 			Symbols:      []string{req.Symbol},
+			SecType:      req.SecType,
 			Period:       req.Period,
 			Right:        req.Right,
 			BeginTime:    beginTime,

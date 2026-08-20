@@ -46,13 +46,14 @@ type Kline struct {
 
 // KlineItem 单根 K 线
 type KlineItem struct {
-	Time   int64   `json:"time"`
-	Volume int64   `json:"volume"`
-	Open   float64 `json:"open"`
-	Close  float64 `json:"close"`
-	High   float64 `json:"high"`
-	Low    float64 `json:"low"`
-	Amount float64 `json:"amount,omitempty"`
+	Time          int64    `json:"time"`
+	Volume        int64    `json:"volume"`
+	VolumeDecimal *float64 `json:"volumeDecimal,omitempty"`
+	Open          float64  `json:"open"`
+	Close         float64  `json:"close"`
+	High          float64  `json:"high"`
+	Low           float64  `json:"low"`
+	Amount        float64  `json:"amount,omitempty"`
 }
 
 // Timeline 分时
@@ -72,10 +73,11 @@ type TimelineBucket struct {
 
 // TimelineItem 分时点
 type TimelineItem struct {
-	Time     int64   `json:"time"`
-	Volume   int64   `json:"volume"`
-	Price    float64 `json:"price"`
-	AvgPrice float64 `json:"avgPrice"`
+	Time          int64    `json:"time"`
+	Volume        int64    `json:"volume"`
+	VolumeDecimal *float64 `json:"volumeDecimal,omitempty"`
+	Price         float64  `json:"price"`
+	AvgPrice      float64  `json:"avgPrice"`
 }
 
 // TradeTick 逐笔(一个标的一组)
@@ -88,13 +90,13 @@ type TradeTick struct {
 
 // TradeTickItem 单笔成交
 type TradeTickItem struct {
-	Time      int64   `json:"time"`
-	Volume    int64   `json:"volume"`
-	Price     float64 `json:"price"`
-	Type      string  `json:"type"`
-	PartCode  string  `json:"partCode,omitempty"`
-	PartName  string  `json:"partName,omitempty"`
-	Cond      string  `json:"cond,omitempty"`
+	Time     int64   `json:"time"`
+	Volume   int64   `json:"volume"`
+	Price    float64 `json:"price"`
+	Type     string  `json:"type"`
+	PartCode string  `json:"partCode,omitempty"`
+	PartName string  `json:"partName,omitempty"`
+	Cond     string  `json:"cond,omitempty"`
 }
 
 // Depth 深度报价(一个标的一组)
