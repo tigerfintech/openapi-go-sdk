@@ -177,19 +177,19 @@ notify:webhook:
       unit_t, unit_p, unit_f, unit_s = parse_go_txt("test-results/unit.txt")
       integ_t, integ_p, integ_f, integ_s = parse_go_txt("test-results/integ.txt")
 
-      unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_t else ""
-      integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_t else ""
+      unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_t else "Unit: output unavailable"
+      integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_t else "Integration: output unavailable"
 
       # 2. Determine pass/fail.
-      #    unit_f is None  → txt missing/unreadable; treat as failed (conservative).
-      #    unit_f > 0      → explicit unit failures.
+      #    unit_f/integ_f is None → txt missing/unreadable; treat as failed (conservative).
+      #    unit_f/integ_f > 0     → explicit test failures.
       #    CI_PIPELINE_STATUS is unreliable in .post stage (reads "running"),
       #    so we rely exclusively on parsed text counts.
+      has_failed = (unit_f or 0) > 0 or (integ_f or 0) > 0 or unit_f is None or integ_f is None
       if unit_f is None:
-          has_failed = True
           print("Unit test output unavailable — treating pipeline as failed")
-      else:
-          has_failed = (unit_f > 0) or (integ_f is not None and integ_f > 0)
+      if integ_f is None:
+          print("Integration test output unavailable — treating pipeline as failed")
 
       # 3. Build Feishu card
       title = "❌ Pipeline failed" if has_failed else "✅ Pipeline passed"
