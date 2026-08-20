@@ -41,17 +41,6 @@ func SkipUnlessEnabled(t testing.TB) {
 	}
 }
 
-// SkipUnlessCreds skips when no credentials are available, regardless of the
-// run flag. Useful for local runs where a developer simply exports the
-// TIGEROPEN_* vars without setting TIGER_RUN_INTEG.
-func SkipUnlessCreds(t testing.TB) {
-	t.Helper()
-	if !hasCreds() {
-		t.Skipf("skipped: no credentials — set %s/%s/%s env vars or %s",
-			envTigerID, envPrivateKey, envAccount, envPropsPath)
-	}
-}
-
 func hasCreds() bool {
 	if os.Getenv(envTigerID) != "" && os.Getenv(envPrivateKey) != "" {
 		return true
