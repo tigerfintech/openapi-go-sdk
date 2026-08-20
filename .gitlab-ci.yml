@@ -155,33 +155,41 @@ notify:webhook:
               print(f"Failed to parse {path}: {e}")
           return t, t - f - s, f, s
 
-      # Parse Go test output (text, not JUnit XML)
+      # Parse Go test output (text, not JUnit XML).
+      # Returns None tuple on file-missing / parse error so callers can
+      # distinguish "0 failures" from "couldn't read results at all".
       def parse_go_txt(path):
           import re
           t, p, f, s = 0, 0, 0, 0
           try:
               content = open(path).read()
-              for m in re.finditer(r'--- (PASS|FAIL|SKIP):', content):
-                  if m.group(1) == 'PASS': p += 1
-                  elif m.group(1) == 'FAIL': f += 1
-                  elif m.group(1) == 'SKIP': s += 1
-              t = p + f + s
-              print(f"Parsed {path}: {t} tests: {p} passed, {f} failed, {s} skipped")
           except Exception as e:
-              print(f"Failed to parse {path}: {e}")
+              print(f"Failed to open {path}: {e}")
+              return None, None, None, None
+          for m in re.finditer(r'--- (PASS|FAIL|SKIP):', content):
+              if m.group(1) == 'PASS': p += 1
+              elif m.group(1) == 'FAIL': f += 1
+              elif m.group(1) == 'SKIP': s += 1
+          t = p + f + s
+          print(f"Parsed {path}: {t} tests: {p} passed, {f} failed, {s} skipped")
           return t, p, f, s
 
       unit_t, unit_p, unit_f, unit_s = parse_go_txt("test-results/unit.txt")
       integ_t, integ_p, integ_f, integ_s = parse_go_txt("test-results/integ.txt")
 
-      unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_t > 0 else ""
-      integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_t > 0 else ""
+      unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_t else ""
+      integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_t else ""
 
-      # 2. Determine pass/fail: unit test failures = pipeline failed
-      has_failed = unit_f > 0
-      status = os.environ.get("CI_PIPELINE_STATUS", "")
-      if status == "failed":
+      # 2. Determine pass/fail.
+      #    unit_f is None  → txt missing/unreadable; treat as failed (conservative).
+      #    unit_f > 0      → explicit unit failures.
+      #    CI_PIPELINE_STATUS is unreliable in .post stage (reads "running"),
+      #    so we rely exclusively on parsed text counts.
+      if unit_f is None:
           has_failed = True
+          print("Unit test output unavailable — treating pipeline as failed")
+      else:
+          has_failed = unit_f > 0
 
       # 3. Build Feishu card
       title = "❌ Pipeline failed" if has_failed else "✅ Pipeline passed"
