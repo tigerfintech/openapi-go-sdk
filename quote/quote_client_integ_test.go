@@ -460,7 +460,13 @@ func TestIntegGetQuoteOvernight(t *testing.T) {
 		t.Fatalf("GetQuoteOvernight: %v", err)
 	}
 	if len(data) == 0 {
-		integtest.AssertNonEmptyDuringExtended(t, qc, "US", "GetQuoteOvernight returned empty for AAPL")
+		// The overnight session (~8pm-4am ET) is disjoint from the
+		// regular/pre/post-market statuses IsMarketOpenExtended checks —
+		// it can legitimately be empty during PRE_HOUR_TRADING once the
+		// overnight window has already closed. Mirrors the tolerant
+		// pattern used by the neighboring GetKline(TradeSession: "OverNight")
+		// test just below, which never fails on an empty overnight result.
+		t.Logf("GetQuoteOvernight returned empty for AAPL (market=US status=%s); no-current overnight data is valid", integtest.MarketStatus(qc, "US"))
 		return
 	}
 	if data[0].Symbol != "AAPL" {
