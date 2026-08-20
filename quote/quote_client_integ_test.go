@@ -29,9 +29,9 @@ var quotePermissionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)not (entitled|authorized|subscribed)`),
 	regexp.MustCompile(`(?i)no permission`),
 	regexp.MustCompile(`(?i)access forbidden`),
-	regexp.MustCompile(`(?i)license`),
-	regexp.MustCompile(`(?i)not open`),
-	regexp.MustCompile(`(?i)not enabled`),
+	regexp.MustCompile(`(?i)(license (expired|required|invalid|not found)|unlicensed)`),
+	regexp.MustCompile(`(?i)(quote|market data|data feed|symbol).{0,30}not open`),
+	regexp.MustCompile(`(?i)(quote|market data|feature|function).{0,30}not enabled`),
 }
 
 // isQuotePermissionError reports whether err is a known account-entitlement
