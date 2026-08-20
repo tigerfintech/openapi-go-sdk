@@ -26,6 +26,12 @@ import (
 // Patterns are intentionally narrow to avoid masking real regressions.
 var quotePermissionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)does not support (quote|market|stock|option|warrant|future|industry|scanner)`),
+	// Server returns "the current requested method does not support" when the
+	// account lacks entitlement for the entire API method (no resource keyword).
+	regexp.MustCompile(`(?i)(current requested method|this method|the method).{0,30}does not support`),
+	// code=4 wraps the inner 1000 error as "1000:common param error(the current
+	// requested method does not support)" — catch the inner message too.
+	regexp.MustCompile(`(?i)common param error\(.*does not support\)`),
 	regexp.MustCompile(`(?i)not (entitled|authorized|subscribed)`),
 	regexp.MustCompile(`(?i)no permission`),
 	regexp.MustCompile(`(?i)access forbidden`),
