@@ -64,6 +64,10 @@ var permissionErrorPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)only trade cash order by market order`),
 	regexp.MustCompile(`(?i)cash order by market order`),
 	regexp.MustCompile(`(?i)system error`),
+	// trade_prime_error (code 1200-1299) — e.g. Mainland-China investor
+	// regulatory restriction on opening/adding positions. Account-state
+	// boundary, not a code defect; matches TS's integ suite precedent.
+	regexp.MustCompile(`(?i)trade_prime_error`),
 }
 
 // Order state race — cancel/modify may hit a terminal state during the test.
@@ -582,3 +586,51 @@ func TestMatrixUsStkSellShortPreview(t *testing.T) {
 		LimitPrice: safeSellPrice,
 	}), "US STK SELL SHORT preview")
 }
+
+func TestMatrixUsStkLimitByAmount(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+	order := model.LimitOrderByAmount("", "AAPL", "STK", "BUY", 100.0, safeBuyPrice)
+	order.Currency = "USD"
+	order.Market = "US"
+	// 网关要求即使按金额下单也带 total_quantity 字段(哪怕值不生效),
+	// 跟 TestMatrixUsStkMarketByAmountPreview 是同一个网关规则。
+	order.TotalQuantity = 1
+	previewAndPlace(t, tc, order, "US STK LMT by amount")
+}
+
+func TestMatrixHkStkLimitWithBrackets(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	tc := integtest.NewTradeClient(t)
+	// 部分账号(如境内投资者)在开仓类下单会收到 code=1200 trade_prime_error
+	// (Mainland China investor regulatory restriction)——这是账号状态限制,
+	// 已归入 permissionErrorPatterns 自动跳过,跟 TS 的 integ 套件一致。
+	order, err := model.LimitOrderWithLegs("", "00700", "STK", "BUY", 100, safeBuyPrice, []model.OrderLegRequest{
+		model.NewOrderLeg("PROFIT", safeSellPrice, "GTC"),
+		model.NewOrderLeg("LOSS", safeBuyPrice/2, "GTC"),
+	})
+	if err != nil {
+		t.Fatalf("HK STK LMT with brackets: LimitOrderWithLegs failed: %v", err)
+	}
+	order.Currency = "HKD"
+	order.Market = "HK"
+	previewAndPlace(t, tc, order, "HK STK LMT with brackets")
+}
+
+func TestMatrixHkWarLimit(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+	symbol, err := integtest.ResolveHkWarrantSymbol(qc)
+	if err != nil {
+		t.Skipf("HK WAR LMT: skipped (no warrant symbol resolved): %v", err)
+	}
+	// 网关下 WAR 订单要求 strike 字段非空,但 warrant_filter 返回的
+	// WarrantBrief 在此账号上不带 strikePrice/expiryDate/warrantType(字段
+	// 全部为空),独立的 warrant_briefs 接口在此账号/license 下直接返回
+	// code=4 "the current requested method does not support"。也就是说
+	// 这不是 resolver 该不该多返回字段的问题,而是账号没有权限拿到窝轮的
+	// strike/expiry 数据 —— 跟 FOP 一样是能力缺口,不是测试缺口,所以直接
+	// skip 而不是硬编码假数据。
+	t.Skipf("HK WAR LMT: skipped (no strike/expiry data available for symbol %s on this account — warrant_briefs unsupported)", symbol)
+}
+
