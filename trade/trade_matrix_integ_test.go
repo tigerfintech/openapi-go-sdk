@@ -29,6 +29,7 @@ import (
 
 	"github.com/tigerfintech/openapi-go-sdk/integtest"
 	"github.com/tigerfintech/openapi-go-sdk/model"
+	"github.com/tigerfintech/openapi-go-sdk/quote"
 	"github.com/tigerfintech/openapi-go-sdk/trade"
 )
 
@@ -39,7 +40,22 @@ const (
 	safeStopBuyTrigger  = 999_999.0
 )
 
-// Permission / license / session boundary errors — legitimate skips.
+// Out-of-hours / session boundary errors — re-checked against live market
+// status before being treated as a skip (see classifyFailure). A hit during
+// genuine trading hours is a real bug, not a boundary skip.
+var hoursErrorPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)outside of regular trading hours`),
+	regexp.MustCompile(`(?i)market is closed`),
+	regexp.MustCompile(`(?i)only limit orders can be placed`),
+	regexp.MustCompile(`(?i)only limit, stop or stop-limit orders are allowed`),
+	regexp.MustCompile(`(?i)at non-trading hour`),
+	regexp.MustCompile(`(?i)time range for the order.*needs to be between`),
+	regexp.MustCompile(`(?i)orders cannot be placed at this moment`),
+	regexp.MustCompile(`(?i)auction order is not allowed at this moment`),
+}
+
+// Permission / license / account-state boundary errors — unconditional
+// legitimate skips.
 var permissionErrorPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)access forbidden`),
 	regexp.MustCompile(`(?i)forbidden`),
@@ -52,14 +68,6 @@ var permissionErrorPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)don['\x{2018}\x{2019}]t support trading`),
 	regexp.MustCompile(`(?i)unsupported instrument`),
 	regexp.MustCompile(`(?i)only limit orders are supported`),
-	regexp.MustCompile(`(?i)outside of regular trading hours`),
-	regexp.MustCompile(`(?i)market is closed`),
-	regexp.MustCompile(`(?i)only limit orders can be placed`),
-	regexp.MustCompile(`(?i)only limit, stop or stop-limit orders are allowed`),
-	regexp.MustCompile(`(?i)at non-trading hour`),
-	regexp.MustCompile(`(?i)time range for the order.*needs to be between`),
-	regexp.MustCompile(`(?i)orders cannot be placed at this moment`),
-	regexp.MustCompile(`(?i)auction order is not allowed at this moment`),
 	regexp.MustCompile(`(?i)does not support stock (long|short)`),
 	regexp.MustCompile(`(?i)only trade cash order by market order`),
 	regexp.MustCompile(`(?i)cash order by market order`),
@@ -98,6 +106,28 @@ func matches(msg string, patterns []*regexp.Regexp) bool {
 		}
 	}
 	return false
+}
+
+// classifyFailure decides whether a failed preview/place error should be
+// skipped or treated as a real failure. Hours-specific markers are
+// re-checked against live market status: a hit during real trading hours is
+// a real bug, not a boundary skip. Pure permission/capability markers are
+// always an unconditional skip.
+//
+// Returns "" if the message should be treated as a hard failure by the
+// caller; otherwise a human-readable skip reason.
+func classifyFailure(t *testing.T, qc *quote.QuoteClient, msg, context string) string {
+	t.Helper()
+	if matches(msg, hoursErrorPatterns) {
+		if integtest.IsMarketTrading(qc, "US") {
+			t.Fatalf("%s: hours-boundary error during live trading hours: %s", context, msg)
+		}
+		return "skipped (out-of-hours boundary): " + msg
+	}
+	if matches(msg, permissionErrorPatterns) {
+		return "skipped (permission boundary): " + msg
+	}
+	return ""
 }
 
 // -----------------------------------------------------------------------------
@@ -200,14 +230,14 @@ func merge(base, overlay model.OrderRequest) model.OrderRequest {
 
 // previewOnly issues preview_order and returns true if the call was legitimate
 // (either success or a known-boundary skip).
-func previewOnly(t *testing.T, tc *trade.TradeClient, order model.OrderRequest, context string) bool {
+func previewOnly(t *testing.T, tc *trade.TradeClient, qc *quote.QuoteClient, order model.OrderRequest, context string) bool {
 	t.Helper()
 	_, err := tc.PreviewOrder(order)
 	if err == nil {
 		return true
 	}
-	if matches(err.Error(), permissionErrorPatterns) {
-		t.Logf("%s: skipped (preview boundary): %v", context, err)
+	if skipReason := classifyFailure(t, qc, err.Error(), context); skipReason != "" {
+		t.Logf("%s: %s", context, skipReason)
 		return false
 	}
 	t.Fatalf("%s: preview failed: %v", context, err)
@@ -216,11 +246,11 @@ func previewOnly(t *testing.T, tc *trade.TradeClient, order model.OrderRequest, 
 
 // previewAndPlace runs preview -> place -> cancel with rate-limit retry and
 // permission auto-skip. Returns true if the round-trip executed.
-func previewAndPlace(t *testing.T, tc *trade.TradeClient, order model.OrderRequest, context string) bool {
+func previewAndPlace(t *testing.T, tc *trade.TradeClient, qc *quote.QuoteClient, order model.OrderRequest, context string) bool {
 	t.Helper()
 
 	// 1. Preview first — validates marshaling before touching real state.
-	if !previewOnly(t, tc, order, context) {
+	if !previewOnly(t, tc, qc, order, context) {
 		return false
 	}
 
@@ -235,8 +265,8 @@ func previewAndPlace(t *testing.T, tc *trade.TradeClient, order model.OrderReque
 		if err == nil {
 			break
 		}
-		if matches(err.Error(), permissionErrorPatterns) {
-			t.Logf("%s: skipped (place boundary): %v", context, err)
+		if skipReason := classifyFailure(t, qc, err.Error(), context); skipReason != "" {
+			t.Logf("%s: %s", context, skipReason)
 			return false
 		}
 		if matches(err.Error(), rateLimitPatterns) && attempt < 2 {
@@ -283,7 +313,8 @@ func cancelTolerant(t *testing.T, tc *trade.TradeClient, orderID int64, context 
 func TestMatrixUsStkMarketPreview(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
-	previewOnly(t, tc, merge(usStk(), model.OrderRequest{
+	qc := integtest.NewQuoteClient(t)
+	previewOnly(t, tc, qc, merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "MKT", TotalQuantity: 1,
 	}), "US STK MKT preview")
 }
@@ -291,11 +322,12 @@ func TestMatrixUsStkMarketPreview(t *testing.T) {
 func TestMatrixUsStkMarketByAmountPreview(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	qc := integtest.NewQuoteClient(t)
 	// 网关要求即使按金额下单也带 total_quantity 字段(哪怕值不生效)。
 	// 传 1 让服务端跳过 'quantity is required' 校验;真正的下单份数由
 	// Amount 字段决定。这跟 Java SDK 的 amount-order 一样有校验规则,
 	// 但服务端的语义是 "quantity 必须存在" 而不是 "两者不能共存"。
-	previewOnly(t, tc, merge(usStk(), model.OrderRequest{
+	previewOnly(t, tc, qc, merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "MKT", Amount: 100.0, TotalQuantity: 1,
 	}), "US STK MKT-by-amount preview")
 }
@@ -303,7 +335,8 @@ func TestMatrixUsStkMarketByAmountPreview(t *testing.T) {
 func TestMatrixUsStkStop(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
-	previewAndPlace(t, tc, merge(usStk(), model.OrderRequest{
+	qc := integtest.NewQuoteClient(t)
+	previewAndPlace(t, tc, qc, merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "STP", TotalQuantity: 1,
 		AuxPrice: safeStopBuyTrigger,
 	}), "US STK STP")
@@ -312,7 +345,8 @@ func TestMatrixUsStkStop(t *testing.T) {
 func TestMatrixUsStkStopLimit(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
-	previewAndPlace(t, tc, merge(usStk(), model.OrderRequest{
+	qc := integtest.NewQuoteClient(t)
+	previewAndPlace(t, tc, qc, merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "STP_LMT", TotalQuantity: 1,
 		LimitPrice: safeBuyPrice, AuxPrice: safeStopBuyTrigger,
 	}), "US STK STP_LMT")
@@ -321,7 +355,8 @@ func TestMatrixUsStkStopLimit(t *testing.T) {
 func TestMatrixUsStkTrail(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
-	previewAndPlace(t, tc, merge(usStk(), model.OrderRequest{
+	qc := integtest.NewQuoteClient(t)
+	previewAndPlace(t, tc, qc, merge(usStk(), model.OrderRequest{
 		Action: "SELL", OrderType: "TRAIL", TotalQuantity: 1,
 		TrailingPercent: 50.0,
 	}), "US STK TRAIL")
@@ -330,10 +365,11 @@ func TestMatrixUsStkTrail(t *testing.T) {
 func TestMatrixUsStkTwap(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	qc := integtest.NewQuoteClient(t)
 	now := time.Now().UnixMilli()
 	// AlgoParamsRequest 现在通过自定义 MarshalJSON 转成网关期望的
 	// [{tag, value}] 数组;调用方直接传自然的结构体即可。
-	previewAndPlace(t, tc, merge(usStk(), model.OrderRequest{
+	previewAndPlace(t, tc, qc, merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "TWAP", TotalQuantity: 10,
 		LimitPrice:   safeBuyPrice,
 		AlgoStrategy: "TWAP",
@@ -347,8 +383,9 @@ func TestMatrixUsStkTwap(t *testing.T) {
 func TestMatrixUsStkVwap(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	qc := integtest.NewQuoteClient(t)
 	now := time.Now().UnixMilli()
-	previewAndPlace(t, tc, merge(usStk(), model.OrderRequest{
+	previewAndPlace(t, tc, qc, merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "VWAP", TotalQuantity: 10,
 		LimitPrice:   safeBuyPrice,
 		AlgoStrategy: "VWAP",
@@ -363,8 +400,9 @@ func TestMatrixUsStkVwap(t *testing.T) {
 func TestMatrixUsStkIceberg(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	qc := integtest.NewQuoteClient(t)
 	now := time.Now().UnixMilli()
-	previewAndPlace(t, tc, merge(usStk(), model.OrderRequest{
+	previewAndPlace(t, tc, qc, merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "ICEBERG", TotalQuantity: 10,
 		LimitPrice: safeBuyPrice,
 		DisplaySize: 2, MinDisplaySize: 1, CheckIntervals: 30,
@@ -376,6 +414,7 @@ func TestMatrixUsStkIceberg(t *testing.T) {
 func TestMatrixUsStkOcaBrackets(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	qc := integtest.NewQuoteClient(t)
 	// OCA brackets: profit + stop-loss legs share account and symbol via base.
 	parent := usStk()
 	profit := merge(usStk(), model.OrderRequest{
@@ -387,14 +426,15 @@ func TestMatrixUsStkOcaBrackets(t *testing.T) {
 		LimitPrice: safeBuyPrice, AuxPrice: safeBuyPrice, TimeInForce: "GTC",
 	})
 	parent.OcaOrders = []*model.OrderRequest{&profit, &stop}
-	previewAndPlace(t, tc, parent, "US STK OCA brackets")
+	previewAndPlace(t, tc, qc, parent, "US STK OCA brackets")
 }
 
 func TestMatrixUsOptLimit(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	qc := integtest.NewQuoteClient(t)
 	expiry := time.Now().AddDate(0, 0, 30).Format("20060102")
-	previewAndPlace(t, tc, model.OrderRequest{
+	previewAndPlace(t, tc, qc, model.OrderRequest{
 		Symbol:   "AAPL",
 		SecType:  "OPT",
 		Currency: "USD",
@@ -410,7 +450,8 @@ func TestMatrixUsOptLimit(t *testing.T) {
 func TestMatrixUsFutLimit(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
-	previewAndPlace(t, tc, model.OrderRequest{
+	qc := integtest.NewQuoteClient(t)
+	previewAndPlace(t, tc, qc, model.OrderRequest{
 		Symbol:   "CL",
 		SecType:  "FUT",
 		Currency: "USD",
@@ -458,7 +499,8 @@ func TestMatrixUsStkNegativePricePreview(t *testing.T) {
 func TestMatrixHkStkLimit(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
-	previewAndPlace(t, tc, merge(hkStk(), model.OrderRequest{
+	qc := integtest.NewQuoteClient(t)
+	previewAndPlace(t, tc, qc, merge(hkStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "LMT", TotalQuantity: 100,
 		LimitPrice: safeBuyPrice,
 	}), "HK STK LMT")
@@ -467,7 +509,8 @@ func TestMatrixHkStkLimit(t *testing.T) {
 func TestMatrixHkStkAuctionLimit(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
-	previewAndPlace(t, tc, merge(hkStk(), model.OrderRequest{
+	qc := integtest.NewQuoteClient(t)
+	previewAndPlace(t, tc, qc, merge(hkStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "AL", TotalQuantity: 100,
 		LimitPrice: safeBuyPrice,
 	}), "HK STK AL")
@@ -476,7 +519,8 @@ func TestMatrixHkStkAuctionLimit(t *testing.T) {
 func TestMatrixHkStkAuctionMarketPreview(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
-	previewOnly(t, tc, merge(hkStk(), model.OrderRequest{
+	qc := integtest.NewQuoteClient(t)
+	previewOnly(t, tc, qc, merge(hkStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "AM", TotalQuantity: 100,
 	}), "HK STK AM preview")
 }
@@ -484,7 +528,8 @@ func TestMatrixHkStkAuctionMarketPreview(t *testing.T) {
 func TestMatrixCnStkLimit(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
-	previewAndPlace(t, tc, model.OrderRequest{
+	qc := integtest.NewQuoteClient(t)
+	previewAndPlace(t, tc, qc, model.OrderRequest{
 		Symbol:   "000001",
 		SecType:  "STK",
 		Currency: "CNH",
@@ -497,7 +542,8 @@ func TestMatrixCnStkLimit(t *testing.T) {
 func TestMatrixSgStkLimit(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
-	previewAndPlace(t, tc, model.OrderRequest{
+	qc := integtest.NewQuoteClient(t)
+	previewAndPlace(t, tc, qc, model.OrderRequest{
 		Symbol:   "D05",
 		SecType:  "STK",
 		Currency: "SGD",
@@ -514,10 +560,11 @@ func TestMatrixSgStkLimit(t *testing.T) {
 func TestMatrixUsMlegVerticalSpread(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	qc := integtest.NewQuoteClient(t)
 	expiry := time.Now().AddDate(0, 0, 45).Format("20060102")
 	one := 1
 	// AAPL PUT vertical spread — deeply negative limit prevents execution.
-	previewAndPlace(t, tc, model.OrderRequest{
+	previewAndPlace(t, tc, qc, model.OrderRequest{
 		SecType:   "MLEG",
 		Currency:  "USD",
 		Market:    "US",
@@ -536,6 +583,7 @@ func TestMatrixUsMlegVerticalSpread(t *testing.T) {
 func TestMatrixUsStkIcebergModify(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	qc := integtest.NewQuoteClient(t)
 	now := time.Now().UnixMilli()
 	order := merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "ICEBERG", TotalQuantity: 10,
@@ -545,13 +593,13 @@ func TestMatrixUsStkIcebergModify(t *testing.T) {
 		StartTime: now, EndTime: now + 3_600_000,
 	})
 	// preview first
-	if !previewOnly(t, tc, order, "US STK ICEBERG modify — preview") {
+	if !previewOnly(t, tc, qc, order, "US STK ICEBERG modify — preview") {
 		return
 	}
 	placeRes, err := tc.PlaceOrder(order)
 	if err != nil {
-		if matches(err.Error(), permissionErrorPatterns) {
-			t.Logf("US STK ICEBERG modify: skipped: %v", err)
+		if skipReason := classifyFailure(t, qc, err.Error(), "US STK ICEBERG modify"); skipReason != "" {
+			t.Logf("US STK ICEBERG modify: %s", skipReason)
 			return
 		}
 		t.Fatalf("US STK ICEBERG modify: place failed: %v", err)
@@ -581,7 +629,8 @@ func TestMatrixUsStkIcebergModify(t *testing.T) {
 func TestMatrixUsStkSellShortPreview(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
-	previewOnly(t, tc, merge(usStk(), model.OrderRequest{
+	qc := integtest.NewQuoteClient(t)
+	previewOnly(t, tc, qc, merge(usStk(), model.OrderRequest{
 		Action: "SELL", OrderType: "LMT", TotalQuantity: 1,
 		LimitPrice: safeSellPrice,
 	}), "US STK SELL SHORT preview")
@@ -590,18 +639,20 @@ func TestMatrixUsStkSellShortPreview(t *testing.T) {
 func TestMatrixUsStkLimitByAmount(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	qc := integtest.NewQuoteClient(t)
 	order := model.LimitOrderByAmount("", "AAPL", "STK", "BUY", 100.0, safeBuyPrice)
 	order.Currency = "USD"
 	order.Market = "US"
 	// 网关要求即使按金额下单也带 total_quantity 字段(哪怕值不生效),
 	// 跟 TestMatrixUsStkMarketByAmountPreview 是同一个网关规则。
 	order.TotalQuantity = 1
-	previewAndPlace(t, tc, order, "US STK LMT by amount")
+	previewAndPlace(t, tc, qc, order, "US STK LMT by amount")
 }
 
 func TestMatrixHkStkLimitWithBrackets(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	tc := integtest.NewTradeClient(t)
+	qc := integtest.NewQuoteClient(t)
 	// 部分账号(如境内投资者)在开仓类下单会收到 code=1200 trade_prime_error
 	// (Mainland China investor regulatory restriction)——这是账号状态限制,
 	// 已归入 permissionErrorPatterns 自动跳过,跟 TS 的 integ 套件一致。
@@ -614,7 +665,7 @@ func TestMatrixHkStkLimitWithBrackets(t *testing.T) {
 	}
 	order.Currency = "HKD"
 	order.Market = "HK"
-	previewAndPlace(t, tc, order, "HK STK LMT with brackets")
+	previewAndPlace(t, tc, qc, order, "HK STK LMT with brackets")
 }
 
 func TestMatrixHkWarLimit(t *testing.T) {
