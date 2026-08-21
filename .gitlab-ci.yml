@@ -99,6 +99,9 @@ integration:go:
   stage: integration
   allow_failure: true
   when: always
+  # Serialize per branch: prevents overlapping scheduled/manual pipelines
+  # from writing test-results/integ.txt to the same shared build dir at once.
+  resource_group: $CI_COMMIT_REF_SLUG
   variables:
     TIGER_RUN_INTEG: "true"
   before_script:
