@@ -195,6 +195,16 @@ notify:webhook:
       if integ_f is None:
           print("Integration test output unavailable — treating pipeline as failed")
 
+      # 2b. Notify on failure only. A green card every 4 hours is noise nobody
+      #     reads, which also desensitises the channel to the red ones.
+      #     has_failed already covers "results unparseable" (the `is None`
+      #     terms above), so an unreadable artifact still notifies — silence
+      #     here means "we positively verified everything passed", never
+      #     "we couldn't tell".
+      if not has_failed:
+          print(f"Pipeline passed — {unit_stats} | {integ_stats} — skipping notification")
+          exit(0)
+
       # 3. Build notification card
       title = "❌ Pipeline failed" if has_failed else "✅ Pipeline passed"
       color = "red" if has_failed else "green"
