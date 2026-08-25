@@ -197,19 +197,33 @@ notify:webhook:
       unit_t, unit_p, unit_f, unit_s = parse_go_txt("test-results/unit.txt")
       integ_t, integ_p, integ_f, integ_s = parse_go_txt("test-results/integ.txt")
 
-      unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_t else "Unit: output unavailable"
-      integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_t else "Integration: output unavailable"
+      # Key off `is not None`, not truthiness: a readable file with 0 test lines
+      # yields 0 (falsy but perfectly available). Using `if unit_t` here would
+      # both mislabel that as "output unavailable" AND — since 0 is not None —
+      # let has_failed stay False, silently passing a run that collected no
+      # tests at all. Now that passes notify nobody, that must not be silent.
+      unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_f is not None else "Unit: output unavailable"
+      integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_f is not None else "Integration: output unavailable"
 
       # 2. Determine pass/fail.
       #    unit_f/integ_f is None → txt missing/unreadable; treat as failed (conservative).
       #    unit_f/integ_f > 0     → explicit test failures.
       #    CI_PIPELINE_STATUS is unreliable in .post stage (reads "running"),
       #    so we rely exclusively on parsed text counts.
+      #    unit_t/integ_t == 0 → file parsed but contained no test results at
+      #                            all (build broke before any test ran, or a
+      #                            bad -run filter matched nothing). Not a pass.
       has_failed = (unit_f or 0) > 0 or (integ_f or 0) > 0 or unit_f is None or integ_f is None
       if unit_f is None:
           print("Unit test output unavailable — treating pipeline as failed")
       if integ_f is None:
           print("Integration test output unavailable — treating pipeline as failed")
+      if unit_f is not None and unit_t == 0:
+          has_failed = True
+          print("Unit output parsed but contained 0 tests — treating as failed")
+      if integ_f is not None and integ_t == 0:
+          has_failed = True
+          print("Integration output parsed but contained 0 tests — treating as failed")
 
       # 2b. Notify on failure only. A green card every 4 hours is noise nobody
       #     reads, which also desensitises the channel to the red ones.
