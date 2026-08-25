@@ -444,7 +444,6 @@ func TestExecuteRaw_RetrySuccess(t *testing.T) {
 	}
 }
 
-
 // TestNewQuoteHttpClient_UsesQuoteServerURL verifies the quote client uses QuoteServerURL.
 func TestNewQuoteHttpClient_UsesQuoteServerURL(t *testing.T) {
 	quoteServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -549,6 +548,17 @@ func TestIsStaleConnectionError_ClosedNetworkConnection(t *testing.T) {
 	err := errors.New("use of closed network connection")
 	if !IsStaleConnectionError(err) {
 		t.Error("use of closed network connection 应被视为 stale connection error")
+	}
+}
+
+// TestIsStaleConnectionError_ServerClosedIdle verifies net/http's
+// "server closed idle connection" is detected. Transport returns this instead of
+// EOF when it picks a pooled keep-alive connection the server already closed, so
+// missing it would drop the "query order status to confirm" hint on trade calls.
+func TestIsStaleConnectionError_ServerClosedIdle(t *testing.T) {
+	err := errors.New(`Post "http://127.0.0.1:1234": http: server closed idle connection`)
+	if !IsStaleConnectionError(err) {
+		t.Error("server closed idle connection 应被视为 stale connection error")
 	}
 }
 

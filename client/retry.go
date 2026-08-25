@@ -63,9 +63,10 @@ func (p *RetryPolicy) CalculateBackoff(retryCount int) time.Duration {
 }
 
 // IsStaleConnectionError reports whether err is a stale keep-alive connection error
-// (EOF / connection reset by peer / broken pipe) that occurred before any response
-// bytes were received — i.e. the request never reached the server's application layer
-// and it is therefore safe to retry even for non-idempotent operations.
+// (EOF / connection reset by peer / broken pipe / server closed idle connection) that
+// occurred before any response bytes were received — i.e. the request never reached the
+// server's application layer and it is therefore safe to retry even for non-idempotent
+// operations.
 func IsStaleConnectionError(err error) bool {
 	if err == nil {
 		return false
@@ -74,10 +75,14 @@ func IsStaleConnectionError(err error) bool {
 		return true
 	}
 	msg := err.Error()
+	// net/http reports "server closed idle connection" (an unexported sentinel, so
+	// only the message is matchable) when Transport picks a pooled keep-alive
+	// connection that the server has already closed.
 	if strings.Contains(msg, "EOF") ||
 		strings.Contains(msg, "connection reset by peer") ||
 		strings.Contains(msg, "broken pipe") ||
-		strings.Contains(msg, "use of closed network connection") {
+		strings.Contains(msg, "use of closed network connection") ||
+		strings.Contains(msg, "server closed idle connection") {
 		return true
 	}
 	var netErr *net.OpError

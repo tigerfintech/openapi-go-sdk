@@ -18,7 +18,7 @@ package integtest
 
 import (
 	"fmt"
-	"sort"
+	"math"
 	"strconv"
 	"sync"
 	"testing"
@@ -106,6 +106,72 @@ func MarketStatus(qc *quote.QuoteClient, market string) string {
 	return status
 }
 
+// usSpotPrice returns AAPL's latest price, used to anchor ATM strike selection.
+func usSpotPrice(qc *quote.QuoteClient) (float64, error) {
+	briefs, err := qc.GetRealTimeQuote(model.BriefRequest{Symbols: []string{"AAPL"}})
+	if err != nil {
+		return 0, fmt.Errorf("GetRealTimeQuote AAPL: %w", err)
+	}
+	if len(briefs) == 0 || briefs[0].LatestPrice <= 0 {
+		return 0, fmt.Errorf("no usable AAPL spot price")
+	}
+	return briefs[0].LatestPrice, nil
+}
+
+// pickNearExpiry returns the nearest AAPL expiry that is not same-day, plus its
+// timestamp. Dates come back ascending; index 0 can be an expiring-today contract
+// whose quotes are degenerate, so prefer index 1 when available.
+//
+// Do NOT pick a mid-range expiry: AAPL lists LEAPS a year out, so len(Dates)/2
+// lands on a far-dated contract with no daily bars and delta≈0, which made
+// TestIntegGetOptionKline / ...GreeksAndStrikeConsistency fail during live hours.
+func pickNearExpiry(exps []model.OptionExpiration) (expiry string, expiryTs int64, err error) {
+	if len(exps) == 0 || len(exps[0].Dates) == 0 {
+		return "", 0, fmt.Errorf("no option expirations returned for AAPL")
+	}
+	idx := 0
+	if len(exps[0].Dates) > 1 {
+		idx = 1
+	}
+	expiry = exps[0].Dates[idx]
+	if idx < len(exps[0].Timestamps) {
+		expiryTs = exps[0].Timestamps[idx]
+	}
+	return expiry, expiryTs, nil
+}
+
+// pickAtmRow returns the index of the chain row whose strike is closest to spot.
+// Falls back to the structural middle row when no strike parses.
+//
+// The chain spans strikes far wider than spot (AAPL lists ~50 to ~400), so the
+// median row is deep out-of-the-money and carries delta=0.
+func pickAtmRow(rows []model.OptionChainRow, spot float64) int {
+	best, bestDiff := -1, 0.0
+	for i, r := range rows {
+		var s string
+		switch {
+		case r.Call != nil:
+			s = r.Call.Strike
+		case r.Put != nil:
+			s = r.Put.Strike
+		default:
+			continue
+		}
+		v, e := strconv.ParseFloat(s, 64)
+		if e != nil {
+			continue
+		}
+		diff := math.Abs(v - spot)
+		if best == -1 || diff < bestDiff {
+			best, bestDiff = i, diff
+		}
+	}
+	if best == -1 {
+		return len(rows) / 2
+	}
+	return best
+}
+
 // ResolveUsOptionIdentifier returns a live US option identifier for AAPL,
 // picked as close to at-the-money as the chain permits. Never calls t.Skip
 // or t.Fatal — callers decide policy based on whether the market is trading.
@@ -114,15 +180,10 @@ func ResolveUsOptionIdentifier(qc *quote.QuoteClient) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("GetOptionExpiration: %w", err)
 	}
-	if len(exps) == 0 || len(exps[0].Dates) == 0 {
-		return "", fmt.Errorf("no option expirations returned for AAPL")
+	expiry, _, err := pickNearExpiry(exps)
+	if err != nil {
+		return "", err
 	}
-	// Pick a mid-range expiry: nearest is often illiquid on expiry day.
-	idx := len(exps[0].Dates) / 2
-	if idx == 0 && len(exps[0].Dates) > 1 {
-		idx = 1
-	}
-	expiry := exps[0].Dates[idx]
 
 	chain, err := qc.GetOptionChain([][2]string{{"AAPL", expiry}})
 	if err != nil {
@@ -132,11 +193,14 @@ func ResolveUsOptionIdentifier(qc *quote.QuoteClient) (string, error) {
 		return "", fmt.Errorf("empty option chain for AAPL %s", expiry)
 	}
 
-	// Prefer ATM (nearest to spot). We don't have spot here; the chain is
-	// typically returned sorted by strike, so pick the middle row and its
-	// call leg. Fall back to put if call is missing.
+	// Anchor on spot so the pick is genuinely near-the-money and therefore
+	// liquid enough to carry daily bars and non-zero Greeks. A spot lookup
+	// failure is non-fatal: fall back to the structural middle.
 	rows := chain[0].Items
 	mid := len(rows) / 2
+	if spot, e := usSpotPrice(qc); e == nil {
+		mid = pickAtmRow(rows, spot)
+	}
 	for _, offset := range []int{0, 1, -1, 2, -2, 3, -3} {
 		i := mid + offset
 		if i < 0 || i >= len(rows) {
@@ -169,16 +233,9 @@ func ResolveUsOptionLeg(qc *quote.QuoteClient) (leg model.OptionLeg, expiryTs in
 	if err != nil {
 		return model.OptionLeg{}, 0, fmt.Errorf("GetOptionExpiration: %w", err)
 	}
-	if len(exps) == 0 || len(exps[0].Dates) == 0 {
-		return model.OptionLeg{}, 0, fmt.Errorf("no option expirations for AAPL")
-	}
-	idx := len(exps[0].Dates) / 2
-	if idx == 0 && len(exps[0].Dates) > 1 {
-		idx = 1
-	}
-	expiry := exps[0].Dates[idx]
-	if idx < len(exps[0].Timestamps) {
-		expiryTs = exps[0].Timestamps[idx]
+	expiry, expiryTs, err := pickNearExpiry(exps)
+	if err != nil {
+		return model.OptionLeg{}, 0, err
 	}
 
 	chain, err := qc.GetOptionChain([][2]string{{"AAPL", expiry}})
@@ -189,32 +246,12 @@ func ResolveUsOptionLeg(qc *quote.QuoteClient) (leg model.OptionLeg, expiryTs in
 		return model.OptionLeg{}, 0, fmt.Errorf("empty option chain for AAPL %s", expiry)
 	}
 
-	// Try to pick a leg near the median strike. Strikes come as strings; parse
-	// as best effort. If parsing fails we fall back to structural mid.
+	// Anchor on spot rather than the median strike, so the leg is near-the-money
+	// and carries non-zero Greeks. Spot lookup failure falls back to structural mid.
 	rows := chain[0].Items
-	type legScore struct {
-		strike float64
-		row    int
-	}
-	strikes := make([]legScore, 0, len(rows))
-	for i, r := range rows {
-		var s string
-		switch {
-		case r.Call != nil:
-			s = r.Call.Strike
-		case r.Put != nil:
-			s = r.Put.Strike
-		default:
-			continue
-		}
-		if v, e := strconv.ParseFloat(s, 64); e == nil {
-			strikes = append(strikes, legScore{v, i})
-		}
-	}
 	pickRow := len(rows) / 2
-	if len(strikes) > 0 {
-		sort.Slice(strikes, func(i, j int) bool { return strikes[i].strike < strikes[j].strike })
-		pickRow = strikes[len(strikes)/2].row
+	if spot, e := usSpotPrice(qc); e == nil {
+		pickRow = pickAtmRow(rows, spot)
 	}
 	row := rows[pickRow]
 	if row.Call != nil {
