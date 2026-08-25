@@ -43,6 +43,15 @@ func skip(name, reason string) {
 	results = append(results, result{name: name, err: fmt.Errorf("skipped: %s", reason)})
 }
 
+// redact masks a sensitive string for logging, showing only the last 4 chars preceded by "****".
+// Trailing chars are less identifying than leading chars for IDs/accounts.
+func redact(s string) string {
+	if len(s) <= 4 {
+		return "****"
+	}
+	return "****" + s[len(s)-4:]
+}
+
 func main() {
 	var cfgOpts []config.Option
 	if p := os.Getenv("TIGER_CONFIG_PATH"); p != "" {
@@ -52,7 +61,7 @@ func main() {
 	if err != nil {
 		log.Fatal("load config failed: ", err)
 	}
-	fmt.Printf("tiger_id=%s account=%s\n\n", cfg.TigerID, cfg.Account)
+	fmt.Printf("tiger_id=%s account=%s\n\n", redact(cfg.TigerID), redact(cfg.Account))
 
 	qc := quote.NewQuoteClient(client.NewQuoteHttpClient(cfg))
 
@@ -93,6 +102,15 @@ func main() {
 		ok("GetTimeline", fmt.Sprintf("intraday_points=%d preClose=%.2f", n, tl[0].PreClose))
 	} else {
 		ok("GetTimeline", "(empty)")
+	}
+
+	if crypto, err := qc.GetTimelineByReq(model.TimelineRequest{Symbols: []string{"BTC.USD"}, SecType: "CC"}); err != nil {
+		fail("GetTimelineByReq(BTC.USD CC)", err)
+	} else if len(crypto) > 0 && crypto[0].Intraday != nil && len(crypto[0].Intraday.Items) > 0 {
+		item := crypto[0].Intraday.Items[0]
+		ok("GetTimelineByReq(BTC.USD CC)", fmt.Sprintf("price=%.4f volumeDecimal=%v", item.Price, item.VolumeDecimal))
+	} else {
+		ok("GetTimelineByReq(BTC.USD CC)", "(empty)")
 	}
 
 	if tt, err := qc.GetTradeTick(model.TradeTickRequest{Symbols: []string{"AAPL"}}); err != nil {
@@ -143,7 +161,7 @@ func main() {
 			// Verify option_filter and return_greek_value — reuse expiry from chain response
 			trueVal := true
 			if filtered, err := qc.GetOptionChainByReq(model.OptionChainRequest{
-				OptionBasic:      []map[string]interface{}{{"symbol": chain[0].Symbol, "expiry": chain[0].Expiry}},
+				OptionBasic:      []model.OptionQueryItem{{Symbol: chain[0].Symbol, Expiry: chain[0].Expiry}},
 				ReturnGreekValue: &trueVal,
 				OptionFilter: &model.OptionChainFilter{
 					InTheMoney:        func() *bool { f := false; return &f }(),
@@ -170,7 +188,6 @@ func main() {
 		} else {
 			ok(fmt.Sprintf("GetOptionChain(%s)", expiryDate), "(empty items)")
 		}
-
 
 		if optIdentifier == "" {
 			skip("GetOptionQuote", "no identifier from chain")
@@ -319,7 +336,7 @@ func main() {
 
 	if items, err := qc.GetCorporateAction(model.CorporateActionRequest{
 		Symbols: []string{"AAPL"}, Market: "US", ActionType: "DIVIDEND",
-		BeginDate: "2024-01-01", EndDate: "2024-12-31",
+		BeginDate: msDate("2024-01-01"), EndDate: msDate("2024-12-31"),
 	}); err != nil {
 		fail("GetCorporateAction(AAPL)", err)
 	} else {
@@ -560,7 +577,7 @@ func main() {
 	}
 
 	if items, err := qc.GetCorporateSplit(model.CorporateActionRequest{
-		Symbols: []string{"AAPL"}, Market: "US", BeginDate: "2020-01-01", EndDate: "2024-12-31",
+		Symbols: []string{"AAPL"}, Market: "US", BeginDate: msDate("2020-01-01"), EndDate: msDate("2024-12-31"),
 	}); err != nil {
 		fail("GetCorporateSplit(AAPL)", err)
 	} else {
@@ -568,11 +585,32 @@ func main() {
 	}
 
 	if items, err := qc.GetCorporateDividend(model.CorporateActionRequest{
-		Symbols: []string{"AAPL"}, Market: "US", BeginDate: "2024-01-01", EndDate: "2024-12-31",
+		Symbols: []string{"AAPL"}, Market: "US", BeginDate: msDate("2024-01-01"), EndDate: msDate("2024-12-31"),
 	}); err != nil {
 		fail("GetCorporateDividend(AAPL)", err)
 	} else {
 		ok("GetCorporateDividend(AAPL)", fmt.Sprintf("rows=%d", len(items)))
+	}
+	if items, err := qc.GetCorporateSymbolChange(model.CorporateActionRequest{
+		Symbols: []string{"META"}, Market: "US", BeginDate: msDate("2022-01-01"), EndDate: msDate("2023-01-01"),
+	}); err != nil {
+		fail("GetCorporateSymbolChange(META)", err)
+	} else {
+		ok("GetCorporateSymbolChange(META)", fmt.Sprintf("rows=%d", len(items)))
+	}
+	if items, err := qc.GetCorporateDelisting(model.CorporateActionRequest{
+		Symbols: []string{"TWTR"}, Market: "US", BeginDate: msDate("2022-01-01"), EndDate: msDate("2023-01-01"),
+	}); err != nil {
+		fail("GetCorporateDelisting(TWTR)", err)
+	} else {
+		ok("GetCorporateDelisting(TWTR)", fmt.Sprintf("rows=%d", len(items)))
+	}
+	if items, err := qc.GetCorporateIPO(model.CorporateActionRequest{
+		Symbols: []string{"RIVN"}, Market: "US", BeginDate: msDate("2021-01-01"), EndDate: msDate("2022-01-01"),
+	}); err != nil {
+		fail("GetCorporateIPO(RIVN)", err)
+	} else {
+		ok("GetCorporateIPO(RIVN)", fmt.Sprintf("rows=%d", len(items)))
 	}
 
 	if items, err := qc.GetFinancialCurrency(model.FinancialCurrencyRequest{Symbols: []string{"AAPL"}, Market: "US"}); err != nil {
@@ -593,6 +631,28 @@ func main() {
 		fail("GetQuoteOvernight(AAPL)", err)
 	} else {
 		ok("GetQuoteOvernight(AAPL)", fmt.Sprintf("rows=%d", len(items)))
+	}
+
+	if items, err := qc.GetKline(model.KlineRequest{
+		Symbols: []string{"AAPL"}, Period: "1min", Limit: 10, TradeSession: "OverNight",
+	}); err != nil {
+		fail("GetKline(AAPL overnight)", err)
+	} else {
+		ok("GetKline(AAPL overnight)", fmt.Sprintf("rows=%d", len(items)))
+	}
+	if items, err := qc.GetQuoteDepth(model.DepthQuoteRequest{
+		Symbols: []string{"AAPL"}, Market: "US", TradeSession: "OverNight",
+	}); err != nil {
+		fail("GetQuoteDepth(AAPL overnight)", err)
+	} else {
+		ok("GetQuoteDepth(AAPL overnight)", fmt.Sprintf("rows=%d", len(items)))
+	}
+	if items, err := qc.GetTradeTick(model.TradeTickRequest{
+		Symbols: []string{"AAPL"}, Limit: 10, TradeSession: "OverNight",
+	}); err != nil {
+		fail("GetTradeTick(AAPL overnight)", err)
+	} else {
+		ok("GetTradeTick(AAPL overnight)", fmt.Sprintf("rows=%d", len(items)))
 	}
 
 	printSummary()
@@ -634,4 +694,15 @@ func firstOrEmpty(xs []string) string {
 		return ""
 	}
 	return xs[0]
+}
+
+// msDate parses "YYYY-MM-DD" (UTC) into a *int64 epoch-ms pointer for
+// FinancialReportRequest / CorporateActionRequest wire fields.
+func msDate(s string) *int64 {
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		log.Fatalf("msDate(%q): %v", s, err)
+	}
+	v := t.UnixMilli()
+	return &v
 }

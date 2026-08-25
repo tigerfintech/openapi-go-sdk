@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/base64"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,10 +13,18 @@ import (
 )
 
 const (
-	// 默认 Token 文件名
-	defaultTokenFileName = "tiger_openapi_token.properties"
-	// 默认 Token 刷新间隔
+	defaultTokenFileName        = "tiger_openapi_token.properties"
 	defaultTokenRefreshInterval = 24 * time.Hour
+
+	// tokenGenTsFieldLen is the length (in bytes) of the base64-decoded token prefix
+	// that contains the gen_ts field. Tiger tokens are base64-encoded strings whose
+	// first 27 bytes, when split by ",", yield [genTs, ...rest].
+	// Format: "<genTsMillis>,<expiry>,..." (base64-encoded, genTs is a 13-digit ms timestamp).
+	// This constant is intentionally unexported; callers should not depend on token internals.
+	tokenGenTsFieldLen = 27
+
+	// tokenFieldSep is the separator used in the decoded token content.
+	tokenFieldSep = ","
 )
 
 // TokenManager Token 管理器
@@ -28,9 +37,9 @@ type TokenManager struct {
 	interval        time.Duration
 	stopCh          chan struct{}
 	refreshDuration int64
-	refreshFn       func() (string, error) // 由 StartAutoRefresh 注入，在 refreshLoop 中调用
-	tokenLoader     func() (string, error) // 自定义加载函数，优先于文件加载
-	tokenWriter     func(token string)     // token 写入后的回调（可选）
+	refreshFn       func() (string, error)
+	tokenLoader     func() (string, error)
+	tokenWriter     func(token string)
 }
 
 // TokenManagerOption TokenManager 配置选项
@@ -151,17 +160,15 @@ func (m *TokenManager) SyncToken(token string) {
 func (m *TokenManager) saveTokenToFile(token string) error {
 	dir := filepath.Dir(m.filePath)
 	if dir != "." && dir != "" {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("创建目录失败: %w", err)
 		}
 	}
 	content := fmt.Sprintf("token=%s\n", token)
-	return os.WriteFile(m.filePath, []byte(content), 0644)
+	return os.WriteFile(m.filePath, []byte(content), 0600)
 }
 
-// ShouldTokenRefresh 判断 Token 是否需要刷新。
-// 解码 base64 token，提取前 27 字符中的 gen_ts，
-// 当 (当前时间秒 - gen_ts/1000) > refreshDuration 时返回 true。
+// ShouldTokenRefresh returns true when the token's gen_ts is older than refreshDuration.
 func (m *TokenManager) ShouldTokenRefresh() bool {
 	m.mu.RLock()
 	token := m.token
@@ -176,11 +183,11 @@ func (m *TokenManager) ShouldTokenRefresh() bool {
 	if err != nil {
 		return false
 	}
-	if len(decoded) < 27 {
+	if len(decoded) < tokenGenTsFieldLen {
 		return false
 	}
 
-	parts := strings.SplitN(string(decoded[:27]), ",", 2)
+	parts := strings.SplitN(string(decoded[:tokenGenTsFieldLen]), tokenFieldSep, 2)
 	if len(parts) < 2 {
 		return false
 	}
@@ -193,14 +200,19 @@ func (m *TokenManager) ShouldTokenRefresh() bool {
 	return (time.Now().Unix() - genTs/1000) > dur
 }
 
-// StartAutoRefresh 启动后台定期刷新
+// StartAutoRefresh 启动后台定期刷新。
+// 若已有刷新 goroutine 在运行，先停止旧的再启动新的，避免 goroutine 泄漏。
 func (m *TokenManager) StartAutoRefresh(refreshFn func() (string, error)) {
 	m.mu.Lock()
+	if m.stopCh != nil {
+		close(m.stopCh)
+	}
 	m.refreshFn = refreshFn
 	m.stopCh = make(chan struct{})
+	ch := m.stopCh
 	m.mu.Unlock()
 
-	go m.refreshLoop()
+	go m.refreshLoopWith(ch)
 }
 
 // StopAutoRefresh 停止后台刷新
@@ -213,17 +225,19 @@ func (m *TokenManager) StopAutoRefresh() {
 	}
 }
 
-// refreshLoop 后台刷新循环
-func (m *TokenManager) refreshLoop() {
-	ticker := time.NewTicker(m.interval)
+func (m *TokenManager) refreshLoopWith(stopCh <-chan struct{}) {
+	interval := m.interval
+	if interval <= 0 {
+		interval = defaultTokenRefreshInterval
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-m.stopCh:
+		case <-stopCh:
 			return
 		case <-ticker.C:
-			// 先检查是否需要刷新
 			if !m.ShouldTokenRefresh() {
 				continue
 			}
@@ -232,7 +246,13 @@ func (m *TokenManager) refreshLoop() {
 			m.mu.RUnlock()
 			if fn != nil {
 				if newToken, err := fn(); err == nil && newToken != "" {
-					m.SetToken(newToken)
+					if setErr := m.SetToken(newToken); setErr != nil {
+						log.Printf("[token_manager] persist token to file failed: %v", setErr)
+					}
+				} else if err != nil {
+					log.Printf("[token_manager] auto-refresh failed: %v", err)
+				} else if newToken == "" {
+					log.Printf("[token_manager] token refresh returned empty token with no error — keeping current token")
 				}
 			}
 		}

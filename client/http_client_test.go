@@ -53,7 +53,6 @@ func TestHttpClient_Execute_Success(t *testing.T) {
 		t.Errorf("期望 timestamp=1700000000，实际为 %d", resp.Timestamp)
 	}
 }
-
 // TestHttpClient_Execute_ApiError 测试 API 返回错误码
 func TestHttpClient_Execute_ApiError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -373,4 +372,3 @@ func TestHttpClient_Execute_StaleConnectionEOF(t *testing.T) {
 		}
 	})
 }
-

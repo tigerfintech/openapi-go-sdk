@@ -1,5 +1,33 @@
 package model
 
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
+
+// DateToEpochMs converts a UTC date string in "YYYY-MM-DD" format to an
+// epoch millisecond timestamp (*int64) suitable for *int64 date fields such
+// as FinancialReportRequest.BeginDate and CorporateActionRequest.BeginDate.
+//
+// Returns (nil, error) on parse failure instead of silently returning nil,
+// so callers can detect malformed date strings early.
+//
+// Migration note (breaking change in 0.5): BeginDate/EndDate fields on
+// FinancialReportRequest and CorporateActionRequest changed from string to
+// *int64 epoch-ms. Use this helper to avoid timezone errors:
+//
+//	begin, err := model.DateToEpochMs("2024-01-01")
+//	req := model.FinancialReportRequest{BeginDate: begin, ...}
+func DateToEpochMs(date string) (*int64, error) {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return nil, fmt.Errorf("DateToEpochMs: invalid date %q (expected YYYY-MM-DD): %w", date, err)
+	}
+	ms := t.UTC().UnixMilli()
+	return &ms, nil
+}
+
 // FinancialDailyRequest 日级财务数据请求
 type FinancialDailyRequest struct {
 	Symbols   []string `json:"symbols"`
@@ -9,23 +37,35 @@ type FinancialDailyRequest struct {
 	EndDate   string   `json:"end_date"`
 }
 
-// FinancialReportRequest 财报数据请求
+// FinancialReportRequest 财报数据请求。
+//
+// Breaking change (0.5): BeginDate / EndDate 由 string 改为 *int64 epoch-ms。
+// 服务端要求日期字段为毫秒时间戳；早期版本发字符串会被网关拒
+// (`biz param error(failed to parse parameters in 'biz_content')`)。
+// 与 Python `date_str_to_timestamp` / Rust `Option<i64>` / Java `Long` 保持一致。
 type FinancialReportRequest struct {
 	Symbols    []string `json:"symbols"`
 	Market     string   `json:"market"`
 	Fields     []string `json:"fields"`
 	PeriodType string   `json:"period_type"`
-	BeginDate  string   `json:"begin_date,omitempty"`
-	EndDate    string   `json:"end_date,omitempty"`
+	// BeginDate epoch-ms 起始时间。
+	BeginDate *int64 `json:"begin_date,omitempty"`
+	// EndDate epoch-ms 结束时间。
+	EndDate *int64 `json:"end_date,omitempty"`
 }
 
-// CorporateActionRequest 公司行动请求
+// CorporateActionRequest 公司行动请求。
+//
+// Breaking change (0.5): BeginDate / EndDate 由 string 改为 *int64 epoch-ms，
+// 与 FinancialReportRequest 保持一致。服务端要求毫秒时间戳。
 type CorporateActionRequest struct {
 	Symbols    []string `json:"symbols"`
 	Market     string   `json:"market"`
 	ActionType string   `json:"action_type"`
-	BeginDate  string   `json:"begin_date,omitempty"`
-	EndDate    string   `json:"end_date,omitempty"`
+	// BeginDate epoch-ms 起始时间。
+	BeginDate *int64 `json:"begin_date,omitempty"`
+	// EndDate epoch-ms 结束时间。
+	EndDate *int64 `json:"end_date,omitempty"`
 }
 
 // FutureKlineRequest 期货 K 线请求
@@ -128,6 +168,7 @@ type KlineRequest struct {
 // KlineByPageRequest — K 线分页查询（客户端分页包装）。
 type KlineByPageRequest struct {
 	Symbol       string `json:"symbol,omitempty"`
+	SecType      string `json:"sec_type,omitempty"`
 	Period       string `json:"period,omitempty"`
 	BeginTime    int64  `json:"begin_time,omitempty"`
 	EndTime      int64  `json:"end_time,omitempty"`
@@ -136,6 +177,12 @@ type KlineByPageRequest struct {
 	Right        string `json:"right,omitempty"`
 	Lang         string `json:"lang,omitempty"`
 	TradeSession string `json:"trade_session,omitempty"`
+}
+
+// TimelineRequest 分时请求。wire: timeline
+type TimelineRequest struct {
+	Symbols []string `json:"symbols,omitempty"`
+	SecType string   `json:"sec_type,omitempty"`
 }
 
 // TimelineHistoryRequest — 历史分时。wire: history_timeline
@@ -149,11 +196,12 @@ type TimelineHistoryRequest struct {
 
 // TradeTickRequest — 逐笔成交。wire: trade_tick
 type TradeTickRequest struct {
-	Symbols    []string `json:"symbols,omitempty"`
-	BeginIndex int      `json:"begin_index,omitempty"`
-	EndIndex   int      `json:"end_index,omitempty"`
-	Limit      int      `json:"limit,omitempty"`
-	Lang       string   `json:"lang,omitempty"`
+	Symbols      []string `json:"symbols,omitempty"`
+	BeginIndex   int      `json:"begin_index,omitempty"`
+	EndIndex     int      `json:"end_index,omitempty"`
+	Limit        int      `json:"limit,omitempty"`
+	TradeSession string   `json:"trade_session,omitempty"`
+	Lang         string   `json:"lang,omitempty"`
 }
 
 // TradeRankRequest — 成交榜单。wire: trade_rank
@@ -225,9 +273,35 @@ type OptionQueryItem struct {
 }
 
 // OptionTradeTicksRequest 期权逐笔。wire: option_trade_tick
+//
+// Wire contract: 服务端要求的 biz_content 是**顶层数组**
+// ([{symbol, expiry, ...}, ...])，而非 {"contracts": [...]} 对象形式。
+// 这与 Java BatchApiModel (items 直接 JSON 序列化为顶层数组) 及 Python
+// MultipleContractParams.to_openapi_dict 一致。
+//
+// 早期版本按对象形式发送导致
+// `biz param error(failed to parse parameters in 'biz_content')`，
+// 现通过自定义 MarshalJSON 让 biz_content 直接是 Contracts 数组的 JSON。
+// Lang 字段在此路径下被 SDK 忽略——网关本方法无 lang 入参。
 type OptionTradeTicksRequest struct {
-	Contracts []OptionQueryItem `json:"contracts,omitempty"`
-	Lang      string            `json:"lang,omitempty"`
+	Contracts []OptionQueryItem `json:"-"`
+	// Lang is intentionally excluded from serialization (json:"-") because
+	// this endpoint's biz_content is a top-level JSON array; there is no
+	// enclosing object to place a "lang" key in. Setting Lang has no effect
+	// on the API response. The field is kept for API-surface consistency with
+	// other request structs; do not rely on it to control response language.
+	Lang string `json:"-"`
+}
+
+// MarshalJSON emits Contracts as a top-level JSON array so the gateway
+// receives `[{...}, ...]` rather than `{"contracts": [...]}`.
+// Empty/nil Contracts serializes as `[]` for a well-formed request.
+func (o OptionTradeTicksRequest) MarshalJSON() ([]byte, error) {
+	items := o.Contracts
+	if items == nil {
+		items = []OptionQueryItem{}
+	}
+	return json.Marshal(items)
 }
 
 // OptionTimelineRequest 期权分时。wire: option_timeline
@@ -305,11 +379,11 @@ type OptionChainFilter struct {
 
 // OptionChainRequest 期权链请求（支持 option_filter 和 return_greek_value）
 type OptionChainRequest struct {
-	OptionBasic      []OptionQueryItem        `json:"option_basic,omitempty"`
-	ReturnGreekValue *bool                    `json:"return_greek_value,omitempty"`
-	OptionFilter     *OptionChainFilter       `json:"option_filter,omitempty"`
-	Market           string                   `json:"market,omitempty"`
-	Lang             string                   `json:"lang,omitempty"`
+	OptionBasic      []OptionQueryItem  `json:"option_basic,omitempty"`
+	ReturnGreekValue *bool              `json:"return_greek_value,omitempty"`
+	OptionFilter     *OptionChainFilter `json:"option_filter,omitempty"`
+	Market           string             `json:"market,omitempty"`
+	Lang             string             `json:"lang,omitempty"`
 }
 
 // FutureContractSingleRequest 按 contract_code/identifier 查询期货合约。wire: future_contract_by_contract_code / future_current_contract 等

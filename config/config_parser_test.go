@@ -166,7 +166,7 @@ func TestPropertiesRoundTrip(t *testing.T) {
 
 		dir := os.TempDir()
 		path := filepath.Join(dir, fmt.Sprintf("prop_test_%d.properties", rapid.IntRange(0, 999999).Draw(t, "fileId")))
-		if err := os.WriteFile(path, []byte(sb.String()), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(sb.String()), 0600); err != nil {
 			t.Fatalf("写入临时文件失败: %v", err)
 		}
 		defer os.Remove(path)
@@ -194,7 +194,7 @@ func writeTempFile(t testing.TB, content string) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.properties")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatalf("写入临时文件失败: %v", err)
 	}
 	return path
@@ -210,4 +210,46 @@ func assertProp(t testing.TB, props map[string]string, key, expected string) {
 	if val != expected {
 		t.Fatalf("键 %q: 期望 %q，实际 %q", key, expected, val)
 	}
+}
+
+// TestParsePropertiesFile_ContinuationWithComment 验证续行后遇到注释行不拼接注释内容（bug fix）
+func TestParsePropertiesFile_ContinuationWithComment(t *testing.T) {
+	// 续行后下一行是注释，注释内容不应被拼入值
+	content := "key=value1\\\n# this is a comment\nkey2=value2\n"
+	path := writeTempFile(t, content)
+
+	props, err := ParsePropertiesFile(path)
+	if err != nil {
+		t.Fatalf("解析失败: %v", err)
+	}
+	// key 的值应为 value1（注释终止续行），key2 应正常解析
+	assertProp(t, props, "key", "value1")
+	assertProp(t, props, "key2", "value2")
+}
+
+// TestParsePropertiesFile_EscapedBackslash 验证双反斜杠不触发续行（bug fix）
+func TestParsePropertiesFile_EscapedBackslash(t *testing.T) {
+	// 值以 \\ 结尾（转义的字面反斜杠），不应触发续行
+	content := "path=C:\\\\Windows\\\\\nother=val\n"
+	path := writeTempFile(t, content)
+
+	props, err := ParsePropertiesFile(path)
+	if err != nil {
+		t.Fatalf("解析失败: %v", err)
+	}
+	// C:\\Windows\\ 末尾两个反斜杠 → 偶数个 → 不续行
+	assertProp(t, props, "path", "C:\\\\Windows\\\\")
+	assertProp(t, props, "other", "val")
+}
+
+// TestParsePropertiesFile_SingleBackslashContinuation 验证单反斜杠触发续行
+func TestParsePropertiesFile_SingleBackslashContinuation(t *testing.T) {
+	content := "key=part1\\\npart2\n"
+	path := writeTempFile(t, content)
+
+	props, err := ParsePropertiesFile(path)
+	if err != nil {
+		t.Fatalf("解析失败: %v", err)
+	}
+	assertProp(t, props, "key", "part1part2")
 }

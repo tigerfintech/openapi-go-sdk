@@ -321,10 +321,10 @@ func TestOrderRequestWithLegsAndAlgoFieldNames(t *testing.T) {
 		OrderLegs: []OrderLegRequest{
 			{LegType: "PROFIT", Price: 160.0, TimeInForce: "GTC"},
 		},
+		AlgoStrategy: "TWAP",
 		AlgoParams: &AlgoParamsRequest{
-			AlgoStrategy:      "TWAP",
-			StartTime:         "09:30:00",
-			EndTime:           "16:00:00",
+			StartTime:         1700000000000,
+			EndTime:           1700003600000,
 			ParticipationRate: 0.1,
 		},
 	}
@@ -339,12 +339,15 @@ func TestOrderRequestWithLegsAndAlgoFieldNames(t *testing.T) {
 		t.Fatalf("解析为 map 失败: %v", err)
 	}
 
-	// order_legs / algo_params 顶层键
+	// order_legs / algo_params / algo_strategy 顶层键
 	if _, ok := m["order_legs"]; !ok {
 		t.Errorf("缺少 order_legs 字段, JSON: %s", string(data))
 	}
 	if _, ok := m["algo_params"]; !ok {
 		t.Errorf("缺少 algo_params 字段, JSON: %s", string(data))
+	}
+	if v, ok := m["algo_strategy"]; !ok || v != "TWAP" {
+		t.Errorf("algo_strategy 应为 TWAP,实际 %v (JSON: %s)", v, string(data))
 	}
 
 	// OrderLegRequest 内字段
@@ -360,12 +363,26 @@ func TestOrderRequestWithLegsAndAlgoFieldNames(t *testing.T) {
 		t.Errorf("order_legs[0] 缺少 time_in_force 字段: %+v", leg)
 	}
 
-	// AlgoParamsRequest 内字段
-	algo, _ := m["algo_params"].(map[string]interface{})
-	algoExpected := []string{"algo_strategy", "start_time", "end_time", "participation_rate"}
-	for _, f := range algoExpected {
-		if _, ok := algo[f]; !ok {
-			t.Errorf("algo_params 缺少 %q 字段: %+v", f, algo)
+	// AlgoParamsRequest 现在序列化成 [{tag, value}, ...] 数组 —— 网关期望的形状。
+	algoArr, ok := m["algo_params"].([]interface{})
+	if !ok {
+		t.Fatalf("algo_params 应为数组,实际 %T: %+v", m["algo_params"], m["algo_params"])
+	}
+	tagsSeen := map[string]interface{}{}
+	for _, entry := range algoArr {
+		e, _ := entry.(map[string]interface{})
+		if tag, ok := e["tag"].(string); ok {
+			tagsSeen[tag] = e["value"]
 		}
+	}
+	expectedTags := []string{"start_time", "end_time", "participation_rate"}
+	for _, tag := range expectedTags {
+		if _, ok := tagsSeen[tag]; !ok {
+			t.Errorf("algo_params 数组缺少 tag=%q: %+v", tag, algoArr)
+		}
+	}
+	// AlgoStrategy 不应在 algo_params 里 —— 它是顶层字段。
+	if _, exists := tagsSeen["algo_strategy"]; exists {
+		t.Errorf("algo_params 不应包含 algo_strategy tag(它属于 OrderRequest 顶层): %+v", algoArr)
 	}
 }

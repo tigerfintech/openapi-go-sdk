@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -99,26 +100,116 @@ func TestAuctionMarketOrder(t *testing.T) {
 	}
 }
 
+// AlgoParamsRequest 必须序列化成 [{tag, value}, ...] 数组
+// (网关期望的形状,与 Python SDK 的 AlgoParams.to_dict 一致)。
+// 直接发 object 会触发 "failed to parse parameters in 'biz_content'"。
+func TestAlgoParamsRequestMarshalsAsTagValueArray(t *testing.T) {
+	yes := true
+	p := AlgoParamsRequest{
+		StartTime:         1700000000000,
+		EndTime:           1700003600000,
+		ParticipationRate: 0.1,
+		AllowPastEndTime:  &yes,
+	}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var arr []map[string]interface{}
+	if err := json.Unmarshal(data, &arr); err != nil {
+		t.Fatalf("output is not a JSON array of {tag,value}: %v, raw=%s", err, string(data))
+	}
+	tags := map[string]interface{}{}
+	for _, entry := range arr {
+		if tag, ok := entry["tag"].(string); ok {
+			tags[tag] = entry["value"]
+		}
+	}
+	if v, ok := tags["start_time"]; !ok || v.(float64) != 1.7e12 {
+		t.Errorf("start_time missing or wrong: got %v (raw=%s)", v, string(data))
+	}
+	if v, ok := tags["end_time"]; !ok || v.(float64) != 1700003600000 {
+		t.Errorf("end_time missing or wrong: got %v", v)
+	}
+	if v, ok := tags["participation_rate"]; !ok || v.(float64) != 0.1 {
+		t.Errorf("participation_rate missing or wrong: got %v", v)
+	}
+	if v, ok := tags["allow_past_end_time"]; !ok || v != true {
+		t.Errorf("allow_past_end_time missing or wrong: got %v", v)
+	}
+}
+
+// 未设置的字段应被丢弃(不出现在 tag/value 数组里)。
+func TestAlgoParamsRequestOmitsZeroFields(t *testing.T) {
+	// 只设一个字段,其他保持 zero value
+	p := AlgoParamsRequest{StartTime: 100}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var arr []map[string]interface{}
+	if err := json.Unmarshal(data, &arr); err != nil {
+		t.Fatalf("output not array: %v raw=%s", err, string(data))
+	}
+	if len(arr) != 1 {
+		t.Fatalf("expected exactly 1 tag entry (start_time), got %d: %+v", len(arr), arr)
+	}
+	if arr[0]["tag"] != "start_time" {
+		t.Errorf("expected tag=start_time, got %v", arr[0]["tag"])
+	}
+}
+
+// 嵌入到 OrderRequest 后 algo_params 在最终 JSON 里也应是数组。
+func TestOrderRequestNestsAlgoParamsAsArray(t *testing.T) {
+	req := OrderRequest{
+		Symbol:        "AAPL",
+		SecType:       "STK",
+		Action:        "BUY",
+		OrderType:     "TWAP",
+		TotalQuantity: 100,
+		AlgoStrategy:  "TWAP",
+		AlgoParams: &AlgoParamsRequest{
+			StartTime: 1700000000000,
+			EndTime:   1700003600000,
+		},
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("unmarshal failed: %v raw=%s", err, string(data))
+	}
+	if _, ok := m["algo_params"].([]interface{}); !ok {
+		t.Errorf("expected algo_params to be array, got %T: %+v", m["algo_params"], m["algo_params"])
+	}
+	if m["algo_strategy"] != "TWAP" {
+		t.Errorf("expected algo_strategy=TWAP at top level, got %v", m["algo_strategy"])
+	}
+}
+
 // 测试 AlgoOrder 构造函数
 func TestAlgoOrder(t *testing.T) {
+	// AlgoStrategy 现在是 OrderRequest 顶层字段(不在 algo_params 里);
+	// StartTime / EndTime 用 epoch-ms(int64) 而不是字符串。
 	params := AlgoParamsRequest{
-		AlgoStrategy:      "TWAP",
-		StartTime:         "09:30:00",
-		EndTime:           "16:00:00",
+		StartTime:         1700000000000,
+		EndTime:           1700003600000,
 		ParticipationRate: 0.1,
 	}
 	o := AlgoOrder("U123456", "AAPL", "STK", "BUY", 1000, 150.00, "TWAP", params)
 	if o.OrderType != string(OrderTypeTWAP) {
 		t.Errorf("OrderType = %q, want TWAP", o.OrderType)
 	}
+	if o.AlgoStrategy != "TWAP" {
+		t.Errorf("AlgoStrategy = %q, want TWAP", o.AlgoStrategy)
+	}
 	if o.LimitPrice != 150.00 {
 		t.Errorf("LimitPrice = %f, want 150.00", o.LimitPrice)
 	}
 	if o.AlgoParams == nil {
 		t.Fatal("AlgoParams 不应为 nil")
-	}
-	if o.AlgoParams.AlgoStrategy != "TWAP" {
-		t.Errorf("AlgoStrategy = %q, want TWAP", o.AlgoParams.AlgoStrategy)
 	}
 	if o.AlgoParams.ParticipationRate != 0.1 {
 		t.Errorf("ParticipationRate = %f, want 0.1", o.AlgoParams.ParticipationRate)

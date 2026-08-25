@@ -18,7 +18,7 @@ func OptionContract(identifier string) Contract {
 }
 
 // OptionContractBySymbol 通过各字段构造期权合约
-func OptionContractBySymbol(symbol, expiry string, strike float64, right, currency string) Contract {
+func OptionContractBySymbol(symbol, expiry string, strike string, right, currency string) Contract {
 	return Contract{
 		Symbol:   symbol,
 		SecType:  string(SecTypeOPT),
@@ -57,7 +57,7 @@ func FundContract(symbol, currency string) Contract {
 }
 
 // WarrantContract 构造窝轮合约
-func WarrantContract(symbol, currency, expiry string, strike float64, right string) Contract {
+func WarrantContract(symbol, currency, expiry string, strike string, right string) Contract {
 	return Contract{
 		Symbol:   symbol,
 		SecType:  string(SecTypeWAR),
