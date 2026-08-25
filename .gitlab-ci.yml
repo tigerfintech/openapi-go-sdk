@@ -69,6 +69,13 @@ unit:go:
       - .go/pkg/mod/
   script:
     - |
+      # Wipe test-results first: GIT_CLEAN_FLAGS excludes .go/ so the workdir is
+      # reused across pipelines, and an untracked test-results/integ.txt left by
+      # a previous integration:go run would otherwise be swept into this job's
+      # artifact (which archives the whole directory). notify:webhook downloads
+      # integration:go's artifact first and unit:go's second, so that stale copy
+      # would overwrite the real one and report phantom failures.
+      rm -rf test-results
       mkdir -p test-results
       go clean -cache
       export GOCACHE="$(mktemp -d)"
@@ -84,9 +91,14 @@ unit:go:
   coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
   artifacts:
     when: always
+    # List unit files explicitly rather than archiving test-results/ wholesale:
+    # a directory glob also picks up integ.txt from a previous pipeline's
+    # integration:go run, and notify:webhook downloads this artifact last, so
+    # the stale file wins over the real one.
     paths:
       - coverage.out
-      - test-results/
+      - test-results/unit.txt
+      - test-results/unit.xml
     reports:
       junit:
         - test-results/unit.xml
@@ -108,14 +120,18 @@ integration:go:
     - *go_setup
   script:
     - |
+      # Remove only this job's own output; unit:go's files may legitimately be
+      # present here when both jobs share the reused workdir on one runner.
+      rm -f test-results/integ.txt
       mkdir -p test-results
       go test -tags=integration -v -count=1 ./quote/ ./trade/ > test-results/integ.txt 2>&1; TEST_EXIT=$?
       cat test-results/integ.txt
       exit $TEST_EXIT
   artifacts:
     when: always
+    # Explicit file, not the whole directory — see unit:go's artifacts comment.
     paths:
-      - test-results/
+      - test-results/integ.txt
     expire_in: 1 week
 
 # Pipeline result notification via chat webhook.
