@@ -118,6 +118,15 @@ func matches(msg string, patterns []*regexp.Regexp) bool {
 // caller; otherwise a human-readable skip reason.
 func classifyFailure(t *testing.T, qc *quote.QuoteClient, msg, context string) string {
 	t.Helper()
+	// Rate limit is checked before everything else, and deliberately so: the
+	// gateway tags the throttle as `category=trade_prime_error`, which
+	// permissionErrorPatterns also matches. Classified in the other order it
+	// gets reported as "skipped (permission boundary)", so a genuine
+	// permission regression and an exhausted account quota read identically
+	// in the log — and neither gets retried.
+	if matches(msg, rateLimitPatterns) {
+		return "skipped (account rate limit): " + msg
+	}
 	if matches(msg, hoursErrorPatterns) {
 		if integtest.IsMarketTrading(qc, "US") {
 			t.Fatalf("%s: hours-boundary error during live trading hours: %s", context, msg)
@@ -128,6 +137,29 @@ func classifyFailure(t *testing.T, qc *quote.QuoteClient, msg, context string) s
 		return "skipped (permission boundary): " + msg
 	}
 	return ""
+}
+
+// callWithRateLimitRetry runs fn, backing off while the gateway reports an
+// account-level rate limit. The account is shared by all 7 SDK pipelines, so
+// any mutating call can be throttled — not just PlaceOrder. Returns fn's last
+// error; callers pass it to classifyFailure, which turns a surviving throttle
+// into a skip.
+func callWithRateLimitRetry(t *testing.T, context string, fn func() error) error {
+	t.Helper()
+	delay := time.Second
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		err = fn()
+		if err == nil || !matches(err.Error(), rateLimitPatterns) {
+			return err
+		}
+		if attempt < 2 {
+			t.Logf("%s: rate-limited (attempt %d/3); backing off %v", context, attempt+1, delay)
+			time.Sleep(delay)
+			delay *= 2
+		}
+	}
+	return err
 }
 
 // -----------------------------------------------------------------------------
@@ -232,7 +264,10 @@ func merge(base, overlay model.OrderRequest) model.OrderRequest {
 // (either success or a known-boundary skip).
 func previewOnly(t *testing.T, tc *trade.TradeClient, qc *quote.QuoteClient, order model.OrderRequest, context string) bool {
 	t.Helper()
-	_, err := tc.PreviewOrder(order)
+	err := callWithRateLimitRetry(t, context, func() error {
+		_, e := tc.PreviewOrder(order)
+		return e
+	})
 	if err == nil {
 		return true
 	}
@@ -254,25 +289,21 @@ func previewAndPlace(t *testing.T, tc *trade.TradeClient, qc *quote.QuoteClient,
 		return false
 	}
 
-	// 2. Place with exponential backoff on rate-limit.
+	// 2. Place. Rate-limit backoff lives in the shared helper; a throttle that
+	//    survives it is turned into a skip by classifyFailure.
 	var (
 		placeRes *model.PlaceOrderResult
 		err      error
-		delay    = time.Second
 	)
-	for attempt := 0; attempt < 3; attempt++ {
-		placeRes, err = tc.PlaceOrder(order)
-		if err == nil {
-			break
-		}
+	err = callWithRateLimitRetry(t, context, func() error {
+		var e error
+		placeRes, e = tc.PlaceOrder(order)
+		return e
+	})
+	if err != nil {
 		if skipReason := classifyFailure(t, qc, err.Error(), context); skipReason != "" {
 			t.Logf("%s: %s", context, skipReason)
 			return false
-		}
-		if matches(err.Error(), rateLimitPatterns) && attempt < 2 {
-			time.Sleep(delay)
-			delay *= 2
-			continue
 		}
 		t.Fatalf("%s: placeOrder failed: %v", context, err)
 	}
@@ -295,12 +326,22 @@ func previewAndPlace(t *testing.T, tc *trade.TradeClient, qc *quote.QuoteClient,
 
 func cancelTolerant(t *testing.T, tc *trade.TradeClient, orderID int64, context string) {
 	t.Helper()
-	_, err := tc.CancelOrder(orderID)
+	err := callWithRateLimitRetry(t, context+" — cancel", func() error {
+		_, e := tc.CancelOrder(orderID)
+		return e
+	})
 	if err == nil {
 		return
 	}
 	if matches(err.Error(), terminalOrderPatterns) {
 		t.Logf("%s: cancel hit terminal state (ok): %v", context, err)
+		return
+	}
+	// Cleanup runs after several API calls, so it is the likeliest to be
+	// throttled — and a rate-limit message matches no terminalOrderPattern, so
+	// without this it would fail a test whose assertions all already passed.
+	if matches(err.Error(), rateLimitPatterns) {
+		t.Logf("%s: cancel skipped (account rate limit): %v", context, err)
 		return
 	}
 	t.Fatalf("%s: unexpected cancel failure: %v", context, err)
@@ -596,7 +637,12 @@ func TestMatrixUsStkIcebergModify(t *testing.T) {
 	if !previewOnly(t, tc, qc, order, "US STK ICEBERG modify — preview") {
 		return
 	}
-	placeRes, err := tc.PlaceOrder(order)
+	var placeRes *model.PlaceOrderResult
+	err := callWithRateLimitRetry(t, "US STK ICEBERG modify", func() error {
+		var e error
+		placeRes, e = tc.PlaceOrder(order)
+		return e
+	})
 	if err != nil {
 		if skipReason := classifyFailure(t, qc, err.Error(), "US STK ICEBERG modify"); skipReason != "" {
 			t.Logf("US STK ICEBERG modify: %s", skipReason)
@@ -619,7 +665,10 @@ func TestMatrixUsStkIcebergModify(t *testing.T) {
 	// modify: bump limit price
 	modified := order
 	modified.LimitPrice = safeBuyPrice * 2
-	if _, err := tc.ModifyOrder(orderID, modified); err != nil && !matches(err.Error(), terminalOrderPatterns) {
+	if err := callWithRateLimitRetry(t, "US STK ICEBERG modify — modify", func() error {
+		_, e := tc.ModifyOrder(orderID, modified)
+		return e
+	}); err != nil && !matches(err.Error(), terminalOrderPatterns) {
 		t.Logf("US STK ICEBERG modify: modify failed (best-effort): %v", err)
 	}
 
