@@ -35,9 +35,9 @@ import (
 
 // Safe prices — kept far from market so BUY/SELL orders never fill.
 const (
-	safeBuyPrice        = 0.01
-	safeSellPrice       = 999_999.0
-	safeStopBuyTrigger  = 999_999.0
+	safeBuyPrice       = 0.01
+	safeSellPrice      = 999_999.0
+	safeStopBuyTrigger = 999_999.0
 )
 
 // Out-of-hours / session boundary errors — re-checked against live market
@@ -114,9 +114,15 @@ func matches(msg string, patterns []*regexp.Regexp) bool {
 // a real bug, not a boundary skip. Pure permission/capability markers are
 // always an unconditional skip.
 //
+// market is the market of the order that failed, and must be the order's own
+// market rather than a fixed value: the matrix spans US/HK/CN/SG, whose
+// sessions do not overlap. Checking HK's out-of-hours error against the US
+// session turns a legitimate boundary skip into a spurious t.Fatalf whenever
+// the two markets' open states differ. Empty falls back to "US".
+//
 // Returns "" if the message should be treated as a hard failure by the
 // caller; otherwise a human-readable skip reason.
-func classifyFailure(t *testing.T, qc *quote.QuoteClient, msg, context string) string {
+func classifyFailure(t *testing.T, qc *quote.QuoteClient, msg, market, context string) string {
 	t.Helper()
 	// Rate limit is checked before everything else, and deliberately so: the
 	// gateway tags the throttle as `category=trade_prime_error`, which
@@ -128,8 +134,11 @@ func classifyFailure(t *testing.T, qc *quote.QuoteClient, msg, context string) s
 		return "skipped (account rate limit): " + msg
 	}
 	if matches(msg, hoursErrorPatterns) {
-		if integtest.IsMarketTrading(qc, "US") {
-			t.Fatalf("%s: hours-boundary error during live trading hours: %s", context, msg)
+		if market == "" {
+			market = "US"
+		}
+		if integtest.IsMarketTrading(qc, market) {
+			t.Fatalf("%s: hours-boundary error during live %s trading hours: %s", context, market, msg)
 		}
 		return "skipped (out-of-hours boundary): " + msg
 	}
@@ -271,7 +280,7 @@ func previewOnly(t *testing.T, tc *trade.TradeClient, qc *quote.QuoteClient, ord
 	if err == nil {
 		return true
 	}
-	if skipReason := classifyFailure(t, qc, err.Error(), context); skipReason != "" {
+	if skipReason := classifyFailure(t, qc, err.Error(), order.Market, context); skipReason != "" {
 		t.Logf("%s: %s", context, skipReason)
 		return false
 	}
@@ -301,7 +310,7 @@ func previewAndPlace(t *testing.T, tc *trade.TradeClient, qc *quote.QuoteClient,
 		return e
 	})
 	if err != nil {
-		if skipReason := classifyFailure(t, qc, err.Error(), context); skipReason != "" {
+		if skipReason := classifyFailure(t, qc, err.Error(), order.Market, context); skipReason != "" {
 			t.Logf("%s: %s", context, skipReason)
 			return false
 		}
@@ -340,8 +349,10 @@ func cancelTolerant(t *testing.T, tc *trade.TradeClient, orderID int64, context 
 	// Cleanup runs after several API calls, so it is the likeliest to be
 	// throttled — and a rate-limit message matches no terminalOrderPattern, so
 	// without this it would fail a test whose assertions all already passed.
+	// The id is logged because the order is left live on a shared real account:
+	// without it there is no way to find what needs cancelling by hand.
 	if matches(err.Error(), rateLimitPatterns) {
-		t.Logf("%s: cancel skipped (account rate limit): %v", context, err)
+		t.Logf("%s: cancel skipped (account rate limit), order id=%d still live: %v", context, orderID, err)
 		return
 	}
 	t.Fatalf("%s: unexpected cancel failure: %v", context, err)
@@ -445,7 +456,7 @@ func TestMatrixUsStkIceberg(t *testing.T) {
 	now := time.Now().UnixMilli()
 	previewAndPlace(t, tc, qc, merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "ICEBERG", TotalQuantity: 10,
-		LimitPrice: safeBuyPrice,
+		LimitPrice:  safeBuyPrice,
 		DisplaySize: 2, MinDisplaySize: 1, CheckIntervals: 30,
 		PriceType: "LIMIT_PRICE",
 		StartTime: now, EndTime: now + 3_600_000,
@@ -628,7 +639,7 @@ func TestMatrixUsStkIcebergModify(t *testing.T) {
 	now := time.Now().UnixMilli()
 	order := merge(usStk(), model.OrderRequest{
 		Action: "BUY", OrderType: "ICEBERG", TotalQuantity: 10,
-		LimitPrice: safeBuyPrice,
+		LimitPrice:  safeBuyPrice,
 		DisplaySize: 2, MinDisplaySize: 1, CheckIntervals: 30,
 		PriceType: "LIMIT_PRICE",
 		StartTime: now, EndTime: now + 3_600_000,
@@ -644,7 +655,7 @@ func TestMatrixUsStkIcebergModify(t *testing.T) {
 		return e
 	})
 	if err != nil {
-		if skipReason := classifyFailure(t, qc, err.Error(), "US STK ICEBERG modify"); skipReason != "" {
+		if skipReason := classifyFailure(t, qc, err.Error(), order.Market, "US STK ICEBERG modify"); skipReason != "" {
 			t.Logf("US STK ICEBERG modify: %s", skipReason)
 			return
 		}
@@ -733,4 +744,3 @@ func TestMatrixHkWarLimit(t *testing.T) {
 	// skip 而不是硬编码假数据。
 	t.Skipf("HK WAR LMT: skipped (no strike/expiry data available for symbol %s on this account — warrant_briefs unsupported)", symbol)
 }
-
