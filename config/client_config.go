@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -127,6 +128,16 @@ func WithDeviceID(id string) Option {
 	return func(c *ClientConfig) { c.DeviceID = id }
 }
 
+// WithTigerPublicKey overrides the Tiger server public key used for response signature verification.
+// Passing an empty string is a no-op (the default key is kept).
+func WithTigerPublicKey(key string) Option {
+	return func(c *ClientConfig) {
+		if key != "" {
+			c.TigerPublicKey = key
+		}
+	}
+}
+
 // WithServerURL sets a dedicated trade/common server URL (overrides the default production gateway).
 func WithServerURL(url string) Option {
 	return func(c *ClientConfig) { c.ServerURL = url }
@@ -215,9 +226,9 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 	var defaultPaths []string
 	if !cfg.explicitPropertiesFile {
 		defaultPaths = append(defaultPaths, "tiger_openapi_config.properties")
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		defaultPaths = append(defaultPaths, filepath.Join(home, ".tigeropen", "tiger_openapi_config.properties"))
+		if home, err := os.UserHomeDir(); err == nil {
+			defaultPaths = append(defaultPaths, filepath.Join(home, ".tigeropen", "tiger_openapi_config.properties"))
+		}
 	}
 	for _, p := range defaultPaths {
 		if _, err := os.Stat(p); err == nil {
@@ -250,6 +261,8 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 		} else if cfg.TokenLoader != nil {
 			if token, err := cfg.TokenLoader(); err == nil && token != "" {
 				cfg.Token = token
+			} else if err != nil {
+				log.Printf("[config] TokenLoader failed, token will be empty: %v", err)
 			}
 		} else {
 			tokenFilePath := os.Getenv(envTokenFile)
@@ -259,6 +272,8 @@ func NewClientConfig(opts ...Option) (*ClientConfig, error) {
 			tm := NewTokenManager(WithTokenFilePath(tokenFilePath))
 			if token, err := tm.LoadToken(); err == nil && token != "" {
 				cfg.Token = token
+			} else if err != nil {
+				log.Printf("[config] load token from file %q failed, token will be empty: %v", tokenFilePath, err)
 			}
 		}
 	}

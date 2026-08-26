@@ -150,6 +150,7 @@ func TestPushClient_Options(t *testing.T) {
 		WithReconnectInterval(10*time.Second),
 		WithAutoReconnect(false),
 		WithConnectTimeout(60*time.Second),
+		WithUseFullTick(true),
 	)
 
 	if client.pushURL != "custom.example.com:9883" {
@@ -166,6 +167,9 @@ func TestPushClient_Options(t *testing.T) {
 	}
 	if client.connectTimeout != 60*time.Second {
 		t.Errorf("自定义连接超时未生效")
+	}
+	if !client.useFullTick {
+		t.Errorf("完整逐笔配置未生效")
 	}
 }
 
@@ -192,7 +196,7 @@ func TestPushClient_ConnectAndAuthenticate(t *testing.T) {
 	}()
 
 	cfg := newTestConfig(t)
-	client := NewPushClient(cfg, WithAutoReconnect(false))
+	client := NewPushClient(cfg, WithAutoReconnect(false), WithUseFullTick(true))
 	client.dialer = dialer
 
 	err := client.Connect()
@@ -216,6 +220,9 @@ func TestPushClient_ConnectAndAuthenticate(t *testing.T) {
 	}
 	if receivedReq.Connect.Sign == "" {
 		t.Error("签名不应为空")
+	}
+	if !receivedReq.Connect.GetUseFullTick() {
+		t.Error("认证消息 useFullTick 应为 true")
 	}
 	if receivedReq.Id == 0 {
 		t.Error("请求 ID 不应为 0")
@@ -897,7 +904,7 @@ func TestPushClient_MultipleCallbacks(t *testing.T) {
 	var quoteCount, tickCount int32
 	client.SetCallbacks(Callbacks{
 		OnQuote: func(data *pb.QuoteData) { atomic.AddInt32(&quoteCount, 1) },
-		OnTick:  func(data *pb.TradeTickData) { atomic.AddInt32(&tickCount, 1) },
+		OnTick:  func(data PushTradeTick) { atomic.AddInt32(&tickCount, 1) },
 	})
 
 	client.Connect()

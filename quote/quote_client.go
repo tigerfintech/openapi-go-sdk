@@ -10,6 +10,7 @@ import (
 	"github.com/tigerfintech/openapi-go-sdk/client"
 	"github.com/tigerfintech/openapi-go-sdk/config"
 	"github.com/tigerfintech/openapi-go-sdk/model"
+	"github.com/tigerfintech/openapi-go-sdk/push"
 )
 
 // QuoteClient wraps all market data API calls.
@@ -128,19 +129,38 @@ func (c *QuoteClient) GetBars(req model.KlineRequest) ([]model.Kline, error) {
 	return c.GetKline(req)
 }
 
-// GetTimeline returns intraday timeline data.
+// GetTimeline returns intraday timeline data using the legacy v2 API.
 func (c *QuoteClient) GetTimeline(symbols []string) ([]model.Timeline, error) {
 	var out []model.Timeline
 	err := c.callInto("timeline", map[string]interface{}{"symbols": symbols}, &out)
 	return out, err
 }
 
+// GetTimelineByReq returns intraday timeline data using v3, including crypto when SecType is "CC".
+func (c *QuoteClient) GetTimelineByReq(req model.TimelineRequest) ([]model.Timeline, error) {
+	var out []model.Timeline
+	err := c.callIntoVersioned("timeline", req, "3.0", &out)
+	return out, err
+}
+
 // GetTradeTick returns tick-by-tick trade data with pagination support.
-// Wire method: trade_tick. Accepts TradeTickRequest for begin_index/end_index/limit/lang.
+// Wire method: trade_tick. Accepts TradeTickRequest for begin_index/end_index/limit/trade_session/lang.
 func (c *QuoteClient) GetTradeTick(req model.TradeTickRequest) ([]model.TradeTick, error) {
 	var out []model.TradeTick
 	err := c.callInto("trade_tick", req, &out)
-	return out, err
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		isUS := push.IsUsStockSymbol(out[i].Symbol)
+		for j := range out[i].Items {
+			raw := out[i].Items[j].Cond
+			if len(raw) > 0 {
+				out[i].Items[j].Cond = push.GetTradeCondByCode(isUS, rune(raw[0]))
+			}
+		}
+	}
+	return out, nil
 }
 
 // GetQuoteDepth returns order book depth data.
@@ -374,7 +394,7 @@ func (c *QuoteClient) GetCapitalDistribution(symbol, market string) (*model.Capi
 	return &out, nil
 }
 
-// === Scanner and quote permission methods ===
+// === Scanner and market data access methods ===
 
 // MarketScanner runs the stock screener.
 func (c *QuoteClient) MarketScanner(req model.MarketScannerRequest) (*model.ScannerResult, error) {
@@ -386,7 +406,7 @@ func (c *QuoteClient) MarketScanner(req model.MarketScannerRequest) (*model.Scan
 	return &out, nil
 }
 
-// GrabQuotePermission requests quote permissions.
+// GrabQuotePermission claims market data device access.
 func (c *QuoteClient) GrabQuotePermission() ([]model.QuotePermission, error) {
 	var out []model.QuotePermission
 	err := c.callInto("grab_quote_permission", nil, &out)
@@ -561,6 +581,7 @@ func (c *QuoteClient) GetKlineByPage(req model.KlineByPageRequest) ([]model.Klin
 	for len(acc) < req.TotalSize {
 		sub := model.KlineRequest{
 			Symbols:      []string{req.Symbol},
+			SecType:      req.SecType,
 			Period:       req.Period,
 			Right:        req.Right,
 			BeginTime:    beginTime,
@@ -876,10 +897,29 @@ func (c *QuoteClient) GetWarrantFilter(req model.WarrantFilterRequest) (*model.W
 }
 
 // GetIndustryList 行业列表。wire: industry_list
+//
+// IndustryLevel 服务端必填——缺省时会返回
+// `biz param error(industry level error, all supported is: [GSECTOR, GGROUP, GIND, GSUBIND])`。
+// 未指定时默认 GGROUP，与 Python SDK (IndustryLevel.GGROUP) 一致。
+//
+// 返回的每个 IndustryItem 会自动填充兼容字段 Name (优先 NameEN，空则回退
+// NameCN)，保留 NameCN / NameEN / Level 完整数据。
 func (c *QuoteClient) GetIndustryList(req model.IndustryListRequest) ([]model.IndustryItem, error) {
+	if req.IndustryLevel == "" {
+		req.IndustryLevel = string(model.IndustryLevelGGroup)
+	}
 	var out []model.IndustryItem
-	err := c.callInto("industry_list", req, &out)
-	return out, err
+	if err := c.callInto("industry_list", req, &out); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if out[i].NameEN != "" {
+			out[i].Name = out[i].NameEN
+		} else if out[i].NameCN != "" {
+			out[i].Name = out[i].NameCN
+		}
+	}
+	return out, nil
 }
 
 // GetIndustryStocks 行业下股票列表。wire: industry_stock_list
@@ -926,6 +966,48 @@ func (c *QuoteClient) GetCorporateEarningsCalendar(req model.CorporateActionRequ
 		return nil, err
 	}
 	var out []model.CorporateAction
+	for _, list := range grouped {
+		out = append(out, list...)
+	}
+	return out, nil
+}
+
+// GetCorporateSymbolChange 公司行动 - 股票代码变更。wire: corporate_action (action_type=symbol_change)
+func (c *QuoteClient) GetCorporateSymbolChange(req model.CorporateActionRequest) ([]model.CorporateSymbolChange, error) {
+	req.ActionType = string(model.CorporateActionTypeSymbolChange)
+	var grouped map[string][]model.CorporateSymbolChange
+	if err := c.callInto("corporate_action", req, &grouped); err != nil {
+		return nil, err
+	}
+	var out []model.CorporateSymbolChange
+	for _, list := range grouped {
+		out = append(out, list...)
+	}
+	return out, nil
+}
+
+// GetCorporateDelisting 公司行动 - 退市。wire: corporate_action (action_type=delisting)
+func (c *QuoteClient) GetCorporateDelisting(req model.CorporateActionRequest) ([]model.CorporateDelisting, error) {
+	req.ActionType = string(model.CorporateActionTypeDelisting)
+	var grouped map[string][]model.CorporateDelisting
+	if err := c.callInto("corporate_action", req, &grouped); err != nil {
+		return nil, err
+	}
+	var out []model.CorporateDelisting
+	for _, list := range grouped {
+		out = append(out, list...)
+	}
+	return out, nil
+}
+
+// GetCorporateIPO 公司行动 - 新股上市。wire: corporate_action (action_type=ipo)
+func (c *QuoteClient) GetCorporateIPO(req model.CorporateActionRequest) ([]model.CorporateIPO, error) {
+	req.ActionType = string(model.CorporateActionTypeIPO)
+	var grouped map[string][]model.CorporateIPO
+	if err := c.callInto("corporate_action", req, &grouped); err != nil {
+		return nil, err
+	}
+	var out []model.CorporateIPO
 	for _, list := range grouped {
 		out = append(out, list...)
 	}

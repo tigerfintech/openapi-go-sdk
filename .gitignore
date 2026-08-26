@@ -5,14 +5,17 @@
 *.so
 *.dylib
 
+# vendor 目录（使用 go modules 不需要）
+vendor/
+
+# Go build/cache dirs (local + CI GOPATH may land here)
+.go/
+
 # 测试输出
 *.test
 *.out
 coverage.txt
 coverage.html
-
-# vendor 目录（使用 go modules 不需要）
-vendor/
 
 # IDE
 .idea/
@@ -31,3 +34,6 @@ vendor/
 !config/testdata/*.properties
 *.pem
 *.key
+
+# local memory / ephemeral data (not for version control)
+.data/

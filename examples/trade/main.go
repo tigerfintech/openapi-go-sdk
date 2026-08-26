@@ -55,6 +55,15 @@ func failOrSkip(name string, err error) {
 	fail(name, err)
 }
 
+// redact masks a sensitive string for logging, showing only the last 4 chars preceded by "****".
+// Trailing chars are less identifying than leading chars for IDs/accounts.
+func redact(s string) string {
+	if len(s) <= 4 {
+		return "****"
+	}
+	return "****" + s[len(s)-4:]
+}
+
 func main() {
 	var cfgOpts []config.Option
 	if p := os.Getenv("TIGER_CONFIG_PATH"); p != "" {
@@ -64,7 +73,7 @@ func main() {
 	if err != nil {
 		log.Fatal("load config failed: ", err)
 	}
-	fmt.Printf("tiger_id=%s account=%s\n\n", cfg.TigerID, cfg.Account)
+	fmt.Printf("tiger_id=%s account=%s\n\n", redact(cfg.TigerID), redact(cfg.Account))
 
 	tc := trade.NewTradeClientFromConfig(cfg)
 

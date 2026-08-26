@@ -200,8 +200,8 @@ type FundDetailsRequest struct {
 	SegTypes  []string `json:"seg_types,omitempty"`
 	FundType  string   `json:"fund_type,omitempty"`
 	Currency  string   `json:"currency,omitempty"`
-	StartDate int64    `json:"start_date,omitempty"`
-	EndDate   int64    `json:"end_date,omitempty"`
+	StartDate string   `json:"start_date,omitempty"` // yyyy-MM-dd
+	EndDate   string   `json:"end_date,omitempty"`   // yyyy-MM-dd
 	Start     int      `json:"start,omitempty"`
 	Limit     int      `json:"limit,omitempty"`
 	Lang      string   `json:"lang,omitempty"`

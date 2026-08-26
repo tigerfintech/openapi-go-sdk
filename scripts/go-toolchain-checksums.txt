@@ -1,0 +1,5 @@
+# SHA256 checksums for go1.20.14 Linux tarballs.
+# Source: https://go.dev/dl/?mode=json&include=all
+# Used by .gitlab-ci.yml before_script to verify the downloaded tarball.
+go1.20.14 linux/amd64 ff445e48af27f93f66bd949ae060d97991c83e11289009d311f25426258f9c44
+go1.20.14 linux/arm64 2096507509a98782850d1f0669786c09727053e9fe3c92b03c0d96f48700282b

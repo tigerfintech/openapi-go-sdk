@@ -46,13 +46,14 @@ type Kline struct {
 
 // KlineItem 单根 K 线
 type KlineItem struct {
-	Time   int64   `json:"time"`
-	Volume int64   `json:"volume"`
-	Open   float64 `json:"open"`
-	Close  float64 `json:"close"`
-	High   float64 `json:"high"`
-	Low    float64 `json:"low"`
-	Amount float64 `json:"amount,omitempty"`
+	Time          int64    `json:"time"`
+	Volume        int64    `json:"volume"`
+	VolumeDecimal *float64 `json:"volumeDecimal,omitempty"`
+	Open          float64  `json:"open"`
+	Close         float64  `json:"close"`
+	High          float64  `json:"high"`
+	Low           float64  `json:"low"`
+	Amount        float64  `json:"amount,omitempty"`
 }
 
 // Timeline 分时
@@ -72,10 +73,11 @@ type TimelineBucket struct {
 
 // TimelineItem 分时点
 type TimelineItem struct {
-	Time     int64   `json:"time"`
-	Volume   int64   `json:"volume"`
-	Price    float64 `json:"price"`
-	AvgPrice float64 `json:"avgPrice"`
+	Time          int64    `json:"time"`
+	Volume        int64    `json:"volume"`
+	VolumeDecimal *float64 `json:"volumeDecimal,omitempty"`
+	Price         float64  `json:"price"`
+	AvgPrice      float64  `json:"avgPrice"`
 }
 
 // TradeTick 逐笔(一个标的一组)
@@ -88,10 +90,13 @@ type TradeTick struct {
 
 // TradeTickItem 单笔成交
 type TradeTickItem struct {
-	Time   int64   `json:"time"`
-	Volume int64   `json:"volume"`
-	Price  float64 `json:"price"`
-	Type   string  `json:"type"`
+	Time     int64   `json:"time"`
+	Volume   int64   `json:"volume"`
+	Price    float64 `json:"price"`
+	Type     string  `json:"type"`
+	PartCode string  `json:"partCode,omitempty"`
+	PartName string  `json:"partName,omitempty"`
+	Cond     string  `json:"cond,omitempty"`
 }
 
 // Depth 深度报价(一个标的一组)
@@ -152,6 +157,12 @@ type OptionLeg struct {
 	Theta         float64 `json:"theta,omitempty"`
 	Vega          float64 `json:"vega,omitempty"`
 	Rho           float64 `json:"rho,omitempty"`
+	MarkPrice     float64 `json:"markPrice,omitempty"`
+	PreMarkPrice  float64 `json:"preMarkPrice,omitempty"`
+	MarkTimestamp int64   `json:"markTimestamp,omitempty"`
+	MidPrice      float64 `json:"midPrice,omitempty"`
+	PreMidPrice   float64 `json:"preMidPrice,omitempty"`
+	MidTimestamp  int64   `json:"midTimestamp,omitempty"`
 }
 
 // FutureExchange 期货交易所
@@ -260,6 +271,48 @@ type CorporateAction struct {
 	// SPLIT 等场景可能出现的字段
 	FromFactor float64 `json:"fromFactor,omitempty"`
 	ToFactor   float64 `json:"toFactor,omitempty"`
+}
+
+// CorporateSymbolChange 股票代码变更事件
+type CorporateSymbolChange struct {
+	Symbol      string `json:"symbol"`
+	Market      string `json:"market,omitempty"`
+	Exchange    string `json:"exchange,omitempty"`
+	ExecuteDate string `json:"executeDate,omitempty"`
+	ActionType  string `json:"actionType,omitempty"`
+	OldSymbol   string `json:"oldSymbol,omitempty"`
+	// NewSymbol is the ticker after the rename; same as Symbol.
+	NewSymbol string `json:"newSymbol,omitempty"`
+}
+
+// CorporateDelisting 退市事件
+type CorporateDelisting struct {
+	Symbol        string `json:"symbol"`
+	Market        string `json:"market,omitempty"`
+	Exchange      string `json:"exchange,omitempty"`
+	ExecuteDate   string `json:"executeDate,omitempty"`
+	ActionType    string `json:"actionType,omitempty"`
+	AnnouncedDate string `json:"announcedDate,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+// CorporateIPO 新股上市事件
+type CorporateIPO struct {
+	Symbol              string  `json:"symbol"`
+	Market              string  `json:"market,omitempty"`
+	Exchange            string  `json:"exchange,omitempty"`
+	ExecuteDate         string  `json:"executeDate,omitempty"`
+	ActionType          string  `json:"actionType,omitempty"`
+	IpoName             string  `json:"ipoName,omitempty"`
+	ListingDate         string  `json:"listingDate,omitempty"`
+	ListingPrice        float64 `json:"listingPrice,omitempty"`
+	SharesOutstanding   int64   `json:"sharesOutstanding,omitempty"`
+	SharesFloat         int64   `json:"sharesFloat,omitempty"`
+	OfferAmount         float64 `json:"offerAmount,omitempty"`
+	PriceRange          string  `json:"priceRange,omitempty"`
+	Currency            string  `json:"currency,omitempty"`
+	MinPurchaseQuantity int     `json:"minPurchaseQuantity,omitempty"`
+	LeverageRatio       float64 `json:"leverageRatio,omitempty"`
 }
 
 // CapitalFlow 资金流向
@@ -589,11 +642,23 @@ type WarrantFilterResult struct {
 	Page     int            `json:"page,omitempty"`
 }
 
-// IndustryItem 行业列表条目。
+// IndustryItem 行业列表条目 (industry_list)。
+//
+// Wire field mapping (0.5): 服务端返回 nameCN / nameEN / industryLevel，
+// 不是 name / level。此前的 struct 字段名会导致 IndustryItem.Name 永远为空
+// (Python SDK 也是把两者都拿出来放到 name_cn / name_en 里)。新字段
+// NameCN / NameEN 分别映射到 nameCN / nameEN，Level 映射到 industryLevel。
+//
+// 兼容性：老字段 Name 仍保留 (json:"-"，不参与反序列化)，由 SDK 在解码后
+// 赋值为 NameEN 或 NameCN (优先英文) 以最小化调用方改动。
 type IndustryItem struct {
-	ID    string `json:"id,omitempty"`
-	Name  string `json:"name,omitempty"`
-	Level string `json:"level,omitempty"`
+	ID     string `json:"id,omitempty"`
+	NameCN string `json:"nameCN,omitempty"`
+	NameEN string `json:"nameEN,omitempty"`
+	Level  string `json:"industryLevel,omitempty"`
+	// Name 兼容字段：优先英文名，英文空则回退中文。反序列化时不从 wire 读取；
+	// 由 QuoteClient.GetIndustryList 在返回前 hydrate。
+	Name string `json:"-"`
 }
 
 // IndustryStock 行业归属股票条目。
@@ -630,18 +695,20 @@ type FinancialCurrency struct {
 
 // QuoteOvernight 隔夜行情。
 type QuoteOvernight struct {
-	Symbol     string  `json:"symbol,omitempty"`
-	PreClose   float64 `json:"preClose,omitempty"`
-	Open       float64 `json:"open,omitempty"`
-	Close      float64 `json:"close,omitempty"`
-	High       float64 `json:"high,omitempty"`
-	Low        float64 `json:"low,omitempty"`
-	Volume     int64   `json:"volume,omitempty"`
-	Amount     float64 `json:"amount,omitempty"`
-	Change     float64 `json:"change,omitempty"`
-	ChangeRate float64 `json:"changeRate,omitempty"`
-	BeginTime  int64   `json:"beginTime,omitempty"`
-	EndTime    int64   `json:"endTime,omitempty"`
+	Symbol        string  `json:"symbol,omitempty"`
+	LatestPrice   float64 `json:"latestPrice,omitempty"`
+	AskPrice      float64 `json:"askPrice,omitempty"`
+	AskSize       int64   `json:"askSize,omitempty"`
+	BidPrice      float64 `json:"bidPrice,omitempty"`
+	BidSize       int64   `json:"bidSize,omitempty"`
+	PreClose      float64 `json:"preClose,omitempty"`
+	Volume        int64   `json:"volume,omitempty"`
+	Amount        float64 `json:"amount,omitempty"`
+	Timestamp     int64   `json:"timestamp,omitempty"`
+	TradingStatus int     `json:"tradingStatus,omitempty"`
+	Change        float64 `json:"change,omitempty"`
+	ChangeRate    float64 `json:"changeRate,omitempty"`
+	Amplitude     float64 `json:"amplitude,omitempty"`
 }
 
 // MarketScannerTagGroup 扫描器标签分组（server 返回数组，每个元素一个 market/multiTagField 组合）。

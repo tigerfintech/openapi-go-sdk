@@ -8,7 +8,7 @@ import (
 type Callbacks struct {
 	// 行情推送回调
 	OnQuote     func(data *pb.QuoteData)
-	OnTick      func(data *pb.TradeTickData)
+	OnTick      func(data PushTradeTick)
 	OnDepth     func(data *pb.QuoteDepthData)
 	OnOption    func(data *pb.QuoteData)
 	OnFuture    func(data *pb.QuoteData)
