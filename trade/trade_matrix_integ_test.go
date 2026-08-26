@@ -44,14 +44,45 @@ const (
 // status before being treated as a skip (see classifyFailure). A hit during
 // genuine trading hours is a real bug, not a boundary skip.
 var hoursErrorPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?i)outside of regular trading hours`),
 	regexp.MustCompile(`(?i)market is closed`),
+	regexp.MustCompile(`(?i)at non-trading hour`),
+	regexp.MustCompile(`(?i)orders cannot be placed at this moment`),
+}
+
+// Server messages meaning "this order type / parameter is not accepted at this
+// instant", which is NOT the same as "the market is closed".
+//
+// These must never be re-checked against IsMarketTrading: for every pattern
+// below, the continuous session being open is exactly when the error is most
+// likely, so using an open market to prove the error is a bug has the
+// implication backwards. Concretely:
+//
+//   - Auction orders (AL/AM) are only accepted during HK's pre-open
+//     (09:00–09:30) and closing (16:00–16:10) auction windows, which are
+//     disjoint from the continuous session. IsMarketTrading("HK") reports the
+//     continuous session, so an auction rejection during continuous trading is
+//     by design — asserting on it made TestMatrixHkStkAuctionLimit fail every
+//     single run that landed inside HK trading hours.
+//   - "only limit orders are supported ... outside of regular trading hours"
+//     fires when the order itself carries an RTH-exempt flag; the server then
+//     applies extended-hours rules regardless of whether the regular session
+//     happens to be open.
+//   - The TWAP/VWAP end-time window is an order parameter constraint — the
+//     schedule ran past the session close, which says nothing about the
+//     current market state.
+//
+// The SDK cannot narrow these down further: no quote API exposes auction-window
+// or RTH-exempt eligibility, so an unconditional skip is the only
+// classification that is actually true.
+var orderTypeRestrictionPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)auction order is not allowed at this moment`),
+	regexp.MustCompile(`(?i)outside of regular trading hours`),
 	regexp.MustCompile(`(?i)only limit orders can be placed`),
 	regexp.MustCompile(`(?i)only limit, stop or stop-limit orders are allowed`),
-	regexp.MustCompile(`(?i)at non-trading hour`),
-	regexp.MustCompile(`(?i)time range for the order.*needs to be between`),
-	regexp.MustCompile(`(?i)orders cannot be placed at this moment`),
-	regexp.MustCompile(`(?i)auction order is not allowed at this moment`),
+	// Matched without the `needs to be between` suffix: Go's `.` does not span
+	// newlines, so the stricter form silently missed the multi-line variant of
+	// this message that the gateway actually returns.
+	regexp.MustCompile(`(?i)time range for the order`),
 }
 
 // Permission / license / account-state boundary errors — unconditional
@@ -132,6 +163,12 @@ func classifyFailure(t *testing.T, qc *quote.QuoteClient, msg, market, context s
 	// in the log — and neither gets retried.
 	if matches(msg, rateLimitPatterns) {
 		return "skipped (account rate limit): " + msg
+	}
+	// Order-type/parameter restrictions are checked before hoursErrorPatterns and
+	// deliberately never validated against live market status — see that var's
+	// doc comment for why an open market cannot disprove them.
+	if matches(msg, orderTypeRestrictionPatterns) {
+		return "skipped (order type not accepted at this moment): " + msg
 	}
 	if matches(msg, hoursErrorPatterns) {
 		if market == "" {
