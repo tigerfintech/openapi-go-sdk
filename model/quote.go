@@ -24,6 +24,7 @@ type Brief struct {
 	BidPrice     float64 `json:"bidPrice,omitempty"`
 	BidSize      int64   `json:"bidSize,omitempty"`
 	Volume       int64   `json:"volume,omitempty"`
+	Amount       float64 `json:"amount,omitempty"`
 	Status       string  `json:"status,omitempty"`
 	AdjPreClose  float64 `json:"adjPreClose,omitempty"`
 	Change       float64 `json:"change,omitempty"`

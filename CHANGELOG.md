@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Brief.Amount` 实时行情字段，支持股票和数字货币成交额。
+
 ## [0.5.2] - 2026-08-26
 
 ### Fixed

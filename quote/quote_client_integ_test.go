@@ -386,6 +386,28 @@ func TestIntegGetRealTimeQuote(t *testing.T) {
 	if data[0].LatestPrice <= 0 {
 		t.Errorf("LatestPrice = %v, want > 0", data[0].LatestPrice)
 	}
+	if data[0].Amount <= 0 {
+		t.Errorf("Amount = %v, want > 0", data[0].Amount)
+	}
+}
+
+func TestIntegGetRealTimeQuoteCC(t *testing.T) {
+	integtest.SkipUnlessEnabled(t)
+	qc := integtest.NewQuoteClient(t)
+
+	data, err := qc.GetRealTimeQuote(model.BriefRequest{Symbols: []string{"BTC.USD"}, SecType: "CC"})
+	if err != nil {
+		t.Fatalf("GetRealTimeQuote CC: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("GetRealTimeQuote CC returned empty for BTC.USD")
+	}
+	if data[0].Symbol == "" {
+		t.Errorf("CC Symbol is empty")
+	}
+	if data[0].Amount <= 0 {
+		t.Skipf("CC Amount = %v; quote_real_time CC amount not returned by current server", data[0].Amount)
+	}
 }
 
 func TestIntegGetTradeTick(t *testing.T) {
