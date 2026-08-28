@@ -207,18 +207,23 @@ func TestIntegGetOptionChain(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
-	exps, err := qc.GetOptionExpiration([]string{"AAPL"})
+	expReq := []string{"AAPL"}
+	exps, err := qc.GetOptionExpiration(expReq)
 	if err != nil || len(exps) == 0 || len(exps[0].Dates) == 0 {
-		t.Skipf("no expiry available for AAPL: err=%v", err)
+		t.Skipf("no expiry available for AAPL: err=%v %s", err, integtest.Diagnostic(expReq, exps))
 	}
-	expiry := exps[0].Dates[len(exps[0].Dates)/2]
-
-	chain, err := qc.GetOptionChain([][2]string{{"AAPL", expiry}})
+	expiry, _, err := integtest.ResolveUsOptionExpiry(qc)
 	if err != nil {
-		t.Fatalf("GetOptionChain: %v", err)
+		t.Skipf("no near-term expiry for AAPL: %v %s", err, integtest.Diagnostic(expReq, exps))
+	}
+
+	chainReq := [][2]string{{"AAPL", expiry}}
+	chain, err := qc.GetOptionChain(chainReq)
+	if err != nil {
+		t.Fatalf("GetOptionChain: %v %s", err, integtest.Diagnostic(chainReq, chain))
 	}
 	if len(chain) == 0 {
-		t.Fatal("GetOptionChain returned empty")
+		t.Fatalf("GetOptionChain returned empty %s", integtest.Diagnostic(chainReq, chain))
 	}
 	if chain[0].Symbol != "AAPL" {
 		t.Errorf("OptionChain.Symbol = %q, want AAPL", chain[0].Symbol)
@@ -227,7 +232,7 @@ func TestIntegGetOptionChain(t *testing.T) {
 		t.Errorf("OptionChain.Expiry = 0, want non-zero timestamp")
 	}
 	if len(chain[0].Items) == 0 {
-		t.Fatal("OptionChain.Items is empty")
+		t.Fatalf("OptionChain.Items is empty %s", integtest.Diagnostic(chainReq, chain))
 	}
 	row := chain[0].Items[0]
 	if row.Call == nil && row.Put == nil {
@@ -358,11 +363,12 @@ func firstFutureContractCode(t *testing.T, qc *quote.QuoteClient) string {
 	t.Helper()
 	exchanges, err := qc.GetFutureExchange()
 	if err != nil || len(exchanges) == 0 {
-		t.Skipf("no futures exchanges: err=%v", err)
+		t.Skipf("no futures exchanges: err=%v %s", err, integtest.Diagnostic("GetFutureExchange", exchanges))
 	}
-	contracts, err := qc.GetFutureContracts(exchanges[0].Code)
+	contractReq := exchanges[0].Code
+	contracts, err := qc.GetFutureContracts(contractReq)
 	if err != nil || len(contracts) == 0 {
-		t.Skipf("no futures contracts for exchange %s: err=%v", exchanges[0].Code, err)
+		t.Skipf("no futures contracts: err=%v %s", err, integtest.Diagnostic(contractReq, contracts))
 	}
 	return contracts[0].ContractCode
 }
@@ -1455,16 +1461,17 @@ func TestIntegGetFutureDepth(t *testing.T) {
 	qc := integtest.NewQuoteClient(t)
 
 	code := firstFutureContractCode(t, qc)
-	data, err := qc.GetFutureDepth(model.FutureDepthRequest{ContractCodes: []string{code}})
+	req := model.FutureDepthRequest{ContractCodes: []string{code}}
+	data, err := qc.GetFutureDepth(req)
 	if err != nil {
-		t.Fatalf("GetFutureDepth: %v", err)
+		t.Fatalf("GetFutureDepth: %v %s", err, integtest.Diagnostic(req, data))
 	}
 	// May be empty outside trading hours.
 	if len(data) == 0 {
 		t.Skipf("GetFutureDepth returned empty for %s (likely non-trading hours)", code)
 	}
 	if data[0].ContractCode == "" {
-		t.Errorf("FutureDepth.ContractCode is empty, want non-empty")
+		t.Errorf("FutureDepth.ContractCode is empty, want non-empty %s", integtest.Diagnostic(req, data))
 	}
 }
 
@@ -1820,11 +1827,11 @@ func TestIntegGetCorporateIPO(t *testing.T) {
 // ===========================================================================
 
 // TestIntegGetKlineTimeRangeAndOHLC 用固定30天窗口请求日K线，验证：
-//  - 返回条数 >= 15（30个自然日至少含15个交易日）
-//  - 时间戳严格升序
-//  - 每根K线 High >= max(Open,Close) >= min(Open,Close) >= Low
-//  - Volume >= 0
-//  同时覆盖美股(AAPL)和港股(00700)
+//   - 返回条数 >= 15（30个自然日至少含15个交易日）
+//   - 时间戳严格升序
+//   - 每根K线 High >= max(Open,Close) >= min(Open,Close) >= Low
+//   - Volume >= 0
+//     同时覆盖美股(AAPL)和港股(00700)
 func TestIntegGetKlineTimeRangeAndOHLC(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
@@ -1978,11 +1985,11 @@ func TestIntegGetKlineByPageTimeRange(t *testing.T) {
 }
 
 // TestIntegGetQuoteDepthOrdering 验证盘口价格合理性：
-//  - asks 按价格升序（最优卖价在前）
-//  - bids 按价格降序（最优买价在前）
-//  - 最低卖价 >= 最高买价（spread >= 0，非倒挂）
-//  - 所有价格 > 0
-//  覆盖 US(AAPL) 和 HK(00700)
+//   - asks 按价格升序（最优卖价在前）
+//   - bids 按价格降序（最优买价在前）
+//   - 最低卖价 >= 最高买价（spread >= 0，非倒挂）
+//   - 所有价格 > 0
+//     覆盖 US(AAPL) 和 HK(00700)
 func TestIntegGetQuoteDepthOrdering(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
@@ -2117,7 +2124,7 @@ func TestIntegOptionChainGreeksAndStrikeConsistency(t *testing.T) {
 	}
 	chain, err := qc.GetOptionChain([][2]string{{"AAPL", expiry}})
 	if err != nil || len(chain) == 0 || len(chain[0].Items) == 0 {
-		t.Skipf("no option chain: %v", err)
+		t.Skipf("no option chain: %v %s", err, integtest.Diagnostic([][2]string{{"AAPL", expiry}}, chain))
 	}
 
 	greeksChecked := 0

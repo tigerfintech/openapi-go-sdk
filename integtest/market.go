@@ -17,6 +17,7 @@
 package integtest
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -27,6 +28,25 @@ import (
 	"github.com/tigerfintech/openapi-go-sdk/model"
 	"github.com/tigerfintech/openapi-go-sdk/quote"
 )
+
+// Diagnostic renders compact request/response context for integration-test
+// failures. It intentionally truncates large live payloads so CI logs stay
+// readable while still showing enough data to reproduce the call.
+func Diagnostic(request, response interface{}) string {
+	return fmt.Sprintf("request=%s response=%s", compactJSON(request), compactJSON(response))
+}
+
+func compactJSON(v interface{}) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%+v", v)
+	}
+	s := string(b)
+	if len(s) > 3000 {
+		return s[:3000] + "...<truncated>"
+	}
+	return s
+}
 
 // marketStateCache memoizes the market_state result within a single test
 // process so we don't hammer the gateway when many tests each guard on
