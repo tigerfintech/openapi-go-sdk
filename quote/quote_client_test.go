@@ -118,7 +118,7 @@ func TestGetMarketState(t *testing.T) {
 
 func TestGetRealTimeQuote(t *testing.T) {
 	server := mockServer(t, "quote_real_time", []map[string]interface{}{
-		{"symbol": "AAPL", "latestPrice": 150.0},
+		{"symbol": "AAPL", "latestPrice": 150.0, "amount": 123456.78},
 	})
 	defer server.Close()
 
@@ -129,6 +129,22 @@ func TestGetRealTimeQuote(t *testing.T) {
 	}
 	if data == nil {
 		t.Fatal("GetRealTimeQuote 返回 nil data")
+	}
+	if len(data) != 1 || data[0].Amount != 123456.78 {
+		t.Fatalf("GetRealTimeQuote amount 解码错误: %+v", data)
+	}
+
+	server = mockServer(t, "quote_real_time", []map[string]interface{}{
+		{"symbol": "BTCUSD", "latestPrice": 65000.0, "amount": 987654.32},
+	})
+	defer server.Close()
+	qc = newTestQuoteClient(server.URL)
+	data, err = qc.GetRealTimeQuote(model.BriefRequest{Symbols: []string{"BTCUSD"}, SecType: "CC"})
+	if err != nil {
+		t.Fatalf("GetRealTimeQuote CC 失败: %v", err)
+	}
+	if len(data) != 1 || data[0].Symbol != "BTCUSD" || data[0].Amount != 987654.32 {
+		t.Fatalf("GetRealTimeQuote CC amount 解码错误: %+v", data)
 	}
 }
 

@@ -17,20 +17,58 @@
 package integtest
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
 	"sync"
 	"testing"
+	"time"
+	"unicode/utf8"
 
 	"github.com/tigerfintech/openapi-go-sdk/model"
 	"github.com/tigerfintech/openapi-go-sdk/quote"
 )
 
+// Diagnostic renders compact request/response context for integration-test
+// failures. It intentionally truncates large live payloads so CI logs stay
+// readable while still showing enough data to reproduce the call.
+func Diagnostic(request, response interface{}) string {
+	return fmt.Sprintf("request=%s response=%s", compactJSON(request), compactJSON(response))
+}
+
+const maxDiagnosticBytes = 3000
+
+func compactJSON(v interface{}) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%+v", v)
+	}
+	return truncateDiagnostic(string(b))
+}
+
+func truncateDiagnostic(s string) string {
+	if len(s) <= maxDiagnosticBytes {
+		return s
+	}
+	end := maxDiagnosticBytes
+	for !utf8.ValidString(s[:end]) {
+		end--
+	}
+	return s[:end] + "...<truncated>"
+}
+
 // marketStateCache memoizes the market_state result within a single test
 // process so we don't hammer the gateway when many tests each guard on
 // trading hours.
 var marketStateCache sync.Map // map[string]marketStateEntry
+
+const (
+	// nearExpiryMin/Max define the 2-6 week option window used to avoid 0DTE
+	// and far-dated LEAPS when choosing contracts for live integration tests.
+	nearExpiryMin = 14 * 24 * time.Hour
+	nearExpiryMax = 42 * 24 * time.Hour
+)
 
 type marketStateEntry struct {
 	status string
@@ -129,15 +167,56 @@ func pickNearExpiry(exps []model.OptionExpiration) (expiry string, expiryTs int6
 	if len(exps) == 0 || len(exps[0].Dates) == 0 {
 		return "", 0, fmt.Errorf("no option expirations returned for AAPL")
 	}
-	idx := 0
-	if len(exps[0].Dates) > 1 {
-		idx = 1
+	now := time.Now().UnixMilli()
+	min := now + int64(nearExpiryMin/time.Millisecond)
+	max := now + int64(nearExpiryMax/time.Millisecond)
+	for i, ts := range exps[0].Timestamps {
+		if ts >= min && ts <= max && i < len(exps[0].Dates) {
+			return exps[0].Dates[i], ts, nil
+		}
 	}
-	expiry = exps[0].Dates[idx]
-	if idx < len(exps[0].Timestamps) {
-		expiryTs = exps[0].Timestamps[idx]
+	return "", 0, fmt.Errorf("no AAPL expiry in the 2-6 week window")
+}
+
+// ResolveUsOptionExpiry returns a near-term AAPL option expiry, preferring
+// contracts expiring in the next 2-6 weeks to avoid same-day and far-dated LEAPS.
+func ResolveUsOptionExpiry(qc *quote.QuoteClient) (string, int64, error) {
+	exps, err := qc.GetOptionExpiration([]string{"AAPL"})
+	if err != nil {
+		return "", 0, fmt.Errorf("GetOptionExpiration: %w", err)
 	}
-	return expiry, expiryTs, nil
+	return pickNearExpiry(exps)
+}
+
+func legIsActive(leg *model.OptionLeg) bool {
+	return leg != nil && (leg.Volume > 0 || leg.LatestPrice > 0 || (leg.BidPrice > 0 && leg.AskPrice > 0))
+}
+
+func collectNearAtmLegs(rows []model.OptionChainRow, spot float64) []*model.OptionLeg {
+	mid := len(rows) / 2
+	if spot > 0 {
+		mid = pickAtmRow(rows, spot)
+	}
+	offsets := []int{0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5}
+	active := make([]*model.OptionLeg, 0, len(offsets)*2)
+	fallback := make([]*model.OptionLeg, 0, len(offsets)*2)
+	for _, offset := range offsets {
+		i := mid + offset
+		if i < 0 || i >= len(rows) {
+			continue
+		}
+		for _, leg := range []*model.OptionLeg{rows[i].Call, rows[i].Put} {
+			if leg == nil || leg.Identifier == "" {
+				continue
+			}
+			if legIsActive(leg) {
+				active = append(active, leg)
+			} else {
+				fallback = append(fallback, leg)
+			}
+		}
+	}
+	return append(active, fallback...)
 }
 
 // pickAtmRow returns the index of the chain row whose strike is closest to spot.
@@ -197,21 +276,12 @@ func ResolveUsOptionIdentifier(qc *quote.QuoteClient) (string, error) {
 	// liquid enough to carry daily bars and non-zero Greeks. A spot lookup
 	// failure is non-fatal: fall back to the structural middle.
 	rows := chain[0].Items
-	mid := len(rows) / 2
-	if spot, e := usSpotPrice(qc); e == nil {
-		mid = pickAtmRow(rows, spot)
+	spot := 0.0
+	if s, e := usSpotPrice(qc); e == nil {
+		spot = s
 	}
-	for _, offset := range []int{0, 1, -1, 2, -2, 3, -3} {
-		i := mid + offset
-		if i < 0 || i >= len(rows) {
-			continue
-		}
-		if rows[i].Call != nil && rows[i].Call.Identifier != "" {
-			return rows[i].Call.Identifier, nil
-		}
-		if rows[i].Put != nil && rows[i].Put.Identifier != "" {
-			return rows[i].Put.Identifier, nil
-		}
+	for _, leg := range collectNearAtmLegs(rows, spot) {
+		return leg.Identifier, nil
 	}
 	// Last resort: any identifier in the chain.
 	for _, r := range rows {
@@ -246,21 +316,17 @@ func ResolveUsOptionLeg(qc *quote.QuoteClient) (leg model.OptionLeg, expiryTs in
 		return model.OptionLeg{}, 0, fmt.Errorf("empty option chain for AAPL %s", expiry)
 	}
 
-	// Anchor on spot rather than the median strike, so the leg is near-the-money
-	// and carries non-zero Greeks. Spot lookup failure falls back to structural mid.
+	// Anchor on spot rather than the median strike, and prefer active legs so
+	// realtime tick/timeline tests avoid cold contracts.
 	rows := chain[0].Items
-	pickRow := len(rows) / 2
-	if spot, e := usSpotPrice(qc); e == nil {
-		pickRow = pickAtmRow(rows, spot)
+	spot := 0.0
+	if s, e := usSpotPrice(qc); e == nil {
+		spot = s
 	}
-	row := rows[pickRow]
-	if row.Call != nil {
-		return *row.Call, expiryTs, nil
+	for _, leg := range collectNearAtmLegs(rows, spot) {
+		return *leg, expiryTs, nil
 	}
-	if row.Put != nil {
-		return *row.Put, expiryTs, nil
-	}
-	return model.OptionLeg{}, 0, fmt.Errorf("no leg data at row %d", pickRow)
+	return model.OptionLeg{}, 0, fmt.Errorf("no leg data in AAPL %s chain", expiry)
 }
 
 // ResolveHkWarrantSymbol returns a live HK warrant symbol via WarrantFilter
