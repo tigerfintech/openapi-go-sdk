@@ -53,6 +53,13 @@ func compactJSON(v interface{}) string {
 // trading hours.
 var marketStateCache sync.Map // map[string]marketStateEntry
 
+const (
+	// nearExpiryMin/Max define the 2-6 week option window used to avoid 0DTE
+	// and far-dated LEAPS when choosing contracts for live integration tests.
+	nearExpiryMin = 14 * 24 * time.Hour
+	nearExpiryMax = 42 * 24 * time.Hour
+)
+
 type marketStateEntry struct {
 	status string
 	err    error
@@ -151,22 +158,14 @@ func pickNearExpiry(exps []model.OptionExpiration) (expiry string, expiryTs int6
 		return "", 0, fmt.Errorf("no option expirations returned for AAPL")
 	}
 	now := time.Now().UnixMilli()
-	min := now + int64(14*24*time.Hour/time.Millisecond)
-	max := now + int64(42*24*time.Hour/time.Millisecond)
+	min := now + int64(nearExpiryMin/time.Millisecond)
+	max := now + int64(nearExpiryMax/time.Millisecond)
 	for i, ts := range exps[0].Timestamps {
 		if ts >= min && ts <= max && i < len(exps[0].Dates) {
 			return exps[0].Dates[i], ts, nil
 		}
 	}
-	idx := 0
-	if len(exps[0].Dates) > 1 {
-		idx = 1
-	}
-	expiry = exps[0].Dates[idx]
-	if idx < len(exps[0].Timestamps) {
-		expiryTs = exps[0].Timestamps[idx]
-	}
-	return expiry, expiryTs, nil
+	return "", 0, fmt.Errorf("no AAPL expiry in the 2-6 week window")
 }
 
 // ResolveUsOptionExpiry returns a near-term AAPL option expiry, preferring

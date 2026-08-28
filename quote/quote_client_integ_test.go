@@ -2170,8 +2170,12 @@ func TestIntegOptionChainGreeksAndStrikeConsistency(t *testing.T) {
 	// a real regression. Out-of-hours the wire round-trip was already
 	// validated by the successful chain fetch.
 	if greeksChecked == 0 {
-		t.Skip("all option rows have delta=0; Greeks may be unavailable for the sampled chain")
-		return
+		if integtest.IsMarketTrading(qc, "US") {
+			t.Fatalf("all option rows have delta=0 during US trading hours; %s",
+				integtest.Diagnostic([][2]string{{"AAPL", expiry}}, chain))
+		}
+		t.Skipf("all option rows have delta=0 outside US trading hours; %s",
+			integtest.Diagnostic([][2]string{{"AAPL", expiry}}, chain))
 	}
 }
 
