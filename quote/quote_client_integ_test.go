@@ -2111,12 +2111,10 @@ func TestIntegOptionChainGreeksAndStrikeConsistency(t *testing.T) {
 	integtest.SkipUnlessEnabled(t)
 	qc := integtest.NewQuoteClient(t)
 
-	exps, err := qc.GetOptionExpiration([]string{"AAPL"})
-	if err != nil || len(exps) == 0 || len(exps[0].Dates) == 0 {
-		t.Skipf("no expiry for AAPL: %v", err)
+	expiry, _, err := integtest.ResolveUsOptionExpiry(qc)
+	if err != nil {
+		t.Skipf("no near-term expiry for AAPL: %v", err)
 	}
-	// 选中间到期日，流动性较好
-	expiry := exps[0].Dates[len(exps[0].Dates)/2]
 	chain, err := qc.GetOptionChain([][2]string{{"AAPL", expiry}})
 	if err != nil || len(chain) == 0 || len(chain[0].Items) == 0 {
 		t.Skipf("no option chain: %v", err)
