@@ -24,6 +24,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/tigerfintech/openapi-go-sdk/model"
 	"github.com/tigerfintech/openapi-go-sdk/quote"
@@ -36,16 +37,25 @@ func Diagnostic(request, response interface{}) string {
 	return fmt.Sprintf("request=%s response=%s", compactJSON(request), compactJSON(response))
 }
 
+const maxDiagnosticBytes = 3000
+
 func compactJSON(v interface{}) string {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return fmt.Sprintf("%+v", v)
 	}
-	s := string(b)
-	if len(s) > 3000 {
-		return s[:3000] + "...<truncated>"
+	return truncateDiagnostic(string(b))
+}
+
+func truncateDiagnostic(s string) string {
+	if len(s) <= maxDiagnosticBytes {
+		return s
 	}
-	return s
+	end := maxDiagnosticBytes
+	for !utf8.ValidString(s[:end]) {
+		end--
+	}
+	return s[:end] + "...<truncated>"
 }
 
 // marketStateCache memoizes the market_state result within a single test
