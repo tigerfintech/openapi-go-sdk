@@ -4,6 +4,7 @@ package quote
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -189,8 +190,12 @@ func (c *QuoteClient) GetOptionExpiration(symbols []string, market ...string) ([
 // Each item is [2]string{symbol, "YYYY-MM-DD"}.
 // timezone is optional; if provided, the first element overrides the inferred timezone.
 // US options default to America/New_York; HK options (.HK suffix) default to Asia/Hong_Kong.
+// Greeks (delta, gamma, theta, vega, rho, impliedVol) are always requested; use
+// GetOptionChainByReq directly if you need to opt out via ReturnGreekValue.
 func (c *QuoteClient) GetOptionChain(items [][2]string, timezone ...string) ([]model.OptionChain, error) {
 	req := model.OptionChainRequest{}
+	returnGreekValue := true
+	req.ReturnGreekValue = &returnGreekValue
 	tz := ""
 	if len(timezone) > 0 {
 		tz = timezone[0]
@@ -430,7 +435,13 @@ type optionContract struct {
 	Symbol string
 	Expiry int64  // millisecond timestamp
 	Right  string // "CALL" or "PUT"
-	Strike float64
+	// Strike is formatted as a decimal string (e.g. "325.0"), matching the
+	// server's canonical strike representation. The server does an exact
+	// string match on this field for kline/quote lookups: a whole-number
+	// strike sent as the bare JSON number 325 (which json.Marshal renders
+	// without a decimal point) silently matches nothing, while "325.0"
+	// succeeds. See optionContractFromIdentifier.
+	Strike string
 }
 
 // resolveOptionTimezone returns the timezone string to use for expiry conversion.
@@ -502,7 +513,7 @@ func optionContractFromIdentifier(identifier string, tz string) (optionContract,
 		}
 		strikeInt = strikeInt*10 + int64(ch-'0')
 	}
-	strike := float64(strikeInt) / 1000.0
+	strike := formatOccStrike(strikeInt)
 
 	return optionContract{
 		Symbol: symbol,
@@ -510,6 +521,18 @@ func optionContractFromIdentifier(identifier string, tz string) (optionContract,
 		Right:  right,
 		Strike: strike,
 	}, nil
+}
+
+// formatOccStrike converts an OCC strike suffix (thousandths, e.g. 325000)
+// into the server's canonical decimal string (e.g. "325.0"). Trailing zeros
+// beyond the first decimal digit are trimmed, but a whole number always keeps
+// one decimal place (never a bare integer token) — see optionContract.Strike.
+func formatOccStrike(strikeInt int64) string {
+	s := strconv.FormatFloat(float64(strikeInt)/1000.0, 'f', -1, 64)
+	if !strings.Contains(s, ".") {
+		s += ".0"
+	}
+	return s
 }
 
 // unused import guard for json (some build tags might omit all uses)
