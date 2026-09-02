@@ -2286,6 +2286,8 @@ func TestFormatOccStrike(t *testing.T) {
 		{150500, "150.5"},
 		{1000, "1.0"},
 		{325250, "325.25"},
+		{325125, "325.125"},
+		{0, "0.0"},
 	}
 	for _, tc := range cases {
 		got := formatOccStrike(tc.strikeInt)

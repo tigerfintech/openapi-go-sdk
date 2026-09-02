@@ -527,12 +527,17 @@ func optionContractFromIdentifier(identifier string, tz string) (optionContract,
 // into the server's canonical decimal string (e.g. "325.0"). Trailing zeros
 // beyond the first decimal digit are trimmed, but a whole number always keeps
 // one decimal place (never a bare integer token) — see optionContract.Strike.
+// Pure integer arithmetic avoids relying on float64's shortest round-trip
+// representation lining up with the trimmed decimal form.
 func formatOccStrike(strikeInt int64) string {
-	s := strconv.FormatFloat(float64(strikeInt)/1000.0, 'f', -1, 64)
-	if !strings.Contains(s, ".") {
-		s += ".0"
+	intPart, frac := strikeInt/1000, strikeInt%1000
+	if frac == 0 {
+		return strconv.FormatInt(intPart, 10) + ".0"
 	}
-	return s
+	for frac%10 == 0 {
+		frac /= 10
+	}
+	return strconv.FormatInt(intPart, 10) + "." + strconv.FormatInt(frac, 10)
 }
 
 // unused import guard for json (some build tags might omit all uses)
