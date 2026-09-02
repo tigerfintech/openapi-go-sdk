@@ -5,6 +5,12 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4] - 2026-09-02
+
+### Fixed
+- 修复 `GetOptionKline`/`GetOptionQuote` 通过期权 identifier 查询时，整数行权价（如 315）可能查不到数据的问题。
+- `GetOptionChain` 现在默认返回 Greeks（delta/gamma/theta/vega/rho/隐含波动率）。
+
 ## [0.5.3] - 2026-08-27
 
 ### Added
