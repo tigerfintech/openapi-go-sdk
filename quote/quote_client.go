@@ -437,10 +437,8 @@ type optionContract struct {
 	Right  string // "CALL" or "PUT"
 	// Strike is formatted as a decimal string (e.g. "325.0"), matching the
 	// server's canonical strike representation. The server does an exact
-	// string match on this field for kline/quote lookups: a whole-number
-	// strike sent as the bare JSON number 325 (which json.Marshal renders
-	// without a decimal point) silently matches nothing, while "325.0"
-	// succeeds. See optionContractFromIdentifier.
+	// string match on this field for kline/quote lookups, so it must always
+	// include a decimal point (never a bare integer token like "325").
 	Strike string
 }
 
