@@ -435,12 +435,8 @@ type optionContract struct {
 	Symbol string
 	Expiry int64  // millisecond timestamp
 	Right  string // "CALL" or "PUT"
-	// Strike is formatted as a decimal string (e.g. "325.0"), matching the
-	// server's canonical strike representation. The server does an exact
-	// string match on this field for kline/quote lookups: a whole-number
-	// strike sent as the bare JSON number 325 (which json.Marshal renders
-	// without a decimal point) silently matches nothing, while "325.0"
-	// succeeds. See optionContractFromIdentifier.
+	// Strike is formatted as a decimal string (e.g. "325.0") and must
+	// always include a decimal point (never a bare integer token like "325").
 	Strike string
 }
 
@@ -524,9 +520,9 @@ func optionContractFromIdentifier(identifier string, tz string) (optionContract,
 }
 
 // formatOccStrike converts an OCC strike suffix (thousandths, e.g. 325000)
-// into the server's canonical decimal string (e.g. "325.0"). Trailing zeros
-// beyond the first decimal digit are trimmed, but a whole number always keeps
-// one decimal place (never a bare integer token) — see optionContract.Strike.
+// into a decimal string (e.g. "325.0"). Trailing zeros beyond the first
+// decimal digit are trimmed, but a whole number always keeps one decimal
+// place (never a bare integer token) — see optionContract.Strike.
 // Pure integer arithmetic avoids relying on float64's shortest round-trip
 // representation lining up with the trimmed decimal form.
 func formatOccStrike(strikeInt int64) string {
