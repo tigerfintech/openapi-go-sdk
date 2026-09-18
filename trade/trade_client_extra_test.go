@@ -896,3 +896,70 @@ func TestPositionTransferDetailSecretKeyInjection(t *testing.T) {
 		t.Errorf("期望 account_id=test_account，得到: %v", captured["account_id"])
 	}
 }
+
+// === asset_quote_type 参数测试（ETH / RTH / OVERNIGHT 行情时段） ===
+
+// TestAssetsAssetQuoteType 验证 Assets 把 AssetQuoteType 以 asset_quote_type 发到 wire。
+func TestAssetsAssetQuoteType(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	tc := newTestTradeClient(server.URL)
+	_, _ = tc.Assets(model.AssetsRequest{AssetQuoteType: "ETH"})
+	if v, ok := captured["asset_quote_type"].(string); !ok || v != "ETH" {
+		t.Errorf("期望 asset_quote_type=ETH，得到: %v", captured["asset_quote_type"])
+	}
+}
+
+// TestPrimeAssetsAssetQuoteType 验证 PrimeAssets 把 AssetQuoteType 以 asset_quote_type 发到 wire。
+func TestPrimeAssetsAssetQuoteType(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	tc := newTestTradeClient(server.URL)
+	_, _ = tc.PrimeAssets(model.AssetsRequest{AssetQuoteType: "RTH"})
+	if v, ok := captured["asset_quote_type"].(string); !ok || v != "RTH" {
+		t.Errorf("期望 asset_quote_type=RTH，得到: %v", captured["asset_quote_type"])
+	}
+}
+
+// TestAggregateAssetsAssetQuoteType 验证 AggregateAssets 把 AssetQuoteType 以 asset_quote_type 发到 wire。
+func TestAggregateAssetsAssetQuoteType(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	tc := newTestTradeClient(server.URL)
+	_, _ = tc.AggregateAssets(model.AggregateAssetsRequest{AssetQuoteType: "OVERNIGHT"})
+	if v, ok := captured["asset_quote_type"].(string); !ok || v != "OVERNIGHT" {
+		t.Errorf("期望 asset_quote_type=OVERNIGHT，得到: %v", captured["asset_quote_type"])
+	}
+}
+
+// TestPositionsAssetQuoteType 验证 Positions 的 asset_quote_type（既有能力，回归保护）。
+func TestPositionsAssetQuoteType(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	tc := newTestTradeClient(server.URL)
+	_, _ = tc.Positions(model.PositionsRequest{AssetQuoteType: "OVERNIGHT"})
+	if v, ok := captured["asset_quote_type"].(string); !ok || v != "OVERNIGHT" {
+		t.Errorf("期望 asset_quote_type=OVERNIGHT，得到: %v", captured["asset_quote_type"])
+	}
+}
+
+// TestAssetsWithoutAssetQuoteType 验证不传 AssetQuoteType 时 wire 上不出现该字段（omitempty）。
+func TestAssetsWithoutAssetQuoteType(t *testing.T) {
+	var captured map[string]interface{}
+	server := captureServer(t, &captured)
+	defer server.Close()
+
+	tc := newTestTradeClient(server.URL)
+	_, _ = tc.Assets(model.AssetsRequest{})
+	if _, ok := captured["asset_quote_type"]; ok {
+		t.Errorf("未指定 AssetQuoteType 时不应出现 asset_quote_type，得到: %v", captured["asset_quote_type"])
+	}
+}
