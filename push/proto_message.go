@@ -43,6 +43,14 @@ func BuildHeartBeatMessage() *pb.Request {
 // BuildSubscribeMessage constructs a SUBSCRIBE Request message.
 // symbols is a comma-separated string of symbol codes.
 func BuildSubscribeMessage(dataType pb.SocketCommon_DataType, symbols, account, market string) *pb.Request {
+	return BuildSubscribeMessageWithAssetQuoteType(dataType, symbols, account, market, "")
+}
+
+// BuildSubscribeMessageWithAssetQuoteType constructs a SUBSCRIBE Request message
+// carrying the optional assetQuoteType field (Subscribe field 5).
+// assetQuoteType takes the enum name: "ETH" / "RTH" / "OVERNIGHT"; an empty
+// string leaves the field unset. Only Asset and Position subscriptions honour it.
+func BuildSubscribeMessageWithAssetQuoteType(dataType pb.SocketCommon_DataType, symbols, account, market, assetQuoteType string) *pb.Request {
 	sub := &pb.Request_Subscribe{
 		DataType: dataType,
 	}
@@ -54,6 +62,9 @@ func BuildSubscribeMessage(dataType pb.SocketCommon_DataType, symbols, account, 
 	}
 	if market != "" {
 		sub.Market = proto.String(market)
+	}
+	if assetQuoteType != "" {
+		sub.AssetQuoteType = proto.String(assetQuoteType)
 	}
 	return &pb.Request{
 		Command:   pb.SocketCommon_SUBSCRIBE,

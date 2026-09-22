@@ -96,8 +96,9 @@ type PushClient struct {
 	callbacks Callbacks
 
 	// 订阅状态管理
-	subscriptions map[SubjectType]map[string]bool // subject -> symbols set
-	accountSubs   map[SubjectType]bool            // 账户级别订阅
+	subscriptions     map[SubjectType]map[string]bool // subject -> symbols set
+	accountSubs       map[SubjectType]bool            // 账户级别订阅
+	accountQuoteTypes map[SubjectType]string          // 账户级别订阅的 assetQuoteType（重连恢复用）
 
 	// 并发控制
 	mu      sync.RWMutex
@@ -149,6 +150,7 @@ func NewPushClient(cfg *config.ClientConfig, opts ...PushClientOption) *PushClie
 		state:             StateDisconnected,
 		subscriptions:     make(map[SubjectType]map[string]bool),
 		accountSubs:       make(map[SubjectType]bool),
+		accountQuoteTypes: make(map[SubjectType]string),
 		dialer:            &defaultDialer{},
 	}
 	for _, opt := range opts {
@@ -491,6 +493,10 @@ func (c *PushClient) resubscribe() {
 	for k, v := range c.accountSubs {
 		acctSubs[k] = v
 	}
+	acctQuoteTypes := make(map[SubjectType]string)
+	for k, v := range c.accountQuoteTypes {
+		acctQuoteTypes[k] = v
+	}
 	c.mu.RUnlock()
 
 	// 恢复行情订阅
@@ -498,9 +504,9 @@ func (c *PushClient) resubscribe() {
 		c.subscribe(subject, symbols, "", "")
 	}
 
-	// 恢复账户订阅
+	// 恢复账户订阅（连同订阅时指定的 assetQuoteType）
 	for subject := range acctSubs {
-		c.subscribe(subject, nil, c.config.Account, "")
+		c.subscribeWithAssetQuoteType(subject, nil, c.config.Account, "", acctQuoteTypes[subject])
 	}
 }
 
@@ -660,8 +666,13 @@ func (c *PushClient) dispatchPushData(pushData *pb.PushData, cb *Callbacks) {
 
 // subscribe 内部订阅方法
 func (c *PushClient) subscribe(subject SubjectType, symbols []string, account string, market string) error {
+	return c.subscribeWithAssetQuoteType(subject, symbols, account, market, "")
+}
+
+// subscribeWithAssetQuoteType 内部订阅方法，额外携带 assetQuoteType（枚举名，空串表示不传）
+func (c *PushClient) subscribeWithAssetQuoteType(subject SubjectType, symbols []string, account, market, assetQuoteType string) error {
 	symbolsStr := strings.Join(symbols, ",")
-	req := BuildSubscribeMessage(SubjectToDataType(subject), symbolsStr, account, market)
+	req := BuildSubscribeMessageWithAssetQuoteType(SubjectToDataType(subject), symbolsStr, account, market, assetQuoteType)
 	return c.sendMessage(req)
 }
 
@@ -782,14 +793,25 @@ func (c *PushClient) UnsubscribeKline(symbols []string) error {
 
 // SubscribeAsset 订阅资产变动
 func (c *PushClient) SubscribeAsset(account string) error {
+	return c.SubscribeAssetWithQuoteType(account, "")
+}
+
+// SubscribeAssetWithQuoteType 订阅资产变动，并指定行情时段。
+// assetQuoteType 传枚举名："ETH" / "RTH" / "OVERNIGHT"；空串表示不传该字段（等价于 SubscribeAsset）。
+func (c *PushClient) SubscribeAssetWithQuoteType(account, assetQuoteType string) error {
 	if account == "" {
 		account = c.config.Account
 	}
-	if err := c.subscribe(SubjectAsset, nil, account, ""); err != nil {
+	if err := c.subscribeWithAssetQuoteType(SubjectAsset, nil, account, "", assetQuoteType); err != nil {
 		return err
 	}
 	c.mu.Lock()
 	c.accountSubs[SubjectAsset] = true
+	if assetQuoteType != "" {
+		c.accountQuoteTypes[SubjectAsset] = assetQuoteType
+	} else {
+		delete(c.accountQuoteTypes, SubjectAsset)
+	}
 	c.mu.Unlock()
 	return nil
 }
@@ -801,20 +823,32 @@ func (c *PushClient) UnsubscribeAsset() error {
 	}
 	c.mu.Lock()
 	delete(c.accountSubs, SubjectAsset)
+	delete(c.accountQuoteTypes, SubjectAsset)
 	c.mu.Unlock()
 	return nil
 }
 
 // SubscribePosition 订阅持仓变动
 func (c *PushClient) SubscribePosition(account string) error {
+	return c.SubscribePositionWithQuoteType(account, "")
+}
+
+// SubscribePositionWithQuoteType 订阅持仓变动，并指定行情时段。
+// assetQuoteType 传枚举名："ETH" / "RTH" / "OVERNIGHT"；空串表示不传该字段（等价于 SubscribePosition）。
+func (c *PushClient) SubscribePositionWithQuoteType(account, assetQuoteType string) error {
 	if account == "" {
 		account = c.config.Account
 	}
-	if err := c.subscribe(SubjectPosition, nil, account, ""); err != nil {
+	if err := c.subscribeWithAssetQuoteType(SubjectPosition, nil, account, "", assetQuoteType); err != nil {
 		return err
 	}
 	c.mu.Lock()
 	c.accountSubs[SubjectPosition] = true
+	if assetQuoteType != "" {
+		c.accountQuoteTypes[SubjectPosition] = assetQuoteType
+	} else {
+		delete(c.accountQuoteTypes, SubjectPosition)
+	}
 	c.mu.Unlock()
 	return nil
 }
@@ -826,6 +860,7 @@ func (c *PushClient) UnsubscribePosition() error {
 	}
 	c.mu.Lock()
 	delete(c.accountSubs, SubjectPosition)
+	delete(c.accountQuoteTypes, SubjectPosition)
 	c.mu.Unlock()
 	return nil
 }
