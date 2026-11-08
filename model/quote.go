@@ -9,8 +9,23 @@ type MarketState struct {
 	OpenTime     string `json:"openTime,omitempty"`
 }
 
+// OptionHourTrading is the current GTH/CURB session quote. Values may be absent.
+type OptionHourTrading struct {
+	Tag             *string  `json:"tag,omitempty"`
+	Session         *string  `json:"session,omitempty"`
+	LatestPrice     *float64 `json:"latestPrice,omitempty"`
+	LatestTimestamp *int64   `json:"latestTimestamp,omitempty"`
+	Volume          *int64   `json:"volume,omitempty"`
+	Amount          *float64 `json:"amount,omitempty"`
+	PreClose        *float64 `json:"preClose,omitempty"`
+}
+
 // Brief 实时快照(quote_real_time)
 type Brief struct {
+	CumVolume   *int64             `json:"cumVolume,omitempty"`
+	CumAmount   *float64           `json:"cumAmount,omitempty"`
+	HourTrading *OptionHourTrading `json:"hourTrading,omitempty"`
+
 	Symbol       string  `json:"symbol"`
 	Open         float64 `json:"open,omitempty"`
 	High         float64 `json:"high,omitempty"`
@@ -138,6 +153,10 @@ type OptionChainRow struct {
 
 // OptionLeg 单腿期权数据
 type OptionLeg struct {
+	CumVolume   *int64             `json:"cumVolume,omitempty"`
+	CumAmount   *float64           `json:"cumAmount,omitempty"`
+	HourTrading *OptionHourTrading `json:"hourTrading,omitempty"`
+
 	Identifier    string  `json:"identifier"`
 	Strike        string  `json:"strike"`
 	Right         string  `json:"right"`
