@@ -166,7 +166,7 @@ func TestPropertiesRoundTrip(t *testing.T) {
 
 		dir := os.TempDir()
 		path := filepath.Join(dir, fmt.Sprintf("prop_test_%d.properties", rapid.IntRange(0, 999999).Draw(t, "fileId")))
-		if err := os.WriteFile(path, []byte(sb.String()), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(sb.String()), 0600); err != nil {
 			t.Fatalf("写入临时文件失败: %v", err)
 		}
 		defer os.Remove(path)
@@ -194,7 +194,7 @@ func writeTempFile(t testing.TB, content string) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.properties")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatalf("写入临时文件失败: %v", err)
 	}
 	return path

@@ -4,12 +4,14 @@ package quote
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/tigerfintech/openapi-go-sdk/client"
 	"github.com/tigerfintech/openapi-go-sdk/config"
 	"github.com/tigerfintech/openapi-go-sdk/model"
+	"github.com/tigerfintech/openapi-go-sdk/push"
 )
 
 // QuoteClient wraps all market data API calls.
@@ -128,19 +130,38 @@ func (c *QuoteClient) GetBars(req model.KlineRequest) ([]model.Kline, error) {
 	return c.GetKline(req)
 }
 
-// GetTimeline returns intraday timeline data.
+// GetTimeline returns intraday timeline data using the legacy v2 API.
 func (c *QuoteClient) GetTimeline(symbols []string) ([]model.Timeline, error) {
 	var out []model.Timeline
 	err := c.callInto("timeline", map[string]interface{}{"symbols": symbols}, &out)
 	return out, err
 }
 
+// GetTimelineByReq returns intraday timeline data using v3, including crypto when SecType is "CC".
+func (c *QuoteClient) GetTimelineByReq(req model.TimelineRequest) ([]model.Timeline, error) {
+	var out []model.Timeline
+	err := c.callIntoVersioned("timeline", req, "3.0", &out)
+	return out, err
+}
+
 // GetTradeTick returns tick-by-tick trade data with pagination support.
-// Wire method: trade_tick. Accepts TradeTickRequest for begin_index/end_index/limit/lang.
+// Wire method: trade_tick. Accepts TradeTickRequest for begin_index/end_index/limit/trade_session/lang.
 func (c *QuoteClient) GetTradeTick(req model.TradeTickRequest) ([]model.TradeTick, error) {
 	var out []model.TradeTick
 	err := c.callInto("trade_tick", req, &out)
-	return out, err
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		isUS := push.IsUsStockSymbol(out[i].Symbol)
+		for j := range out[i].Items {
+			raw := out[i].Items[j].Cond
+			if len(raw) > 0 {
+				out[i].Items[j].Cond = push.GetTradeCondByCode(isUS, rune(raw[0]))
+			}
+		}
+	}
+	return out, nil
 }
 
 // GetQuoteDepth returns order book depth data.
@@ -169,8 +190,12 @@ func (c *QuoteClient) GetOptionExpiration(symbols []string, market ...string) ([
 // Each item is [2]string{symbol, "YYYY-MM-DD"}.
 // timezone is optional; if provided, the first element overrides the inferred timezone.
 // US options default to America/New_York; HK options (.HK suffix) default to Asia/Hong_Kong.
+// Greeks (delta, gamma, theta, vega, rho, impliedVol) are always requested; use
+// GetOptionChainByReq directly if you need to opt out via ReturnGreekValue.
 func (c *QuoteClient) GetOptionChain(items [][2]string, timezone ...string) ([]model.OptionChain, error) {
 	req := model.OptionChainRequest{}
+	returnGreekValue := true
+	req.ReturnGreekValue = &returnGreekValue
 	tz := ""
 	if len(timezone) > 0 {
 		tz = timezone[0]
@@ -374,7 +399,7 @@ func (c *QuoteClient) GetCapitalDistribution(symbol, market string) (*model.Capi
 	return &out, nil
 }
 
-// === Scanner and quote permission methods ===
+// === Scanner and market data access methods ===
 
 // MarketScanner runs the stock screener.
 func (c *QuoteClient) MarketScanner(req model.MarketScannerRequest) (*model.ScannerResult, error) {
@@ -386,7 +411,7 @@ func (c *QuoteClient) MarketScanner(req model.MarketScannerRequest) (*model.Scan
 	return &out, nil
 }
 
-// GrabQuotePermission requests quote permissions.
+// GrabQuotePermission claims market data device access.
 func (c *QuoteClient) GrabQuotePermission() ([]model.QuotePermission, error) {
 	var out []model.QuotePermission
 	err := c.callInto("grab_quote_permission", nil, &out)
@@ -410,7 +435,9 @@ type optionContract struct {
 	Symbol string
 	Expiry int64  // millisecond timestamp
 	Right  string // "CALL" or "PUT"
-	Strike float64
+	// Strike is formatted as a decimal string (e.g. "325.0") and must
+	// always include a decimal point (never a bare integer token like "325").
+	Strike string
 }
 
 // resolveOptionTimezone returns the timezone string to use for expiry conversion.
@@ -482,7 +509,7 @@ func optionContractFromIdentifier(identifier string, tz string) (optionContract,
 		}
 		strikeInt = strikeInt*10 + int64(ch-'0')
 	}
-	strike := float64(strikeInt) / 1000.0
+	strike := formatOccStrike(strikeInt)
 
 	return optionContract{
 		Symbol: symbol,
@@ -490,6 +517,23 @@ func optionContractFromIdentifier(identifier string, tz string) (optionContract,
 		Right:  right,
 		Strike: strike,
 	}, nil
+}
+
+// formatOccStrike converts an OCC strike suffix (thousandths, e.g. 325000)
+// into a decimal string (e.g. "325.0"). Trailing zeros beyond the first
+// decimal digit are trimmed, but a whole number always keeps one decimal
+// place (never a bare integer token) — see optionContract.Strike.
+// Pure integer arithmetic avoids relying on float64's shortest round-trip
+// representation lining up with the trimmed decimal form.
+func formatOccStrike(strikeInt int64) string {
+	intPart, frac := strikeInt/1000, strikeInt%1000
+	if frac == 0 {
+		return strconv.FormatInt(intPart, 10) + ".0"
+	}
+	for frac%10 == 0 {
+		frac /= 10
+	}
+	return strconv.FormatInt(intPart, 10) + "." + strconv.FormatInt(frac, 10)
 }
 
 // unused import guard for json (some build tags might omit all uses)
@@ -561,6 +605,7 @@ func (c *QuoteClient) GetKlineByPage(req model.KlineByPageRequest) ([]model.Klin
 	for len(acc) < req.TotalSize {
 		sub := model.KlineRequest{
 			Symbols:      []string{req.Symbol},
+			SecType:      req.SecType,
 			Period:       req.Period,
 			Right:        req.Right,
 			BeginTime:    beginTime,
@@ -876,10 +921,29 @@ func (c *QuoteClient) GetWarrantFilter(req model.WarrantFilterRequest) (*model.W
 }
 
 // GetIndustryList 行业列表。wire: industry_list
+//
+// IndustryLevel 服务端必填——缺省时会返回
+// `biz param error(industry level error, all supported is: [GSECTOR, GGROUP, GIND, GSUBIND])`。
+// 未指定时默认 GGROUP，与 Python SDK (IndustryLevel.GGROUP) 一致。
+//
+// 返回的每个 IndustryItem 会自动填充兼容字段 Name (优先 NameEN，空则回退
+// NameCN)，保留 NameCN / NameEN / Level 完整数据。
 func (c *QuoteClient) GetIndustryList(req model.IndustryListRequest) ([]model.IndustryItem, error) {
+	if req.IndustryLevel == "" {
+		req.IndustryLevel = string(model.IndustryLevelGGroup)
+	}
 	var out []model.IndustryItem
-	err := c.callInto("industry_list", req, &out)
-	return out, err
+	if err := c.callInto("industry_list", req, &out); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if out[i].NameEN != "" {
+			out[i].Name = out[i].NameEN
+		} else if out[i].NameCN != "" {
+			out[i].Name = out[i].NameCN
+		}
+	}
+	return out, nil
 }
 
 // GetIndustryStocks 行业下股票列表。wire: industry_stock_list

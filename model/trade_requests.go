@@ -83,14 +83,15 @@ type PositionsRequest struct {
 // 与 Python AssetParams 对齐。
 // 对应 wire method: assets / prime_assets
 type AssetsRequest struct {
-	Account      string   `json:"account,omitempty"`
-	SecretKey    string   `json:"secret_key,omitempty"`
-	Segment      bool     `json:"segment,omitempty"`
-	MarketValue  bool     `json:"market_value,omitempty"`
-	SubAccounts  []string `json:"sub_accounts,omitempty"`
-	BaseCurrency string   `json:"base_currency,omitempty"`
-	Consolidated *bool    `json:"consolidated,omitempty"` // Python 用 is not None 判断
-	Lang         string   `json:"lang,omitempty"`
+	Account        string   `json:"account,omitempty"`
+	SecretKey      string   `json:"secret_key,omitempty"`
+	Segment        bool     `json:"segment,omitempty"`
+	MarketValue    bool     `json:"market_value,omitempty"`
+	SubAccounts    []string `json:"sub_accounts,omitempty"`
+	BaseCurrency   string   `json:"base_currency,omitempty"`
+	Consolidated   *bool    `json:"consolidated,omitempty"`     // Python 用 is not None 判断
+	AssetQuoteType string   `json:"asset_quote_type,omitempty"` // ETH | RTH | OVERNIGHT
+	Lang           string   `json:"lang,omitempty"`
 }
 
 // ManagedAccountsRequest — 查询机构子账户列表。
@@ -129,11 +130,12 @@ type AnalyticsAssetRequest struct {
 // AggregateAssetsRequest — 查询综合资产（base_currency 视角下汇总）。
 // 对应 wire method: aggregate_assets
 type AggregateAssetsRequest struct {
-	Account      string `json:"account,omitempty"`
-	SecretKey    string `json:"secret_key,omitempty"`
-	SegType      string `json:"seg_type,omitempty"`
-	BaseCurrency string `json:"base_currency,omitempty"`
-	Lang         string `json:"lang,omitempty"`
+	Account        string `json:"account,omitempty"`
+	SecretKey      string `json:"secret_key,omitempty"`
+	SegType        string `json:"seg_type,omitempty"`
+	BaseCurrency   string `json:"base_currency,omitempty"`
+	AssetQuoteType string `json:"asset_quote_type,omitempty"` // ETH | RTH | OVERNIGHT
+	Lang           string `json:"lang,omitempty"`
 }
 
 // SegmentFundRequest — 子账户资金调拨（available/history/transfer/cancel 共用）。
@@ -200,8 +202,8 @@ type FundDetailsRequest struct {
 	SegTypes  []string `json:"seg_types,omitempty"`
 	FundType  string   `json:"fund_type,omitempty"`
 	Currency  string   `json:"currency,omitempty"`
-	StartDate int64    `json:"start_date,omitempty"`
-	EndDate   int64    `json:"end_date,omitempty"`
+	StartDate string   `json:"start_date,omitempty"` // yyyy-MM-dd
+	EndDate   string   `json:"end_date,omitempty"`   // yyyy-MM-dd
 	Start     int      `json:"start,omitempty"`
 	Limit     int      `json:"limit,omitempty"`
 	Lang      string   `json:"lang,omitempty"`

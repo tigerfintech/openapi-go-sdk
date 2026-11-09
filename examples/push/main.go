@@ -50,6 +50,15 @@ type counters struct {
 	transaction int32
 }
 
+// redact masks a sensitive string for logging, showing only the last 4 chars preceded by "****".
+// Trailing chars are less identifying than leading chars for IDs/accounts.
+func redact(s string) string {
+	if len(s) <= 4 {
+		return "****"
+	}
+	return "****" + s[len(s)-4:]
+}
+
 func main() {
 	duration := flag.Int("duration", 30, "推送监听时长(秒)")
 	doTrade := flag.Bool("trade", true, "是否触发下单/撤单以产生账户类推送事件")
@@ -59,10 +68,10 @@ func main() {
 	if err != nil {
 		log.Fatal("load config failed: ", err)
 	}
-	fmt.Printf("tiger_id=%s account=%s\n\n", cfg.TigerID, cfg.Account)
+	fmt.Printf("tiger_id=%s account=%s\n\n", redact(cfg.TigerID), redact(cfg.Account))
 
 	var cnt counters
-	pc := push.NewPushClient(cfg)
+	pc := push.NewPushClient(cfg, push.WithUseFullTick(true))
 
 	pc.SetCallbacks(push.Callbacks{
 		OnConnect: func() {
@@ -91,10 +100,10 @@ func main() {
 		OnQuoteBBO: func(data *pb.QuoteData) {
 			atomic.AddInt32(&cnt.quoteBBO, 1)
 		},
-		OnTick: func(data *pb.TradeTickData) {
+		OnTick: func(data push.PushTradeTick) {
 			n := atomic.AddInt32(&cnt.tick, 1)
 			if n <= 3 {
-				fmt.Printf("[Tick] %s ticks=%d sn=%d\n", data.GetSymbol(), len(data.GetPrice()), data.GetSn())
+				fmt.Printf("[Tick] %s ticks=%d\n", data.Symbol, len(data.Ticks))
 			}
 		},
 		OnDepth: func(data *pb.QuoteDepthData) {

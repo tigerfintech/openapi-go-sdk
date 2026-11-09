@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -20,7 +19,7 @@ import (
 const (
 	UserAgentPrefix = "openapi-go-sdk-"
 	// SDKVersion SDK 版本号
-	SDKVersion = "0.5.0"
+	SDKVersion = "0.5.5"
 	// DefaultCharset 默认字符集
 	DefaultCharset = "UTF-8"
 	// DefaultSignType 默认签名类型
@@ -94,6 +93,8 @@ func NewHttpClient(cfg *config.ClientConfig, opts ...ClientOption) *HttpClient {
 		pubKey, err := signer.LoadPublicKey(cfg.TigerPublicKey)
 		if err == nil {
 			hc.publicKey = pubKey
+		} else {
+			hc.logger.Error("load tiger public key failed, response signature verification disabled: %v", err)
 		}
 	}
 
@@ -147,6 +148,15 @@ func (c *HttpClient) setToken(token string) {
 	c.atomicToken.Store(token)
 }
 
+// SetCurrentToken updates this HttpClient's atomicToken directly.
+// Use in tests or custom refresh callbacks where the token value is supplied
+// externally rather than fetched via QueryToken.  When WithSharedTokenFrom
+// was used to link a quote client to this primary client, the quote client
+// will immediately see the new value because they share the same atomic.Value.
+func (c *HttpClient) SetCurrentToken(token string) {
+	c.setToken(token)
+}
+
 // buildCommonParams constructs common request parameters.
 // If version is non-empty, it overrides the default API version.
 func (c *HttpClient) buildCommonParams(apiMethod string, bizContent string, version string) map[string]string {
@@ -159,7 +169,7 @@ func (c *HttpClient) buildCommonParams(apiMethod string, bizContent string, vers
 		"method":      apiMethod,
 		"charset":     DefaultCharset,
 		"sign_type":   DefaultSignType,
-		"timestamp":   time.Now().Format("2006-01-02 15:04:05"),
+		"timestamp":   time.Now().UTC().Format("2006-01-02 15:04:05"),
 		"version":     v,
 		"biz_content": bizContent,
 	}
@@ -235,6 +245,13 @@ func (c *HttpClient) Execute(request *ApiRequest) (*ApiResponse, error) {
 			c.logger.Warn("api request retry method=%s attempt=%d err=%v",
 				method, attempt+1, httpErr)
 			continue
+		}
+
+		// Non-2xx: body was returned but httpErr is set. Surface the HTTP error.
+		if httpErr != nil {
+			c.logger.Error("api request failed method=%s err=%v body=%s",
+				method, httpErr, strings.TrimSpace(string(resp)))
+			return nil, httpErr
 		}
 
 		apiResp, parseErr := ParseApiResponse(resp)
@@ -405,16 +422,18 @@ func (c *HttpClient) QueryToken() (string, error) {
 	return data.Token, nil
 }
 
-// RefreshToken 刷新 token：调用接口获取新 token 后更新 config.Token 并持久化到文件。
-// tokenManager 可为 nil，此时只更新内存中的 config.Token，不写文件。
-// 若 NewHttpClient 已自动启动内部 TokenManager，其内存 token 也会同步更新。
+// RefreshToken 刷新 token：调用接口获取新 token 后更新当前 HttpClient 的 atomicToken。
+// 注意：仅更新当前 HttpClient 实例的原子 token，不修改共享的 cfg.Token；
+// 其他共享同一 cfg 的 client 不会自动感知新 token。
+// tokenManager 可为 nil，此时只更新 atomicToken，不写文件。
+// 若传入 tokenManager，新 token 会同时写入文件并触发其上注册的回调。
 func (c *HttpClient) RefreshToken(tokenManager *config.TokenManager) error {
 	oldToken := c.getToken()
 	newToken, err := c.QueryToken()
 	if err != nil {
 		return err
 	}
-	log.Printf("[token] refreshed (len %d -> %d)", len(oldToken), len(newToken))
+	c.logger.Info("[token] refreshed (len %d -> %d)", len(oldToken), len(newToken))
 	c.setToken(newToken)
 	// Keep internal tokenManager in sync so ShouldTokenRefresh stays accurate.
 	if c.tokenManager != nil && tokenManager != c.tokenManager {
@@ -438,9 +457,10 @@ func (c *HttpClient) RefreshToken(tokenManager *config.TokenManager) error {
 func (c *HttpClient) StartTokenAutoRefresh(tokenManager *config.TokenManager, opts ...config.TokenManagerOption) *config.TokenManager {
 	if tokenManager == nil {
 		tokenManager = config.NewTokenManager(opts...)
-		// 从 config.Token 同步当前 token，使 ShouldTokenRefresh 能正确判断
-		if c.config.Token != "" {
-			_ = tokenManager.SetToken(c.config.Token)
+		// 从 atomicToken 同步当前 token，使 ShouldTokenRefresh 能正确判断
+		// 使用 getToken() 而非 config.Token，以反映历次刷新后的最新值
+		if currentToken := c.getToken(); currentToken != "" {
+			_ = tokenManager.SetToken(currentToken)
 		}
 	}
 	tokenManager.StartAutoRefresh(func() (string, error) {
@@ -448,18 +468,12 @@ func (c *HttpClient) StartTokenAutoRefresh(tokenManager *config.TokenManager, op
 		if err != nil {
 			return "", err
 		}
+		// QueryToken always returns a non-empty token when err == nil
+		// (it errors on empty server response), so the only path here is success.
 		c.setToken(newToken)
 		return newToken, nil
 	})
 	return tokenManager
-}
-
-func safePrefix(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n])
 }
 
 // NewQuoteHttpClient creates an HttpClient that uses the QuoteServerURL.
@@ -470,8 +484,9 @@ func safePrefix(s string, n int) string {
 //	quote   := NewQuoteHttpClient(cfg, WithSharedTokenFrom(primary))
 //
 // Without WithSharedTokenFrom the quote client starts with its own independent
-// token seeded from cfg.Token at construction time — fine when token refresh
-// is not used or when both clients read from the same cfg.Token.
+// atomicToken seeded from cfg.Token at construction time.  After construction
+// the two clients are fully isolated: token refreshes on the primary are NOT
+// visible to the quote client.  Use WithSharedTokenFrom to opt in to sharing.
 func NewQuoteHttpClient(cfg *config.ClientConfig, opts ...ClientOption) *HttpClient {
 	cloned := *cfg
 	if cloned.QuoteServerURL != "" {

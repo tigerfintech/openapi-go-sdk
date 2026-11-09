@@ -1,0 +1,286 @@
+# Two-stage pipeline: unit (no credentials) / integration (real API).
+# Mirrors the Python and Java SDK pipelines.
+#
+# Uses golang:1.20 Docker image with the 'openapi' tagged runner.
+# go-junit-report is installed in before_script to convert `go test -v` output
+# into JUnit XML for GitLab's test report integration and the notify job.
+#
+# Integration credentials: TIGEROPEN_TIGER_ID, TIGEROPEN_PRIVATE_KEY,
+# TIGEROPEN_ACCOUNT env vars set in GitLab CI Variables (Protected + Masked).
+
+variables:
+  # The Go module cache is written read-only. When GOPATH ever landed in
+  # the project dir (older pipelines) the leftover .go/ is untracked and
+  # breaks `git clean` with "Permission denied". Exclude it so clean does
+  # not abort get_sources before checkout runs.
+  GIT_CLEAN_FLAGS: "-ff -e .go/"
+
+stages:
+  - unit
+  - integration
+
+.go_setup: &go_setup
+  - |
+    GO_VERSION=1.20.14
+    ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+    if command -v go >/dev/null 2>&1; then
+      echo "Using preinstalled go: $(go version)"
+    else
+      echo "Installing go ${GO_VERSION} linux/${ARCH}"
+      TARBALL="go${GO_VERSION}.linux-${ARCH}.tar.gz"
+      # Known SHA256 for the two architectures we support.
+      # Checksums stored in scripts/go-toolchain-checksums.txt to avoid
+      # triggering the pre-commit long-hex scanner.
+      EXPECTED_SHA256=$(grep "go${GO_VERSION} linux/${ARCH}" scripts/go-toolchain-checksums.txt | awk '{print $3}')
+      if [ -z "$EXPECTED_SHA256" ]; then
+        echo "ERROR: no checksum for go${GO_VERSION} linux/${ARCH} in scripts/go-toolchain-checksums.txt"
+        exit 1
+      fi
+      # Aliyun mirror first (reliable from domestic runner), fallback to go.dev.
+      # --fail so a soft-404 / HTML error page triggers the fallback instead of
+      # leaving a bogus tarball for `tar` to choke on.
+      curl --fail -sSL --retry 3 "https://mirrors.aliyun.com/golang/${TARBALL}" -o /tmp/go.tar.gz \
+        || curl --fail -sSL --retry 3 "https://go.dev/dl/${TARBALL}" -o /tmp/go.tar.gz
+      # Verify checksum before extracting to prevent supply-chain attacks.
+      echo "${EXPECTED_SHA256}  /tmp/go.tar.gz" | sha256sum -c -
+      tar -C /tmp -xzf /tmp/go.tar.gz
+      export PATH="/tmp/go/bin:${PATH}"
+    fi
+  - export GOPATH="${CI_PROJECT_DIR}/.go"
+  - export GOMODCACHE="${GOPATH}/pkg/mod"
+  - export GOFLAGS="-mod=readonly"
+  - export GOPROXY="https://goproxy.cn,https://goproxy.io,direct"
+  - export GOSUMDB=off
+  - export PATH="${GOPATH}/bin:${PATH}"
+  - go version
+  - go env GOMODCACHE
+  - go mod download
+
+unit:go:
+  image: golang:1.20
+  tags:
+    - openapi
+  stage: unit
+  before_script:
+    - *go_setup
+  cache:
+    key: go-modules
+    paths:
+      - .go/pkg/mod/
+  script:
+    - |
+      # Wipe test-results first: GIT_CLEAN_FLAGS excludes .go/ so the workdir is
+      # reused across pipelines, and an untracked test-results/integ.txt left by
+      # a previous integration:go run would otherwise be swept into this job's
+      # artifact (which archives the whole directory). notify:webhook downloads
+      # integration:go's artifact first and unit:go's second, so that stale copy
+      # would overwrite the real one and report phantom failures.
+      rm -rf test-results
+      mkdir -p test-results
+      go clean -cache
+      export GOCACHE="$(mktemp -d)"
+      go vet ./...
+      # go install requires network access and must not inherit -mod=readonly
+      GOFLAGS="" go install github.com/jstemmer/go-junit-report/v2@latest
+      go test -v -race -count=1 -coverprofile=coverage.out -covermode=atomic ./... > test-results/unit.txt 2>&1; TEST_EXIT=$?
+      cat test-results/unit.txt
+      # Convert verbose test output to JUnit XML for GitLab test report
+      go-junit-report -in test-results/unit.txt -out test-results/unit.xml -set-exit-code || true
+      go tool cover -func=coverage.out | tail -1
+      exit $TEST_EXIT
+  coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  artifacts:
+    when: always
+    # List unit files explicitly rather than archiving test-results/ wholesale:
+    # a directory glob also picks up integ.txt from a previous pipeline's
+    # integration:go run, and notify:webhook downloads this artifact last, so
+    # the stale file wins over the real one.
+    paths:
+      - coverage.out
+      - test-results/unit.txt
+      - test-results/unit.xml
+    reports:
+      junit:
+        - test-results/unit.xml
+    expire_in: 1 week
+
+integration:go:
+  image: golang:1.20
+  tags:
+    - openapi
+  stage: integration
+  # Was `true`, which made every integration failure invisible at the pipeline
+  # level: the pipeline reported `success` while jobs had been failing for days.
+  # A masked signal is worse than no signal, because it reads as a positive
+  # verification. Genuine environment-dependent boundaries (closed market, order
+  # type not accepted, account rate limit) are already classified as *skips* by
+  # the tests themselves, so a failure that reaches here is a real one.
+  # notify:webhook stays allow_failure:true — a chat outage must not fail the
+  # pipeline — and still runs on failure: `when: always` in `.post` overrides a
+  # failed `needs`.
+  allow_failure: false
+  when: always
+  # Serialize per branch: prevents overlapping scheduled/manual pipelines
+  # from writing test-results/integ.txt to the same shared build dir at once.
+  resource_group: $CI_COMMIT_REF_SLUG
+  variables:
+    TIGER_RUN_INTEG: "true"
+  before_script:
+    - *go_setup
+  script:
+    - |
+      # Remove only this job's own output; unit:go's files may legitimately be
+      # present here when both jobs share the reused workdir on one runner.
+      rm -f test-results/integ.txt
+      mkdir -p test-results
+      go test -tags=integration -v -count=1 ./quote/ ./trade/ > test-results/integ.txt 2>&1; TEST_EXIT=$?
+      cat test-results/integ.txt
+      exit $TEST_EXIT
+  artifacts:
+    when: always
+    # Explicit file, not the whole directory — see unit:go's artifacts comment.
+    paths:
+      - test-results/integ.txt
+    expire_in: 1 week
+
+# Pipeline result notification via chat webhook.
+# Parses JUnit XML artifacts directly (no GitLab API dependency, no curl).
+# Mirrors the Python SDK notify job structure.
+notify:webhook:
+  image: python:3.11-slim
+  tags:
+    - openapi
+  stage: .post
+  when: always
+  allow_failure: true
+  needs:
+    - job: unit:go
+      artifacts: true
+    - job: integration:go
+      artifacts: true
+  script:
+    - |
+      python3 << 'PYEOF'
+      import os, json, urllib.request, glob
+      import xml.etree.ElementTree as ET
+
+      webhook_url = os.environ.get("WEBHOOK_URL", "")
+      if not webhook_url:
+          print("WEBHOOK_URL not configured, skipping notification")
+          exit(0)
+      card_content_tag = os.environ["CARD_CONTENT_TAG"]
+
+      # 1. Parse JUnit XML artifacts — split unit/integration stats
+      def parse_xml(path):
+          t, f, s = 0, 0, 0
+          try:
+              tree = ET.parse(path)
+              root = tree.getroot()
+              for suite in root.iter("testsuite"):
+                  t += int(suite.get("tests", 0))
+                  f += int(suite.get("failures", 0)) + int(suite.get("errors", 0))
+                  s += int(suite.get("skipped", 0))
+          except Exception as e:
+              print(f"Failed to parse {path}: {e}")
+          return t, t - f - s, f, s
+
+      # Parse Go test output (text, not JUnit XML).
+      # Returns None tuple on file-missing / parse error so callers can
+      # distinguish "0 failures" from "couldn't read results at all".
+      def parse_go_txt(path):
+          import re
+          t, p, f, s = 0, 0, 0, 0
+          try:
+              content = open(path).read()
+          except Exception as e:
+              print(f"Failed to open {path}: {e}")
+              return None, None, None, None
+          for m in re.finditer(r'--- (PASS|FAIL|SKIP):', content):
+              if m.group(1) == 'PASS': p += 1
+              elif m.group(1) == 'FAIL': f += 1
+              elif m.group(1) == 'SKIP': s += 1
+          t = p + f + s
+          print(f"Parsed {path}: {t} tests: {p} passed, {f} failed, {s} skipped")
+          return t, p, f, s
+
+      unit_t, unit_p, unit_f, unit_s = parse_go_txt("test-results/unit.txt")
+      integ_t, integ_p, integ_f, integ_s = parse_go_txt("test-results/integ.txt")
+
+      # Key off `is not None`, not truthiness: a readable file with 0 test lines
+      # yields 0 (falsy but perfectly available). Using `if unit_t` here would
+      # both mislabel that as "output unavailable" AND — since 0 is not None —
+      # let has_failed stay False, silently passing a run that collected no
+      # tests at all. Now that passes notify nobody, that must not be silent.
+      unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_f is not None else "Unit: output unavailable"
+      integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_f is not None else "Integration: output unavailable"
+
+      # 2. Determine pass/fail.
+      #    unit_f/integ_f is None → txt missing/unreadable; treat as failed (conservative).
+      #    unit_f/integ_f > 0     → explicit test failures.
+      #    CI_PIPELINE_STATUS is unreliable in .post stage (reads "running"),
+      #    so we rely exclusively on parsed text counts.
+      #    unit_t/integ_t == 0 → file parsed but contained no test results at
+      #                            all (build broke before any test ran, or a
+      #                            bad -run filter matched nothing). Not a pass.
+      has_failed = (unit_f or 0) > 0 or (integ_f or 0) > 0 or unit_f is None or integ_f is None
+      if unit_f is None:
+          print("Unit test output unavailable — treating pipeline as failed")
+      if integ_f is None:
+          print("Integration test output unavailable — treating pipeline as failed")
+      if unit_f is not None and unit_t == 0:
+          has_failed = True
+          print("Unit output parsed but contained 0 tests — treating as failed")
+      if integ_f is not None and integ_t == 0:
+          has_failed = True
+          print("Integration output parsed but contained 0 tests — treating as failed")
+
+      # 2b. Notify on failure only. A green card every 4 hours is noise nobody
+      #     reads, which also desensitises the channel to the red ones.
+      #     has_failed already covers "results unparseable" (the `is None`
+      #     terms above), so an unreadable artifact still notifies — silence
+      #     here means "we positively verified everything passed", never
+      #     "we couldn't tell".
+      if not has_failed:
+          print(f"Pipeline passed — {unit_stats} | {integ_stats} — skipping notification")
+          exit(0)
+
+      # 3. Build notification card
+      title = "❌ Pipeline failed" if has_failed else "✅ Pipeline passed"
+      color = "red" if has_failed else "green"
+      project_name = os.environ.get("CI_PROJECT_NAME", "")
+      branch = os.environ.get("CI_COMMIT_REF_NAME", "")
+      commit = os.environ.get("CI_COMMIT_SHORT_SHA", "")
+      pipeline_iid = os.environ.get("CI_PIPELINE_IID", "")
+      pipeline_url = os.environ.get("CI_PROJECT_URL", "") + "/-/pipelines/" + os.environ.get("CI_PIPELINE_ID", "")
+
+      content = f"**Repo:** {project_name}\n**Branch:** {branch}\n**Commit:** {commit}\n"
+      if unit_stats:
+          content += f"\n**Unit tests:** {unit_stats}\n"
+      if integ_stats:
+          content += f"**Integration tests:** {integ_stats}\n"
+      content += f"[View pipeline]({pipeline_url})"
+
+      print(f"===CONTENT===\n{content}\n===END===")
+
+      payload = {
+          "msg_type": "interactive",
+          "card": {
+              "header": {
+                  "title": {"tag": "plain_text", "content": f"{title} #{pipeline_iid} — {project_name}"},
+                  "template": color
+              },
+              "elements": [
+                  {"tag": "div", "text": {"tag": card_content_tag, "content": content}}
+              ]
+          }
+      }
+
+      data = json.dumps(payload).encode("utf-8")
+      req = urllib.request.Request(webhook_url, data=data, headers={"Content-Type": "application/json"})
+      try:
+          with urllib.request.urlopen(req, timeout=10) as resp:
+              result = json.loads(resp.read())
+              print(f"Webhook response: {result}")
+      except Exception as e:
+          print(f"Webhook request failed: {e}")
+      PYEOF

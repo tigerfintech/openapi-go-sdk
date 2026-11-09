@@ -1,5 +1,7 @@
 package model
 
+import "encoding/json"
+
 // Order 订单响应模型。
 // 服务端响应字段为 camelCase，此结构体仅用于 unmarshal 查询类接口的返回。
 // 下单/改单请使用 OrderRequest。
@@ -155,6 +157,8 @@ type OrderRequest struct {
 	OutsideRth bool `json:"outside_rth,omitempty"`
 	// 附加订单（止盈/止损）
 	OrderLegs []OrderLegRequest `json:"order_legs,omitempty"`
+	// 算法策略 (TWAP / VWAP) —— 顶层字段,不在 algo_params 里
+	AlgoStrategy string `json:"algo_strategy,omitempty"`
 	// 算法参数
 	AlgoParams *AlgoParamsRequest `json:"algo_params,omitempty"`
 	// 股票代码
@@ -255,14 +259,53 @@ type OrderLegRequest struct {
 	Quantity int64 `json:"quantity,omitempty"`
 }
 
-// AlgoParamsRequest 算法订单参数请求模型
+// AlgoParamsRequest 算法订单参数请求模型 (TWAP / VWAP).
+//
+// 字段与 Python SDK 的 AlgoParams 对齐。SDK 内部通过 MarshalJSON 把这个
+// 对象序列化成网关期望的 [{tag, value}, ...] 数组形式,调用方直接传自然的
+// 结构体即可。
+//
+// 注意: AlgoStrategy 不属于 algo_params —— 它是 OrderRequest 顶层字段。
+// 老代码里如果误设 AlgoParams.AlgoStrategy 会被静默丢弃,请改用
+// OrderRequest.AlgoStrategy。
 type AlgoParamsRequest struct {
-	// 算法策略（TWAP/VWAP）
-	AlgoStrategy string `json:"algo_strategy,omitempty"`
-	// 开始时间
-	StartTime string `json:"start_time,omitempty"`
-	// 结束时间
-	EndTime string `json:"end_time,omitempty"`
-	// 参与率
+	// 开始时间 (epoch-ms, TWAP / VWAP 专用)
+	StartTime int64 `json:"start_time,omitempty"`
+	// 结束时间 (epoch-ms, TWAP / VWAP 专用)
+	EndTime int64 `json:"end_time,omitempty"`
+	// 是否尽可能减少交易次数 (VWAP 专用)
+	NoTakeLiq *bool `json:"no_take_liq,omitempty"`
+	// 是否允许生效时间结束后继续完成成交 (TWAP / VWAP 专用)
+	AllowPastEndTime *bool `json:"allow_past_end_time,omitempty"`
+	// 参与率 (VWAP 专用, 0.01–0.5)
 	ParticipationRate float64 `json:"participation_rate,omitempty"`
+}
+
+// MarshalJSON 把 AlgoParamsRequest 序列化成网关期望的 [{tag, value}, ...]
+// 数组形式(与 Python SDK 的 AlgoParams.to_dict 保持一致)。
+//
+// 服务端不接受 algo_params 是 object,只接受 tag/value 数组。这个方法让
+// 用户可以传自然的结构体,TWAP / VWAP 订单开箱即用。
+func (a AlgoParamsRequest) MarshalJSON() ([]byte, error) {
+	type tagValue struct {
+		Tag   string      `json:"tag"`
+		Value interface{} `json:"value"`
+	}
+	out := make([]tagValue, 0, 5)
+	if a.StartTime != 0 {
+		out = append(out, tagValue{Tag: "start_time", Value: a.StartTime})
+	}
+	if a.EndTime != 0 {
+		out = append(out, tagValue{Tag: "end_time", Value: a.EndTime})
+	}
+	if a.NoTakeLiq != nil {
+		out = append(out, tagValue{Tag: "no_take_liq", Value: *a.NoTakeLiq})
+	}
+	if a.AllowPastEndTime != nil {
+		out = append(out, tagValue{Tag: "allow_past_end_time", Value: *a.AllowPastEndTime})
+	}
+	if a.ParticipationRate != 0 {
+		out = append(out, tagValue{Tag: "participation_rate", Value: a.ParticipationRate})
+	}
+	return json.Marshal(out)
 }

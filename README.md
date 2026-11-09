@@ -298,9 +298,21 @@ pc.SubscribePosition("")
 | `SubscribeFuture` | `OnFuture` | `*pb.QuoteData` |
 | `SubscribeKline` | `OnKline` | `*pb.KlineData` |
 | `SubscribeAsset` | `OnAsset` | `*pb.AssetData` |
+| `SubscribeAssetWithQuoteType` | `OnAsset` | `*pb.AssetData` |
 | `SubscribePosition` | `OnPosition` | `*pb.PositionData` |
+| `SubscribePositionWithQuoteType` | `OnPosition` | `*pb.PositionData` |
 | `SubscribeOrder` | `OnOrder` | `*pb.OrderStatusData` |
 | `SubscribeTransaction` | `OnTransaction` | `*pb.OrderTransactionData` |
+
+`SubscribeAssetWithQuoteType` / `SubscribePositionWithQuoteType` take an extra
+`assetQuoteType` argument (`"ETH"` / `"RTH"` / `"OVERNIGHT"`) that selects the
+quote session used to value assets and positions; an empty string behaves
+exactly like the plain `SubscribeAsset` / `SubscribePosition` methods.
+
+```go
+pc.SubscribeAssetWithQuoteType("", "OVERNIGHT")
+pc.SubscribePositionWithQuoteType("", "OVERNIGHT")
+```
 
 ## Project Structure
 
@@ -496,7 +508,60 @@ chain, err := qc.OptionChain("AAPL", "2024-01-19")
 
 // 期货交易所列表
 exchanges, err := qc.FutureExchange()
+
+// 逐笔成交
+ticks, err := qc.GetTradeTick(model.TradeTickRequest{Symbols: []string{"AAPL"}})
+// ticks[0].Items[i].PartCode  — 交易所短名，如 "NYSE"、"NSDQ"
+// ticks[0].Items[i].PartName  — 交易所全名，如 "New York Stock Exchange, LLC (NYSE)"
+// ticks[0].Items[i].Cond      — 已转换的成交条件，如 "US_REGULAR_SALE"，参见下方说明
 ```
+
+### 逐笔成交 `cond` 字段说明
+
+`trade_tick` 接口和 push 层返回的 `cond` 字段已由 SDK 转换为可读字符串，含义如下：
+
+**美股（US）**
+
+| 字符 | 含义 |
+|------|------|
+| ` `（空格）| 常规交易（Regular Sale） |
+| `B` | 批量交易（Bunched Trade） |
+| `C` | 现金交易（Cash Trade） |
+| `F` | 跨市场交易（Intermarket Sweep） |
+| `G` | 批量卖出（Bunched Sold Trade） |
+| `H` | 离价交易（Price Variation Trade） |
+| `I` | 碎股交易（Odd Lot Trade） |
+| `K` | 纽交所第 127/155 条交易 |
+| `L` | 延迟交易（Sold Last） |
+| `M` | 中央收市价（Market Center Close Price） |
+| `N` | 隔日交易（Next Day Trade） |
+| `O` | 中央开盘价交易（Market Center Opening Trade） |
+| `P` | 前参考价（Prior Reference Price） |
+| `Q` | 中央开盘价（Market Center Open Price） |
+| `R` | 卖方（Seller） |
+| `T` | 盘前盘后交易（Form T） |
+| `U` | 延长交易时段（Extended Trading Hours） |
+| `V` | 合单交易（Contingent Trade） |
+| `W` | 均价交易（Average Price Trade） |
+| `X` | 跨市场交易（Cross Trade） |
+| `Z` | 场外售出（Sold Out of Sequence） |
+| `4` | 衍生工具定价（Derivatively Priced） |
+| `7` | 合单交易（Qualified Contingent Trade） |
+
+**港股（HK）**
+
+| 字符 | 含义 |
+|------|------|
+| ` `（空格）| 自动对盘（Automatch Normal） |
+| `D` | 碎股交易（Odd Lot Trade） |
+| `U` | 竞价交易（Auction Trade） |
+| `*` | 场外交易（Overseas Trade） |
+| `P` | 开市前成交（Late Trade Off Exchange） |
+| `M` | 非自动对盘（Non-Direct Off Exchange Trade） |
+| `X` | 同券商自动对盘（Direct Off Exchange Trade） |
+| `Y` | 同券商非自动对盘（Automatic Internalized） |
+
+如上表所示，`cond` 值因市场（美股/港股）不同而有所区别。
 
 ## 交易
 
@@ -629,9 +694,20 @@ pc.SubscribePosition("")
 | `SubscribeFuture` | `OnFuture` | `*pb.QuoteData` |
 | `SubscribeKline` | `OnKline` | `*pb.KlineData` |
 | `SubscribeAsset` | `OnAsset` | `*pb.AssetData` |
+| `SubscribeAssetWithQuoteType` | `OnAsset` | `*pb.AssetData` |
 | `SubscribePosition` | `OnPosition` | `*pb.PositionData` |
+| `SubscribePositionWithQuoteType` | `OnPosition` | `*pb.PositionData` |
 | `SubscribeOrder` | `OnOrder` | `*pb.OrderStatusData` |
 | `SubscribeTransaction` | `OnTransaction` | `*pb.OrderTransactionData` |
+
+`SubscribeAssetWithQuoteType` / `SubscribePositionWithQuoteType`比对应的老方法多一个
+`assetQuoteType` 参数（`"ETH"` / `"RTH"` / `"OVERNIGHT"`），用于指定资产和持仓估值使用的
+行情时段；传空字符串等价于 `SubscribeAsset` / `SubscribePosition`。
+
+```go
+pc.SubscribeAssetWithQuoteType("", "OVERNIGHT")
+pc.SubscribePositionWithQuoteType("", "OVERNIGHT")
+```
 
 ## 项目结构
 

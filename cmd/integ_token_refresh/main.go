@@ -125,7 +125,14 @@ func main() {
 		}),
 	)
 	defer sharedTM.StopAutoRefresh()
-	sharedTM.StartAutoRefresh(func() (string, error) { return simulatedToken, nil })
+	// The refreshFn must call primary3.SetCurrentToken so that primary3's
+	// atomicToken (shared with quoteHC via WithSharedTokenFrom) is updated.
+	// Without this call the test passes vacuously: sharedTM.GetToken() returns
+	// simulatedToken but quoteHC never sees it.
+	sharedTM.StartAutoRefresh(func() (string, error) {
+		primary3.SetCurrentToken(simulatedToken)
+		return simulatedToken, nil
+	})
 	_ = sharedTM.SetToken(makeExpiredToken())
 
 	deadline3 := time.Now().Add(2 * time.Second)
