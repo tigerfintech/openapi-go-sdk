@@ -49,7 +49,7 @@ type QuoteBasicData struct {
 	MinTick        *float32 `protobuf:"fixed32,27,opt,name=minTick,proto3,oneof" json:"minTick,omitempty"`             // min tick, only Futures support
 	// minute data: price, average price, time, volume
 	Mi *QuoteData_Minute `protobuf:"bytes,28,opt,name=mi,proto3,oneof" json:"mi,omitempty"`
-	// Decimal value encoded as a string to avoid precision loss
+	// Trading volume encoded as a double; precision may be lost for large or fractional values.
 	VolumeDecimal *float64 `protobuf:"fixed64,29,opt,name=volumeDecimal,proto3,oneof" json:"volumeDecimal,omitempty"`
 	// cumulative volume of CURB + RTH + GTH, only Options support
 	CumVolume *int64 `protobuf:"zigzag64,30,opt,name=cumVolume,proto3,oneof" json:"cumVolume,omitempty"`
