@@ -19,4 +19,4 @@ package tigeropen
 // Deprecated: Use client.SDKVersion instead. This constant is kept for
 // backwards compatibility and will be removed in a future major release.
 // Callers that reference tigeropen.Version will continue to compile.
-const Version = "0.5.2"
+const Version = "0.5.5"

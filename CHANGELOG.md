@@ -5,7 +5,26 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.5] - 2026-11-09
+
+### Added
+- 资产与持仓查询新增 `AssetQuoteType` 字段（`ETH` / `RTH` / `OVERNIGHT`），可按夜盘口径估值：`PositionsRequest`、`AssetsRequest`、`AggregateAssetsRequest`，wire 字段名 `asset_quote_type`。
+- 推送订阅新增资产行情口径：`PushClient.SubscribeAssetWithQuoteType(account, assetQuoteType)` / `SubscribePositionWithQuoteType(account, assetQuoteType)`，自动重连时按原口径恢复订阅。
+- `push.BuildSubscribeMessageWithAssetQuoteType`：构造带 `Subscribe.assetQuoteType`（字段号 5）的订阅报文。
+
+### 兼容性
+- 原有 `Subscribe` / `BuildSubscribeMessage` 签名与行为不变；不传口径时报文字节与此前一致。
+
+## [0.5.4] - 2026-09-02
+
+### Fixed
+- 修复 `GetOptionKline`/`GetOptionQuote` 通过期权 identifier 查询时，整数行权价（如 315）可能查不到数据的问题。
+- `GetOptionChain` 现在默认返回 Greeks（delta/gamma/theta/vega/rho/隐含波动率）。
+
+## [0.5.3] - 2026-08-27
+
+### Added
+- `Brief.Amount` 实时行情字段，支持股票和数字货币成交额。
 
 ## [0.5.2] - 2026-08-26
 

@@ -118,7 +118,7 @@ func TestGetMarketState(t *testing.T) {
 
 func TestGetRealTimeQuote(t *testing.T) {
 	server := mockServer(t, "quote_real_time", []map[string]interface{}{
-		{"symbol": "AAPL", "latestPrice": 150.0},
+		{"symbol": "AAPL", "latestPrice": 150.0, "amount": 123456.78},
 	})
 	defer server.Close()
 
@@ -129,6 +129,22 @@ func TestGetRealTimeQuote(t *testing.T) {
 	}
 	if data == nil {
 		t.Fatal("GetRealTimeQuote 返回 nil data")
+	}
+	if len(data) != 1 || data[0].Amount != 123456.78 {
+		t.Fatalf("GetRealTimeQuote amount 解码错误: %+v", data)
+	}
+
+	server = mockServer(t, "quote_real_time", []map[string]interface{}{
+		{"symbol": "BTCUSD", "latestPrice": 65000.0, "amount": 987654.32},
+	})
+	defer server.Close()
+	qc = newTestQuoteClient(server.URL)
+	data, err = qc.GetRealTimeQuote(model.BriefRequest{Symbols: []string{"BTCUSD"}, SecType: "CC"})
+	if err != nil {
+		t.Fatalf("GetRealTimeQuote CC 失败: %v", err)
+	}
+	if len(data) != 1 || data[0].Symbol != "BTCUSD" || data[0].Amount != 987654.32 {
+		t.Fatalf("GetRealTimeQuote CC amount 解码错误: %+v", data)
 	}
 }
 
@@ -2242,7 +2258,7 @@ func TestOptionContractFromIdentifier_happy(t *testing.T) {
 	if c.Right != "CALL" {
 		t.Errorf("Right = %q, 期望 CALL", c.Right)
 	}
-	if c.Strike != 150.0 {
+	if c.Strike != "150.0" {
 		t.Errorf("Strike = %v, 期望 150.0", c.Strike)
 	}
 	c2, err := optionContractFromIdentifier("AAPL 240119P00140000", "America/New_York")
@@ -2252,8 +2268,35 @@ func TestOptionContractFromIdentifier_happy(t *testing.T) {
 	if c2.Right != "PUT" {
 		t.Errorf("Right = %q, 期望 PUT", c2.Right)
 	}
-	if c2.Strike != 140.0 {
+	if c2.Strike != "140.0" {
 		t.Errorf("Strike = %v, 期望 140.0", c2.Strike)
+	}
+}
+
+// TestFormatOccStrike 验证 strike 字符串化：整数补 .0，小数保留原始精度，
+// 且绝不产出裸整数 token（服务端对 kline/quote 查询按字符串精确匹配 strike，
+// "325" 与 "325.0" 不等价，325 会静默查不到数据）。
+func TestFormatOccStrike(t *testing.T) {
+	cases := []struct {
+		strikeInt int64
+		want      string
+	}{
+		{325000, "325.0"},
+		{150000, "150.0"},
+		{150500, "150.5"},
+		{1000, "1.0"},
+		{325250, "325.25"},
+		{325125, "325.125"},
+		{0, "0.0"},
+	}
+	for _, tc := range cases {
+		got := formatOccStrike(tc.strikeInt)
+		if got != tc.want {
+			t.Errorf("formatOccStrike(%d) = %q, want %q", tc.strikeInt, got, tc.want)
+		}
+		if !strings.Contains(got, ".") {
+			t.Errorf("formatOccStrike(%d) = %q must contain a decimal point", tc.strikeInt, got)
+		}
 	}
 }
 
