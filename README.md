@@ -298,9 +298,21 @@ pc.SubscribePosition("")
 | `SubscribeFuture` | `OnFuture` | `*pb.QuoteData` |
 | `SubscribeKline` | `OnKline` | `*pb.KlineData` |
 | `SubscribeAsset` | `OnAsset` | `*pb.AssetData` |
+| `SubscribeAssetWithQuoteType` | `OnAsset` | `*pb.AssetData` |
 | `SubscribePosition` | `OnPosition` | `*pb.PositionData` |
+| `SubscribePositionWithQuoteType` | `OnPosition` | `*pb.PositionData` |
 | `SubscribeOrder` | `OnOrder` | `*pb.OrderStatusData` |
 | `SubscribeTransaction` | `OnTransaction` | `*pb.OrderTransactionData` |
+
+`SubscribeAssetWithQuoteType` / `SubscribePositionWithQuoteType` take an extra
+`assetQuoteType` argument (`"ETH"` / `"RTH"` / `"OVERNIGHT"`) that selects the
+quote session used to value assets and positions; an empty string behaves
+exactly like the plain `SubscribeAsset` / `SubscribePosition` methods.
+
+```go
+pc.SubscribeAssetWithQuoteType("", "OVERNIGHT")
+pc.SubscribePositionWithQuoteType("", "OVERNIGHT")
+```
 
 ## Project Structure
 
@@ -682,9 +694,20 @@ pc.SubscribePosition("")
 | `SubscribeFuture` | `OnFuture` | `*pb.QuoteData` |
 | `SubscribeKline` | `OnKline` | `*pb.KlineData` |
 | `SubscribeAsset` | `OnAsset` | `*pb.AssetData` |
+| `SubscribeAssetWithQuoteType` | `OnAsset` | `*pb.AssetData` |
 | `SubscribePosition` | `OnPosition` | `*pb.PositionData` |
+| `SubscribePositionWithQuoteType` | `OnPosition` | `*pb.PositionData` |
 | `SubscribeOrder` | `OnOrder` | `*pb.OrderStatusData` |
 | `SubscribeTransaction` | `OnTransaction` | `*pb.OrderTransactionData` |
+
+`SubscribeAssetWithQuoteType` / `SubscribePositionWithQuoteType`比对应的老方法多一个
+`assetQuoteType` 参数（`"ETH"` / `"RTH"` / `"OVERNIGHT"`），用于指定资产和持仓估值使用的
+行情时段；传空字符串等价于 `SubscribeAsset` / `SubscribePosition`。
+
+```go
+pc.SubscribeAssetWithQuoteType("", "OVERNIGHT")
+pc.SubscribePositionWithQuoteType("", "OVERNIGHT")
+```
 
 ## 项目结构
 
