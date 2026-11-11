@@ -5,7 +5,7 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.5] - 2026-11-09
+## [Unreleased]
 
 ### Added
 - 新增资讯查询客户端 `news.NewsClient`，封装两个资讯接口（契约见 stock-openapi `docs/news_api_design.md`）：
@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 路由说明
 - 资讯接口走主网关（`ServerURL`），不走行情域名（`QuoteServerURL`）——`NewsClient` 必须基于 `client.NewHttpClient` 构造（`NewNewsClientFromConfig` 内部即如此）；`news_test.go` 含路由回归测试（与 Java SDK `testNewsRoutesToMainGatewayNotQuote` 对齐）。
+
+## [0.5.5] - 2026-11-09
+
+### Added
+- 资产与持仓查询新增 `AssetQuoteType` 字段（`ETH` / `RTH` / `OVERNIGHT`），可按夜盘口径估值：`PositionsRequest`、`AssetsRequest`、`AggregateAssetsRequest`，wire 字段名 `asset_quote_type`。
+- 推送订阅新增资产行情口径：`PushClient.SubscribeAssetWithQuoteType(account, assetQuoteType)` / `SubscribePositionWithQuoteType(account, assetQuoteType)`，自动重连时按原口径恢复订阅。
+- `push.BuildSubscribeMessageWithAssetQuoteType`：构造带 `Subscribe.assetQuoteType`（字段号 5）的订阅报文。
+
+### 兼容性
+- 原有 `Subscribe` / `BuildSubscribeMessage` 签名与行为不变；不传口径时报文字节与此前一致。
 
 ## [0.5.4] - 2026-09-02
 
