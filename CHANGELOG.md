@@ -5,7 +5,7 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.6] - 2026-11-11
 
 ### Added
 - 新增资讯查询客户端 `news.NewsClient`，封装两个资讯接口（契约见 stock-openapi `docs/news_api_design.md`）：

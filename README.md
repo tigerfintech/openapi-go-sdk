@@ -5,7 +5,7 @@ Go SDK for Tiger Brokers OpenAPI, providing market data queries, order placement
 [![Go Reference](https://pkg.go.dev/badge/github.com/tigerfintech/openapi-go-sdk.svg)](https://pkg.go.dev/github.com/tigerfintech/openapi-go-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> Current version: **0.5.5** — see [CHANGELOG.md](./CHANGELOG.md).
+> Current version: **0.5.6** — see [CHANGELOG.md](./CHANGELOG.md).
 
 ## Features
 
@@ -419,7 +419,7 @@ Tiger 证券 OpenAPI Go SDK，提供行情查询、订单交易、账户管理�
 [![Go Reference](https://pkg.go.dev/badge/github.com/tigerfintech/openapi-go-sdk.svg)](https://pkg.go.dev/github.com/tigerfintech/openapi-go-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> 当前版本：**0.5.5**，详见 [CHANGELOG.md](./CHANGELOG.md)。
+> 当前版本：**0.5.6**，详见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 功能特性
 
