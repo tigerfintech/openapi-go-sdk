@@ -5,11 +5,21 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.6] - 2026-11-10
+## [0.5.6] - 2026-11-11
+
 ### Added
 - US option quotes and option-chain legs expose cumulative volume/amount and extended-session quotes for GTH/CURB.
 - Protobuf option callbacks read GTH/CURB prices and session volume/amount from existing fields with PreMarket/AfterHours tags; cumulative totals remain independent. The unpublished nested push object is removed. HTTP snapshots and option-chain objects remain available.
 - Option minute-bar requests can include GTH/CURB through the optional with_hour_trading parameter; existing calls retain the server default.
+- 新增资讯查询客户端 `news.NewsClient`，封装两个资讯接口（契约见 stock-openapi `docs/news_api_design.md`）：
+  - `GetStockNews(req model.NewsStockListRequest)` — 个股新闻列表（wire method `news_stock_list`）：`symbol` 必填且仅支持单只（下游资讯服务不支持批量查询）；`page_count` / `page_size` 可选，缺省时服务端默认 1 / 20；翻页按页码进行。
+  - `GetMarketNews(req model.NewsHighlightListRequest)` — 市场要闻列表（wire method `news_highlight_list`）：翻页只走 `last_id` 游标（取上一页 `items` 最后一条的 `id`，不传从最新开始），响应信封 `pageCount` 恒为 1。
+  - 共用响应模型 `model.NewsPage`（`items` + `pageCount` / `pageSize` / `totalPage` / `totalSize`）与 `model.NewsItem`（`id` / `title` / `summary` / `pubTimestamp`（秒级）/ `url`）。
+  - `NewNewsClientFromConfig(cfg)` 直接从 `ClientConfig` 创建；`NewNewsClient(httpClient)` 接受已有主网关客户端。
+- 请求入参 `lang`，语言枚举 `zh_CN` / `zh_TW` / `en_US`。
+
+### 路由说明
+- 资讯接口走主网关（`ServerURL`），不走行情域名（`QuoteServerURL`）——`NewsClient` 必须基于 `client.NewHttpClient` 构造（`NewNewsClientFromConfig` 内部即如此）；`news_test.go` 含路由回归测试（与 Java SDK `testNewsRoutesToMainGatewayNotQuote` 对齐）。
 
 ## [0.5.5] - 2026-11-09
 
