@@ -264,6 +264,12 @@ func (c *QuoteClient) GetOptionKline(identifiers []string, period string, beginT
 
 // GetOptionKlineWithOpts retrieves option kline data with optional limit and sort direction.
 func (c *QuoteClient) GetOptionKlineWithOpts(identifiers []string, period string, beginTime, endTime int64, limit int, sortDir string, timezone ...string) ([]model.Kline, error) {
+	return c.GetOptionKlineWithHourTrading(identifiers, period, beginTime, endTime, limit, sortDir, nil, timezone...)
+}
+
+// GetOptionKlineWithHourTrading additionally controls GTH/CURB minute bars.
+// A nil flag omits with_hour_trading and preserves the server default.
+func (c *QuoteClient) GetOptionKlineWithHourTrading(identifiers []string, period string, beginTime, endTime int64, limit int, sortDir string, withHourTrading *bool, timezone ...string) ([]model.Kline, error) {
 	tz := ""
 	if len(timezone) > 0 {
 		tz = timezone[0]
@@ -294,6 +300,9 @@ func (c *QuoteClient) GetOptionKlineWithOpts(identifiers []string, period string
 		}
 		if sortDir != "" {
 			entry["sort_dir"] = sortDir
+		}
+		if withHourTrading != nil {
+			entry["with_hour_trading"] = *withHourTrading
 		}
 		optionQuery = append(optionQuery, entry)
 	}
