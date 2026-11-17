@@ -62,6 +62,15 @@ type Contract struct {
 	IsEtf                   bool   `json:"isEtf,omitempty"`
 	SupportOvernightTrading bool   `json:"supportOvernightTrading,omitempty"`
 	SupportFractionalShare  bool   `json:"supportFractionalShare,omitempty"`
+	// OrderCapabilities lists supported order combinations; nil means no capabilities were provided.
+	OrderCapabilities []OrderCapability `json:"orderCapabilities,omitempty"`
+}
+
+// OrderCapability describes a supported order type, time in force, and trading session.
+type OrderCapability struct {
+	OrderType          *string `json:"orderType,omitempty"`
+	TimeInForce        *string `json:"timeInForce,omitempty"`
+	TradingSessionType *string `json:"tradingSessionType,omitempty"`
 }
 
 // TickSize 最小报价单位价格区间
