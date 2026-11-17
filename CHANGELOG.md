@@ -7,13 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.7] - 2026-11-18
 
-### Added
+### 新增
 
 - 合约查询新增订单能力信息，可查看支持的订单类型、订单有效期和交易时段组合。
 
 ## [0.5.5] - 2026-11-09
 
-### Added
+### 新增
 - 资产与持仓查询新增 `AssetQuoteType` 字段（`ETH` / `RTH` / `OVERNIGHT`），可按夜盘口径估值：`PositionsRequest`、`AssetsRequest`、`AggregateAssetsRequest`，wire 字段名 `asset_quote_type`。
 - 推送订阅新增资产行情口径：`PushClient.SubscribeAssetWithQuoteType(account, assetQuoteType)` / `SubscribePositionWithQuoteType(account, assetQuoteType)`，自动重连时按原口径恢复订阅。
 - `push.BuildSubscribeMessageWithAssetQuoteType`：构造带 `Subscribe.assetQuoteType`（字段号 5）的订阅报文。
