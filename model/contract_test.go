@@ -9,7 +9,7 @@ import (
 )
 
 func TestContractOrderCapabilities(t *testing.T) {
-	payload := `{"symbol":"AAPL","secType":"OPT","orderCapabilities":[{"orderType":"LMT","timeInForce":"DAY","tradingSessionType":"PRE_RTH_POST"},{"orderType":"LMT","timeInForce":"GTC","tradingSessionType":"GTH_RTH_CURB"}]}`
+	payload := `{"symbol":"AAPL","secType":"OPT","orderCapabilities":[{"orderType":"LMT","timeInForce":"DAY","tradingSessionType":"PRE_RTH_POST"},{"orderType":"LMT","timeInForce":"GTC","tradingSessionType":"PRE_RTH_POST"}]}`
 	var contract Contract
 	if err := json.Unmarshal([]byte(payload), &contract); err != nil {
 		t.Fatal(err)
@@ -22,7 +22,7 @@ func TestContractOrderCapabilities(t *testing.T) {
 		t.Fatalf("unexpected capability: %+v", first)
 	}
 	second := contract.OrderCapabilities[1]
-	if second.TradingSessionType == nil || *second.TradingSessionType != "GTH_RTH_CURB" {
+	if second.TradingSessionType == nil || *second.TradingSessionType != "PRE_RTH_POST" {
 		t.Fatalf("trading session was not preserved: %+v", second)
 	}
 	encoded, err := json.Marshal(contract)
