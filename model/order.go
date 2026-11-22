@@ -155,6 +155,8 @@ type OrderRequest struct {
 	TimeInForce string `json:"time_in_force,omitempty"`
 	// 是否允许盘前盘后
 	OutsideRth bool `json:"outside_rth,omitempty"`
+	// 综合/模拟账号交易时段，如 PRE_RTH、RTH_POST；空字符串保留服务端默认行为。
+	TradingSessionType string `json:"trading_session_type,omitempty"`
 	// 附加订单（止盈/止损）
 	OrderLegs []OrderLegRequest `json:"order_legs,omitempty"`
 	// 算法策略 (TWAP / VWAP) —— 顶层字段,不在 algo_params 里

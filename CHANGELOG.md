@@ -5,6 +5,12 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### New
+
+- `OrderRequest.TradingSessionType` 新增综合/模拟账号交易时段字符串参数，下单及 preview 可传 `PRE_RTH`、`RTH_POST`；空字符串不发送该字段。
+
 ## [0.5.7] - 2026-11-18
 
 ### New
