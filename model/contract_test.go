@@ -8,6 +8,72 @@ import (
 	"pgregory.net/rapid"
 )
 
+func TestContractOrderCapabilities(t *testing.T) {
+	payload := `{"symbol":"AAPL","secType":"OPT","orderCapabilities":[{"orderType":"LMT","timeInForce":"DAY","tradingSessionType":"PRE_RTH_POST"},{"orderType":"LMT","timeInForce":"GTC","tradingSessionType":"PRE_RTH_POST"}]}`
+	var contract Contract
+	if err := json.Unmarshal([]byte(payload), &contract); err != nil {
+		t.Fatal(err)
+	}
+	if len(contract.OrderCapabilities) != 2 {
+		t.Fatalf("expected two order capabilities, got %v", contract.OrderCapabilities)
+	}
+	first := contract.OrderCapabilities[0]
+	if first.OrderType == nil || *first.OrderType != "LMT" || first.TimeInForce == nil || *first.TimeInForce != "DAY" || first.TradingSessionType == nil || *first.TradingSessionType != "PRE_RTH_POST" {
+		t.Fatalf("unexpected capability: %+v", first)
+	}
+	second := contract.OrderCapabilities[1]
+	if second.TradingSessionType == nil || *second.TradingSessionType != "PRE_RTH_POST" {
+		t.Fatalf("trading session was not preserved: %+v", second)
+	}
+	encoded, err := json.Marshal(contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var expected, actual map[string]interface{}
+	if err := json.Unmarshal([]byte(payload), &expected); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(encoded, &actual); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(expected, actual) {
+		t.Fatalf("wire fields changed: got %s", encoded)
+	}
+	var batch []Contract
+	if err := json.Unmarshal([]byte("["+payload+"]"), &batch); err != nil {
+		t.Fatal(err)
+	}
+	if len(batch) != 1 || !reflect.DeepEqual(batch[0], contract) {
+		t.Fatalf("batch capabilities changed: %+v", batch)
+	}
+}
+
+func TestContractOrderCapabilitiesOptionalValues(t *testing.T) {
+	for _, payload := range []string{`{"symbol":"AAPL","secType":"OPT"}`, `{"symbol":"AAPL","secType":"OPT","orderCapabilities":null}`} {
+		var contract Contract
+		if err := json.Unmarshal([]byte(payload), &contract); err != nil {
+			t.Fatal(err)
+		}
+		if contract.OrderCapabilities != nil {
+			t.Fatalf("expected nil capabilities for %s", payload)
+		}
+	}
+	var contract Contract
+	if err := json.Unmarshal([]byte(`{"symbol":"AAPL","secType":"OPT","orderCapabilities":[]}`), &contract); err != nil {
+		t.Fatal(err)
+	}
+	if contract.OrderCapabilities == nil || len(contract.OrderCapabilities) != 0 {
+		t.Fatalf("expected an explicit empty list, got %+v", contract.OrderCapabilities)
+	}
+	var capability OrderCapability
+	if err := json.Unmarshal([]byte(`{"orderType":null}`), &capability); err != nil {
+		t.Fatal(err)
+	}
+	if capability.OrderType != nil || capability.TimeInForce != nil || capability.TradingSessionType != nil {
+		t.Fatalf("missing capability fields should remain nil: %+v", capability)
+	}
+}
+
 // 测试 Contract JSON 序列化 round-trip（单元测试）
 func TestContractJSONRoundTrip(t *testing.T) {
 	original := Contract{
