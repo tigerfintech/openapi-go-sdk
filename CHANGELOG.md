@@ -5,17 +5,20 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
-
-### New
-
-- `OrderRequest.TradingSessionType` 新增综合/模拟账号交易时段字符串参数，下单及 preview 可传 `PRE_RTH`、`RTH_POST`；空字符串不发送该字段。
-
-## [0.5.7] - 2026-11-18
+## [0.5.7] - Unreleased
 
 ### New
 
 - 合约查询新增订单能力信息，可查看支持的订单类型、订单有效期和交易时段组合。
+- `OrderRequest.TradingSessionType` 支持综合/模拟账号交易时段字符串参数，下单及 preview 可传 `PRE_RTH`、`RTH_POST`；空字符串不发送该字段。
+
+## [0.5.6] - 2026-11-11
+
+### Added
+- US option quotes and option-chain legs expose cumulative volume/amount and extended-session quotes for GTH/CURB.
+- Protobuf option callbacks read GTH/CURB prices and session volume/amount from existing fields with PreMarket/AfterHours tags; cumulative totals remain independent. The unpublished nested push object is removed. HTTP snapshots and option-chain objects remain available.
+- Option minute-bar requests can include GTH/CURB through the optional with_hour_trading parameter; existing calls retain the server default.
+- News query client `news.NewsClient` with `GetStockNews` (per-symbol stock news, page-number pagination) and `GetMarketNews` (market highlights, `last_id` cursor pagination).
 
 ## [0.5.5] - 2026-11-09
 

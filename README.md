@@ -5,11 +5,12 @@ Go SDK for Tiger Brokers OpenAPI, providing market data queries, order placement
 [![Go Reference](https://pkg.go.dev/badge/github.com/tigerfintech/openapi-go-sdk.svg)](https://pkg.go.dev/github.com/tigerfintech/openapi-go-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> Current version: **0.4.1** — see [CHANGELOG.md](./CHANGELOG.md).
+> Current version: **0.5.6** — see [CHANGELOG.md](./CHANGELOG.md).
 
 ## Features
 
 - Market data queries (quotes, K-line, depth, options, futures)
+- News queries (per-symbol stock news, market highlights)
 - Order placement and management (limit/market orders, modify, cancel)
 - Account management (assets, positions, order history)
 - Real-time push via TCP + TLS + Protobuf (quotes, trades, account updates)
@@ -204,6 +205,75 @@ positions, err := tc.Positions()
 assets, err := tc.Assets()
 ```
 
+## News
+
+The SDK exposes two news query APIs. Both are sent to the **main gateway** (the same server used by trading methods, not the quote cluster):
+
+| API | method | Pagination |
+|-----|--------|------------|
+| Stock news | `news_stock_list` | `page_count` / `page_size` (server defaults 1 / 20) |
+| Market highlights | `news_highlight_list` | `last_id` cursor only (response `pageCount` is always 1) |
+
+```go
+import (
+	"github.com/tigerfintech/openapi-go-sdk/model"
+	"github.com/tigerfintech/openapi-go-sdk/news"
+)
+
+nc := news.NewNewsClientFromConfig(cfg)
+
+// Stock news for a single symbol
+page, err := nc.GetStockNews(model.NewsStockListRequest{Symbol: "AAPL", Lang: "zh_CN"})
+// page.Items[i].ID / .Title / .Summary / .PubTimestamp (seconds) / .URL
+// page.PageCount / .PageSize / .TotalPage / .TotalSize
+
+// Market highlights — cursor pagination
+page, err = nc.GetMarketNews(model.NewsHighlightListRequest{Lang: "zh_CN"})
+// next page: pass the ID of the last item of the current page
+if len(page.Items) > 0 {
+	next := model.NewsHighlightListRequest{LastID: page.Items[len(page.Items)-1].ID}
+	page, err = nc.GetMarketNews(next)
+}
+```
+
+`model.NewsStockListRequest` parameters:
+
+| Field | Required | Description |
+|-------|:--------:|-------------|
+| `Symbol` | Yes | Ticker, **single symbol only** (batch queries are not supported) |
+| `Lang` | No | `zh_CN` / `zh_TW` / `en_US` |
+| `PageCount` | No | Page number, server default 1, must be >= 1 |
+| `PageSize` | No | Page size, server default 20, valid range 1–50 |
+
+`model.NewsHighlightListRequest` parameters:
+
+| Field | Required | Description |
+|-------|:--------:|-------------|
+| `Lang` | No | Same as above |
+| `LastID` | No | Cursor. Empty starts from the newest; for the next page pass the `ID` of the last item of the previous page |
+
+Both methods return `*model.NewsPage`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Items` | `[]model.NewsItem` | News items of the current page |
+| `PageCount` | `int` | Current page number (always 1 for market highlights) |
+| `PageSize` | `int` | Page size |
+| `TotalPage` | `int` | Total number of pages |
+| `TotalSize` | `int` | Total number of items |
+
+`model.NewsItem` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ID` | `string` | News ID (also the source of the highlight cursor) |
+| `Title` | `string` | Title |
+| `Summary` | `string` | Summary |
+| `PubTimestamp` | `int64` | Publish timestamp (seconds) |
+| `URL` | `string` | Article URL |
+
+Routing note: news requests must reach the main gateway. Build the client with `news.NewNewsClientFromConfig(cfg)` (which internally uses `client.NewHttpClient`) or pass a main-gateway client to `news.NewNewsClient`; do not pass a client built with `client.NewQuoteHttpClient`, which would route news traffic to the quote cluster.
+
 ## Raw API Access
 
 When the SDK has not yet wrapped a specific API, use `ExecuteRaw` to call it directly:
@@ -324,6 +394,7 @@ openapi-go-sdk/
 ├── model/     # Data models (Order, Contract, Position, enums)
 ├── quote/     # Market data query client
 ├── trade/     # Trading client
+├── news/      # News query client
 ├── push/      # TCP+TLS push client (Protobuf)
 │   └── pb/    # Generated Protobuf types
 ├── logger/    # Logging module
@@ -348,11 +419,12 @@ Tiger 证券 OpenAPI Go SDK，提供行情查询、订单交易、账户管理�
 [![Go Reference](https://pkg.go.dev/badge/github.com/tigerfintech/openapi-go-sdk.svg)](https://pkg.go.dev/github.com/tigerfintech/openapi-go-sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> 当前版本：**0.2.0**，详见 [CHANGELOG.md](./CHANGELOG.md)。
+> 当前版本：**0.5.6**，详见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 功能特性
 
 - 行情查询（报价、K 线、深度、期权、期货）
+- 资讯查询（个股新闻、市场要闻）
 - 订单交易（限价/市价单、修改、撤单）
 - 账户管理（资产、持仓、订单历史）
 - 实时推送：TCP + TLS + Protobuf（行情、成交、账户变动）
@@ -600,6 +672,75 @@ positions, err := tc.Positions()
 assets, err := tc.Assets()
 ```
 
+## 资讯查询
+
+SDK 提供两个资讯查询接口，均发往**主网关**（与交易接口同一域名，不走行情集群）：
+
+| 接口 | method | 翻页方式 |
+|------|--------|----------|
+| 个股新闻 | `news_stock_list` | `page_count` / `page_size`（缺省时服务端默认 1 / 20） |
+| 市场要闻 | `news_highlight_list` | 仅 `last_id` 游标（响应 `pageCount` 恒为 1） |
+
+```go
+import (
+	"github.com/tigerfintech/openapi-go-sdk/model"
+	"github.com/tigerfintech/openapi-go-sdk/news"
+)
+
+nc := news.NewNewsClientFromConfig(cfg)
+
+// 个股新闻（单标的）
+page, err := nc.GetStockNews(model.NewsStockListRequest{Symbol: "AAPL", Lang: "zh_CN"})
+// page.Items[i].ID / .Title / .Summary / .PubTimestamp（秒级）/ .URL
+// page.PageCount / .PageSize / .TotalPage / .TotalSize
+
+// 市场要闻 —— last_id 游标翻页
+page, err = nc.GetMarketNews(model.NewsHighlightListRequest{Lang: "zh_CN"})
+// 下一页：传本页最后一条的 ID
+if len(page.Items) > 0 {
+	next := model.NewsHighlightListRequest{LastID: page.Items[len(page.Items)-1].ID}
+	page, err = nc.GetMarketNews(next)
+}
+```
+
+`model.NewsStockListRequest` 参数：
+
+| 字段 | 必填 | 说明 |
+|------|:----:|------|
+| `Symbol` | 是 | 股票代码，**仅支持单只**（该接口不支持批量查询） |
+| `Lang` | 否 | 语言枚举：`zh_CN` / `zh_TW` / `en_US` |
+| `PageCount` | 否 | 页码，缺省默认 1，取值 >= 1 |
+| `PageSize` | 否 | 每页条数，缺省默认 20，取值 1–50 |
+
+`model.NewsHighlightListRequest` 参数：
+
+| 字段 | 必填 | 说明 |
+|------|:----:|------|
+| `Lang` | 否 | 同上 |
+| `LastID` | 否 | 游标。空 = 从最新开始；下一页传本页 `items` 最后一条的 `ID` |
+
+两个接口都返回 `*model.NewsPage`：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `Items` | `[]model.NewsItem` | 当前页资讯列表 |
+| `PageCount` | `int` | 当前页码（要闻接口恒为 1） |
+| `PageSize` | `int` | 每页条数 |
+| `TotalPage` | `int` | 总页数 |
+| `TotalSize` | `int` | 总条数 |
+
+`model.NewsItem` 字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `ID` | `string` | 资讯 ID（要闻游标翻页 `last_id` 的取值来源） |
+| `Title` | `string` | 标题 |
+| `Summary` | `string` | 摘要 |
+| `PubTimestamp` | `int64` | 发布时间戳（秒级） |
+| `URL` | `string` | 原文链接 |
+
+路由说明：资讯请求必须发往主网关。请使用 `news.NewNewsClientFromConfig(cfg)`（内部使用 `client.NewHttpClient`）创建客户端，或向 `news.NewNewsClient` 传入主网关客户端；不要传入 `client.NewQuoteHttpClient` 构造的行情客户端，否则资讯流量会被路由到行情集群。
+
 ## 原始 API 调用
 
 当 SDK 尚未封装某个 API 时，可以使用 `ExecuteRaw` 直接调用：
@@ -719,6 +860,7 @@ openapi-go-sdk/
 ├── model/     # 数据模型（Order、Contract、Position、枚举）
 ├── quote/     # 行情查询客户端
 ├── trade/     # 交易客户端
+├── news/      # 资讯查询客户端
 ├── push/      # TCP+TLS 推送客户端（Protobuf）
 │   └── pb/    # 生成的 Protobuf 类型
 ├── logger/    # 日志模块
