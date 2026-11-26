@@ -5,7 +5,7 @@ All notable changes to the Tiger Brokers OpenAPI Go SDK will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.7] - Unreleased
+## [0.5.7] - 2026-11-26
 
 ### New
 
@@ -14,11 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.6] - 2026-11-11
 
-### Added
-- US option quotes and option-chain legs expose cumulative volume/amount and extended-session quotes for GTH/CURB.
-- Protobuf option callbacks read GTH/CURB prices and session volume/amount from existing fields with PreMarket/AfterHours tags; cumulative totals remain independent. The unpublished nested push object is removed. HTTP snapshots and option-chain objects remain available.
-- Option minute-bar requests can include GTH/CURB through the optional with_hour_trading parameter; existing calls retain the server default.
-- News query client `news.NewsClient` with `GetStockNews` (per-symbol stock news, page-number pagination) and `GetMarketNews` (market highlights, `last_id` cursor pagination).
+### New
+
+- 美股期权快照和期权链子项新增累计成交量、累计成交额及 GTH/CURB 延长时段行情。
+- Protobuf 期权回调通过既有字段提供 GTH/CURB 价格和当前时段成交量、成交额，以 PreMarket/AfterHours 标识时段，累计量额独立返回。移除未发布的嵌套推送对象，HTTP 快照和期权链中的对应对象保留。
+- 期权分钟 K 线查询支持通过可选参数 `with_hour_trading` 包含 GTH/CURB 数据；原有调用继续使用服务端默认行为。
+- 新增资讯查询客户端 `news.NewsClient`：`GetStockNews` 按单只标的查询股票新闻，支持页码分页；`GetMarketNews` 查询市场要闻，支持 `last_id` 游标分页。
 
 ## [0.5.5] - 2026-11-09
 
